@@ -8,6 +8,9 @@ import Index from "./pages/Index";
 import ScanControl from "./pages/ScanControl";
 import Fuzzer from "./pages/Fuzzer";
 import MachineLearning from "./pages/MachineLearning";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
+import Terminal from "./pages/Terminal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,11 +26,9 @@ const App = () => (
           <Route path="/scan" element={<ScanControl />} />
           <Route path="/fuzzer" element={<Fuzzer />} />
           <Route path="/machine-learning" element={<MachineLearning />} />
-          {/* Placeholder routes for future implementation */}
-          <Route path="/reports" element={<Index />} />
-          <Route path="/ai-analysis" element={<Index />} />
-          <Route path="/settings" element={<Index />} />
-          <Route path="/terminal" element={<Index />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/terminal" element={<Terminal />} />
           {/* Catch-all route */}
           <Route path="*" element={<NotFound />} />
         </Routes>

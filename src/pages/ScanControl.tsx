@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { EnhancedScannerAnimation } from '@/components/dashboard/EnhancedScannerAnimation';
 
 const ScanControl = () => {
   const [scanUrl, setScanUrl] = useState('https://');
@@ -13,6 +14,7 @@ const ScanControl = () => {
   const [scanProgress, setScanProgress] = useState(0);
   const [scanActive, setScanActive] = useState(false);
   const [expandedPanel, setExpandedPanel] = useState('basic');
+  const [threatLevel, setThreatLevel] = useState<'none' | 'low' | 'medium' | 'high' | 'critical'>('none');
 
   const togglePanel = (panel: string) => {
     setExpandedPanel(expandedPanel === panel ? '' : panel);
@@ -26,6 +28,8 @@ const ScanControl = () => {
       }
       setScanProgress(0);
       setScanActive(true);
+      setThreatLevel('none');
+      
       // Simulate progress
       const interval = setInterval(() => {
         setScanProgress(prev => {
@@ -34,6 +38,18 @@ const ScanControl = () => {
             setScanActive(false);
             return 100;
           }
+          
+          // Simulate finding threats as scan progresses
+          if (prev > 25 && prev < 30 && threatLevel === 'none') {
+            setThreatLevel('low');
+          } else if (prev > 50 && prev < 55 && threatLevel === 'low') {
+            setThreatLevel('medium');
+          } else if (prev > 75 && prev < 80 && threatLevel === 'medium') {
+            setThreatLevel('high');
+          } else if (prev > 90 && prev < 95 && threatLevel === 'high') {
+            setThreatLevel('critical');
+          }
+          
           return prev + 1;
         });
       }, 150);
@@ -49,6 +65,7 @@ const ScanControl = () => {
   const stopScan = () => {
     setScanActive(false);
     setScanProgress(0);
+    setThreatLevel('none');
   };
 
   return (
@@ -271,7 +288,7 @@ const ScanControl = () => {
               </div>
               <div className="relative h-3 w-full overflow-hidden rounded-full bg-gray-700/50">
                 <div 
-                  className={`absolute inset-0 h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300`}
+                  className="absolute inset-0 h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
                   style={{ width: `${scanProgress}%` }}
                 />
               </div>
@@ -309,6 +326,10 @@ const ScanControl = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-md overflow-hidden border border-white/10 h-64">
+              <EnhancedScannerAnimation active={scanActive} threatLevel={threatLevel} />
             </div>
 
             <div>
