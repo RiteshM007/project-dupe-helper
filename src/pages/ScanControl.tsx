@@ -5,8 +5,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { toast } from 'sonner';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { EnhancedScannerAnimation } from '@/components/dashboard/EnhancedScannerAnimation';
+import { CyberpunkScannerAnimation } from '@/components/dashboard/CyberpunkScannerAnimation';
+import { DVWAConnection, DVWAConnectionDetails } from '@/components/dashboard/DVWAConnection';
+import { WebFuzzer } from '@/backend/WebFuzzer';
 
 const ScanControl = () => {
   const [scanUrl, setScanUrl] = useState('https://');
@@ -15,57 +18,135 @@ const ScanControl = () => {
   const [scanActive, setScanActive] = useState(false);
   const [expandedPanel, setExpandedPanel] = useState('basic');
   const [threatLevel, setThreatLevel] = useState<'none' | 'low' | 'medium' | 'high' | 'critical'>('none');
+  const [dvwaConnected, setDvwaConnected] = useState(false);
+  const [dvwaDetails, setDvwaDetails] = useState<DVWAConnectionDetails>();
+  const [detectedThreats, setDetectedThreats] = useState(0);
+
+  // Fuzzer instance
+  const [fuzzer, setFuzzer] = useState<WebFuzzer | null>(null);
 
   const togglePanel = (panel: string) => {
     setExpandedPanel(expandedPanel === panel ? '' : panel);
   };
 
+  const handleDvwaConnect = (details: DVWAConnectionDetails) => {
+    setDvwaConnected(true);
+    setDvwaDetails(details);
+    
+    // Set the scan URL to the DVWA URL
+    setScanUrl(details.url);
+    
+    // Create a new WebFuzzer instance pointing to DVWA
+    const newFuzzer = new WebFuzzer(details.url, 'payloads.txt');
+    setFuzzer(newFuzzer);
+    
+    toast.success(`Connected to DVWA at ${details.url}`);
+  };
+
+  const handleDvwaDisconnect = () => {
+    setDvwaConnected(false);
+    setDvwaDetails(undefined);
+    setFuzzer(null);
+    toast.info('Disconnected from DVWA');
+  };
+
   const toggleScan = () => {
     if (!scanActive) {
       if (!scanUrl || scanUrl === 'https://') {
-        alert('Please enter a valid URL');
+        toast.error('Please enter a valid URL');
         return;
       }
+      
+      if (!dvwaConnected && scanUrl.includes('dvwa')) {
+        toast.error('Please connect to DVWA first');
+        return;
+      }
+      
       setScanProgress(0);
       setScanActive(true);
       setThreatLevel('none');
+      setDetectedThreats(0);
       
-      // Simulate progress
-      const interval = setInterval(() => {
-        setScanProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
+      // If we have a fuzzer instance and it's connected to DVWA, use it
+      if (fuzzer) {
+        toast.info('Starting scan using WebFuzzer...');
+        
+        fuzzer.startFuzzing(
+          (progress, payloadsProcessed, totalPayloads) => {
+            setScanProgress(progress);
+            
+            // Simulate finding threats as scan progresses
+            if (progress > 25 && progress < 30 && threatLevel === 'none') {
+              setThreatLevel('low');
+              setDetectedThreats(1);
+            } else if (progress > 50 && progress < 55 && threatLevel === 'low') {
+              setThreatLevel('medium');
+              setDetectedThreats(3);
+            } else if (progress > 75 && progress < 80 && threatLevel === 'medium') {
+              setThreatLevel('high');
+              setDetectedThreats(6);
+            } else if (progress > 90 && progress < 95 && threatLevel === 'high') {
+              setThreatLevel('critical');
+              setDetectedThreats(8);
+            }
+          },
+          (dataset, logs, reports) => {
             setScanActive(false);
-            return 100;
+            toast.success('Scan completed!');
+            console.log('Scan completed', { dataset, logs, reports });
           }
-          
-          // Simulate finding threats as scan progresses
-          if (prev > 25 && prev < 30 && threatLevel === 'none') {
-            setThreatLevel('low');
-          } else if (prev > 50 && prev < 55 && threatLevel === 'low') {
-            setThreatLevel('medium');
-          } else if (prev > 75 && prev < 80 && threatLevel === 'medium') {
-            setThreatLevel('high');
-          } else if (prev > 90 && prev < 95 && threatLevel === 'high') {
-            setThreatLevel('critical');
-          }
-          
-          return prev + 1;
-        });
-      }, 150);
+        );
+      } else {
+        // Simulate progress with the standard interval method
+        const interval = setInterval(() => {
+          setScanProgress(prev => {
+            if (prev >= 100) {
+              clearInterval(interval);
+              setScanActive(false);
+              return 100;
+            }
+            
+            // Simulate finding threats as scan progresses
+            if (prev > 25 && prev < 30 && threatLevel === 'none') {
+              setThreatLevel('low');
+              setDetectedThreats(1);
+            } else if (prev > 50 && prev < 55 && threatLevel === 'low') {
+              setThreatLevel('medium');
+              setDetectedThreats(3);
+            } else if (prev > 75 && prev < 80 && threatLevel === 'medium') {
+              setThreatLevel('high');
+              setDetectedThreats(6);
+            } else if (prev > 90 && prev < 95 && threatLevel === 'high') {
+              setThreatLevel('critical');
+              setDetectedThreats(8);
+            }
+            
+            return prev + 1;
+          });
+        }, 150);
+      }
     } else {
-      setScanActive(false);
+      stopScan();
     }
   };
 
   const pauseScan = () => {
+    if (fuzzer) {
+      fuzzer.pauseScan();
+    }
     setScanActive(false);
+    toast.info('Scan paused');
   };
 
   const stopScan = () => {
+    if (fuzzer) {
+      fuzzer.stopScan();
+    }
     setScanActive(false);
     setScanProgress(0);
     setThreatLevel('none');
+    setDetectedThreats(0);
+    toast.info('Scan stopped');
   };
 
   return (
@@ -78,6 +159,14 @@ const ScanControl = () => {
             <CardDescription>Configure and manage web application fuzzing</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* DVWA Connection Card */}
+            <DVWAConnection 
+              onConnect={handleDvwaConnect}
+              onDisconnect={handleDvwaDisconnect}
+              isConnected={dvwaConnected}
+              connectionDetails={dvwaDetails}
+            />
+
             <div className="space-y-2">
               <label htmlFor="url" className="text-sm font-medium">Target URL</label>
               <div className="relative">
@@ -170,11 +259,11 @@ const ScanControl = () => {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs font-medium mb-1 block">Username</label>
-                        <Input className="bg-background/80 border-white/10 text-sm" />
+                        <Input className="bg-background/80 border-white/10 text-sm" defaultValue={dvwaConnected ? dvwaDetails?.username : ''} />
                       </div>
                       <div>
                         <label className="text-xs font-medium mb-1 block">Password</label>
-                        <Input type="password" className="bg-background/80 border-white/10 text-sm" />
+                        <Input type="password" className="bg-background/80 border-white/10 text-sm" defaultValue={dvwaConnected ? dvwaDetails?.password : ''} />
                       </div>
                     </div>
                     
@@ -182,7 +271,7 @@ const ScanControl = () => {
                       <Button variant="outline" size="sm" className="text-xs">
                         Test Authentication
                       </Button>
-                      <span className="text-xs text-muted-foreground">Not authenticated</span>
+                      <span className="text-xs text-muted-foreground">{dvwaConnected ? 'DVWA Authentication Ready' : 'Not authenticated'}</span>
                     </div>
                   </div>
                 )}
@@ -322,14 +411,14 @@ const ScanControl = () => {
                 <div className="bg-white/5 border border-white/10 rounded-md p-3">
                   <div className="text-xs text-muted-foreground mb-1">Findings</div>
                   <div className="text-lg font-mono">
-                    {scanActive && scanProgress > 30 ? Math.floor(scanProgress / 20) : 0}
+                    {detectedThreats}
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="rounded-md overflow-hidden border border-white/10 h-64">
-              <EnhancedScannerAnimation active={scanActive} threatLevel={threatLevel} />
+              <CyberpunkScannerAnimation active={scanActive} threatLevel={threatLevel} detectedThreats={detectedThreats} />
             </div>
 
             <div>
@@ -353,7 +442,7 @@ const ScanControl = () => {
                   <>
                     <div className="text-green-400">[*] Scan completed on {scanUrl}</div>
                     <div className="text-blue-400">[+] Generating report</div>
-                    <div className="text-yellow-400">[!] 5 potential vulnerabilities found</div>
+                    <div className="text-yellow-400">[!] {detectedThreats} potential vulnerabilities found</div>
                     <div className="text-green-400">[+] Report saved to reports/scan_20230915_001.json</div>
                   </>
                 )}
