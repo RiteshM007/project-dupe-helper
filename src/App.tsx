@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ScanControl from "./pages/ScanControl";
+import Fuzzer from "./pages/Fuzzer";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,6 +20,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/scan" element={<ScanControl />} />
+          <Route path="/fuzzer" element={<Fuzzer />} />
           {/* Placeholder routes for future implementation */}
           <Route path="/reports" element={<Index />} />
           <Route path="/ai-analysis" element={<Index />} />
