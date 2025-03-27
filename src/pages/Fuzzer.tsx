@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload } from 'lucide-react';
@@ -244,7 +243,7 @@ const Fuzzer = () => {
                       <span className="text-sm text-white/80">Scan Progress</span>
                       <span className="text-sm font-mono text-white/80">{Math.round(progress)}%</span>
                     </div>
-                    <Progress value={progress} className="h-2 bg-white/10" indicatorClassName="bg-green-500" />
+                    <Progress value={progress} className="h-2 bg-white/10" />
                   </div>
                 )}
               </CardContent>
@@ -296,7 +295,7 @@ const Fuzzer = () => {
                                   </div>
                                   <div className="flex gap-2 mt-2 flex-wrap">
                                     {result.alertDetected && (
-                                      <Badge variant="warning" className="bg-yellow-600 text-white">
+                                      <Badge variant="secondary" className="bg-yellow-600 text-white">
                                         <AlertTriangle className="h-3 w-3 mr-1" /> Alert Detected
                                       </Badge>
                                     )}
