@@ -15,7 +15,7 @@ import { Progress } from '@/components/ui/progress';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart } from 'recharts';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ScannerAnimation } from '@/components/dashboard/ScannerAnimation';
+import { AdvancedScannerAnimation } from '@/components/dashboard/AdvancedScannerAnimation';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { ThreatLevelIndicator } from '@/components/dashboard/ThreatLevelIndicator';
 import { RecentScansTable } from '@/components/dashboard/RecentScansTable';
@@ -127,7 +127,7 @@ const Dashboard = () => {
             </div>
             
             <div className="h-48 w-full">
-              <ScannerAnimation active={scanActive} />
+              <AdvancedScannerAnimation active={scanActive} />
             </div>
           </CardContent>
           <CardFooter className="text-sm text-muted-foreground">

@@ -10,7 +10,8 @@ import {
   Settings, 
   Terminal, 
   Moon, 
-  Sun
+  Sun,
+  Brain
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -29,8 +30,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Scan, label: 'Scan Control', path: '/scan' },
+    { icon: Zap, label: 'Fuzzer', path: '/fuzzer' },
+    { icon: Brain, label: 'ML Analysis', path: '/machine-learning' },
     { icon: FileBarChart, label: 'Reports', path: '/reports' },
-    { icon: Zap, label: 'AI Analysis', path: '/ai-analysis' },
     { icon: Settings, label: 'Settings', path: '/settings' },
     { icon: Terminal, label: 'Terminal', path: '/terminal' },
   ];
