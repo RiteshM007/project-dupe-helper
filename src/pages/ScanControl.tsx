@@ -1,13 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { useForm } from 'react-hook-form';
 import { CyberpunkScannerAnimation } from '@/components/dashboard/CyberpunkScannerAnimation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
@@ -23,6 +25,18 @@ const ScanControl = () => {
   const [detectedThreats, setDetectedThreats] = useState(0);
   const [currentVulnerability, setCurrentVulnerability] = useState('');
   const [exploitPayload, setExploitPayload] = useState('');
+
+  // Initialize the form
+  const form = useForm({
+    defaultValues: {
+      target: scanTarget,
+      type: scanType,
+      speed: scanSpeed,
+      authentication: false,
+      cookieHandling: true,
+      safeMode: true
+    }
+  });
 
   const scanTypes = [
     { value: 'quick', label: 'Quick Scan', description: 'Fast scan with basic security checks' },
@@ -107,104 +121,163 @@ const ScanControl = () => {
               </TabsList>
               
               <TabsContent value="config" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <FormItem>
-                      <FormLabel>Target URL</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="https://example.com" 
-                          value={scanTarget} 
-                          onChange={e => setScanTarget(e.target.value)}
-                          disabled={scanActive}
-                        />
-                      </FormControl>
-                      <FormDescription>Enter the URL of the target web application</FormDescription>
-                    </FormItem>
-                    
-                    <FormItem>
-                      <FormLabel>Scan Type</FormLabel>
-                      <Select 
-                        value={scanType} 
-                        onValueChange={setScanType}
-                        disabled={scanActive}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a scan type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {scanTypes.map(type => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        {scanTypes.find(t => t.value === scanType)?.description}
-                      </FormDescription>
-                    </FormItem>
-                    
-                    <FormItem>
-                      <FormLabel>Scan Speed: {scanSpeed}%</FormLabel>
-                      <Slider 
-                        value={[scanSpeed]} 
-                        onValueChange={v => setScanSpeed(v[0])}
-                        disabled={scanActive}
-                        min={10}
-                        max={100}
-                        step={10}
+                <Form {...form}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="target"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Target URL</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="https://example.com" 
+                                value={scanTarget} 
+                                onChange={(e) => {
+                                  setScanTarget(e.target.value);
+                                  field.onChange(e);
+                                }}
+                                disabled={scanActive}
+                              />
+                            </FormControl>
+                            <FormDescription>Enter the URL of the target web application</FormDescription>
+                          </FormItem>
+                        )}
                       />
-                      <FormDescription>
-                        Higher speeds may trigger WAF protection or cause false positives
-                      </FormDescription>
-                    </FormItem>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base">
-                          Authentication
-                        </FormLabel>
-                        <FormDescription>
-                          Enable if target requires authentication
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch disabled={scanActive} />
-                      </FormControl>
-                    </FormItem>
+                      
+                      <FormField
+                        control={form.control}
+                        name="type"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Scan Type</FormLabel>
+                            <Select 
+                              value={scanType} 
+                              onValueChange={(value) => {
+                                setScanType(value);
+                                field.onChange(value);
+                              }}
+                              disabled={scanActive}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a scan type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {scanTypes.map(type => (
+                                  <SelectItem key={type.value} value={type.value}>
+                                    {type.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              {scanTypes.find(t => t.value === scanType)?.description}
+                            </FormDescription>
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="speed"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Scan Speed: {scanSpeed}%</FormLabel>
+                            <Slider 
+                              value={[scanSpeed]} 
+                              onValueChange={(v) => {
+                                setScanSpeed(v[0]);
+                                field.onChange(v[0]);
+                              }}
+                              disabled={scanActive}
+                              min={10}
+                              max={100}
+                              step={10}
+                            />
+                            <FormDescription>
+                              Higher speeds may trigger WAF protection or cause false positives
+                            </FormDescription>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                     
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base">
-                          Cookie Handling
-                        </FormLabel>
-                        <FormDescription>
-                          Maintain cookies during scan
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch disabled={scanActive} defaultChecked />
-                      </FormControl>
-                    </FormItem>
-                    
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base">
-                          Safe Mode
-                        </FormLabel>
-                        <FormDescription>
-                          Don't execute potentially harmful payloads
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch disabled={scanActive} defaultChecked />
-                      </FormControl>
-                    </FormItem>
+                    <div className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="authentication"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">
+                                Authentication
+                              </FormLabel>
+                              <FormDescription>
+                                Enable if target requires authentication
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch 
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={scanActive} 
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="cookieHandling"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">
+                                Cookie Handling
+                              </FormLabel>
+                              <FormDescription>
+                                Maintain cookies during scan
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch 
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={scanActive} 
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="safeMode"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">
+                                Safe Mode
+                              </FormLabel>
+                              <FormDescription>
+                                Don't execute potentially harmful payloads
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch 
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={scanActive} 
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
-                </div>
+                </Form>
               </TabsContent>
               
               <TabsContent value="results" className="space-y-4">
