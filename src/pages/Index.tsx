@@ -101,9 +101,9 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Top row */}
-        <Card className="lg:col-span-2 bg-card/50 backdrop-blur-sm border-purple-900/30 shadow-lg shadow-purple-500/5">
+        <Card className="md:col-span-2 bg-card/50 backdrop-blur-sm border-purple-900/30 shadow-lg shadow-purple-500/5">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-xl font-bold">Active Scan Status</CardTitle>
@@ -171,8 +171,8 @@ const Dashboard = () => {
           </CardFooter>
         </Card>
 
-        {/* Middle row */}
-        <Card className="lg:col-span-2 bg-card/50 backdrop-blur-sm border-indigo-900/30 shadow-lg shadow-indigo-500/5">
+        {/* Middle row - Fixed the overlapping by separating into two rows */}
+        <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-indigo-900/30 shadow-lg shadow-indigo-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Vulnerability Distribution</CardTitle>
             <CardDescription>Attack vectors detected during scans</CardDescription>
@@ -211,90 +211,86 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur-sm border-cyan-900/30 shadow-lg shadow-cyan-500/5">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">Resource Usage</CardTitle>
-            <CardDescription>System performance metrics</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ResourceUsage 
-              label="CPU Usage" 
-              value={cpuUsage} 
-              icon={Cpu} 
-              max={100} 
-              unit="%" 
-              color="from-blue-500 to-purple-500" 
-            />
-            <ResourceUsage 
-              label="Memory Usage" 
-              value={memoryUsage} 
-              icon={Zap} 
-              max={100} 
-              unit="%" 
-              color="from-purple-500 to-pink-500" 
-            />
-          </CardContent>
-        </Card>
-
-        {/* Bottom row */}
-        <Card className="lg:col-span-2 bg-card/50 backdrop-blur-sm border-fuchsia-900/30 shadow-lg shadow-fuchsia-500/5">
+        {/* Resource usage card - moved to its own row */}
+        <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-cyan-900/30 shadow-lg shadow-cyan-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Performance Metrics</CardTitle>
             <CardDescription>Request volume and response times</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ChartContainer config={chartConfig.performance}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={performanceData}>
-                    <defs>
-                      <linearGradient id="requestsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.1}/>
-                      </linearGradient>
-                      <linearGradient id="responseTimeGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
-                    <XAxis 
-                      dataKey="time" 
-                      tick={{ fill: 'currentColor', fontSize: 12 }}
-                      axisLine={{ stroke: '#666' }}
-                      tickLine={{ stroke: '#666' }}
-                    />
-                    <YAxis 
-                      tick={{ fill: 'currentColor', fontSize: 12 }}
-                      axisLine={{ stroke: '#666' }}
-                      tickLine={{ stroke: '#666' }}
-                    />
-                    <ChartTooltip 
-                      content={
-                        <ChartTooltipContent className="text-xs" />
-                      } 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="requests" 
-                      stroke="#7c3aed" 
-                      fillOpacity={1}
-                      fill="url(#requestsGradient)" 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="responseTime" 
-                      stroke="#60a5fa" 
-                      fillOpacity={1}
-                      fill="url(#responseTimeGradient)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </div>
-          </CardContent>
+          <CardContent className="grid md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <div className="h-64">
+                <ChartContainer config={chartConfig.performance}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={performanceData}>
+                      <defs>
+                        <linearGradient id="requestsGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.1}/>
+                        </linearGradient>
+                        <linearGradient id="responseTimeGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.1}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis 
+                        dataKey="time" 
+                        tick={{ fill: 'currentColor', fontSize: 12 }}
+                        axisLine={{ stroke: '#666' }}
+                        tickLine={{ stroke: '#666' }}
+                      />
+                      <YAxis 
+                        tick={{ fill: 'currentColor', fontSize: 12 }}
+                        axisLine={{ stroke: '#666' }}
+                        tickLine={{ stroke: '#666' }}
+                      />
+                      <ChartTooltip 
+                        content={
+                          <ChartTooltipContent className="text-xs" />
+                        } 
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="requests" 
+                        stroke="#7c3aed" 
+                        fillOpacity={1}
+                        fill="url(#requestsGradient)" 
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="responseTime" 
+                        stroke="#60a5fa" 
+                        fillOpacity={1}
+                        fill="url(#responseTimeGradient)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <ResourceUsage 
+                  label="CPU Usage" 
+                  value={cpuUsage} 
+                  icon={Cpu} 
+                  max={100} 
+                  unit="%" 
+                  color="from-blue-500 to-purple-500" 
+                />
+                <ResourceUsage 
+                  label="Memory Usage" 
+                  value={memoryUsage} 
+                  icon={Zap} 
+                  max={100} 
+                  unit="%" 
+                  color="from-purple-500 to-pink-500" 
+                />
+              </div>
+            </CardContent>
         </Card>
 
-        <Card className="bg-card/50 backdrop-blur-sm border-emerald-900/30 shadow-lg shadow-emerald-500/5">
+        {/* Bottom row */}
+        <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-emerald-900/30 shadow-lg shadow-emerald-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Recent Scans</CardTitle>
             <CardDescription>Latest scan activities</CardDescription>

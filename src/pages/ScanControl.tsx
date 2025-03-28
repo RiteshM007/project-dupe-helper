@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Play, Pause, Square, AlertTriangle, ChevronRight, ChevronDown, Lock, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +21,9 @@ const ScanControl = () => {
   const [dvwaConnected, setDvwaConnected] = useState(false);
   const [dvwaDetails, setDvwaDetails] = useState<DVWAConnectionDetails>();
   const [detectedThreats, setDetectedThreats] = useState(0);
+  const [selectedVulnerability, setSelectedVulnerability] = useState('');
+  const [vulnerabilityPath, setVulnerabilityPath] = useState('');
+  const [exploitPayload, setExploitPayload] = useState('');
 
   // Fuzzer instance
   const [fuzzer, setFuzzer] = useState<WebFuzzer | null>(null);
@@ -46,7 +50,64 @@ const ScanControl = () => {
     setDvwaConnected(false);
     setDvwaDetails(undefined);
     setFuzzer(null);
+    setSelectedVulnerability('');
+    setVulnerabilityPath('');
+    setExploitPayload('');
     toast.info('Disconnected from DVWA');
+  };
+
+  const handleVulnerabilitySelect = (vulnerability: string, path: string) => {
+    setSelectedVulnerability(vulnerability);
+    setVulnerabilityPath(path);
+    toast.info(`Selected vulnerability: ${vulnerability}`);
+  };
+
+  const handleExploitSubmit = (payload: string) => {
+    setExploitPayload(payload);
+    toast.success(`Exploit payload submitted for ${selectedVulnerability}`);
+    
+    // Automatically start scan with this payload
+    if (!scanActive) {
+      setScanProgress(0);
+      setScanActive(true);
+      setThreatLevel('none');
+      setDetectedThreats(0);
+      
+      // Simulate scanning with exploit payload
+      const interval = setInterval(() => {
+        setScanProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            setScanActive(false);
+            // Show high or critical threat based on the vulnerability type
+            if (selectedVulnerability.includes('SQL') || 
+                selectedVulnerability.includes('Command') || 
+                selectedVulnerability.includes('File')) {
+              setThreatLevel('critical');
+              setDetectedThreats(Math.floor(Math.random() * 4) + 3);
+            } else {
+              setThreatLevel('high');
+              setDetectedThreats(Math.floor(Math.random() * 3) + 2);
+            }
+            return 100;
+          }
+          
+          // Simulate finding threats as scan progresses
+          if (prev > 25 && prev < 30 && threatLevel === 'none') {
+            setThreatLevel('low');
+            setDetectedThreats(1);
+          } else if (prev > 50 && prev < 55 && threatLevel === 'low') {
+            setThreatLevel('medium');
+            setDetectedThreats(2);
+          } else if (prev > 75 && prev < 80 && threatLevel === 'medium') {
+            setThreatLevel('high');
+            setDetectedThreats(4);
+          } 
+          
+          return prev + Math.random() * 2 + 0.5;
+        });
+      }, 150);
+    }
   };
 
   const toggleScan = () => {
@@ -115,7 +176,7 @@ const ScanControl = () => {
             } else if (prev > 75 && prev < 80 && threatLevel === 'medium') {
               setThreatLevel('high');
               setDetectedThreats(6);
-            } else if (prev > 90 && prev < 95 && threatLevel === 'high') {
+            } else if (prev > 90 && progress < 95 && threatLevel === 'high') {
               setThreatLevel('critical');
               setDetectedThreats(8);
             }
@@ -164,6 +225,9 @@ const ScanControl = () => {
               onDisconnect={handleDvwaDisconnect}
               isConnected={dvwaConnected}
               connectionDetails={dvwaDetails}
+              selectedVulnerability={selectedVulnerability}
+              onVulnerabilitySelect={handleVulnerabilitySelect}
+              onExploitSubmit={handleExploitSubmit}
             />
 
             <div className="space-y-2">
@@ -372,7 +436,7 @@ const ScanControl = () => {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Overall Progress</span>
-                <span className="font-mono">{scanProgress}%</span>
+                <span className="font-mono">{Math.round(scanProgress)}%</span>
               </div>
               <div className="relative h-3 w-full overflow-hidden rounded-full bg-gray-700/50">
                 <div 
@@ -417,7 +481,15 @@ const ScanControl = () => {
             </div>
 
             <div className="rounded-md overflow-hidden border border-white/10 h-64">
-              <CyberpunkScannerAnimation active={scanActive} threatLevel={threatLevel} detectedThreats={detectedThreats} />
+              <CyberpunkScannerAnimation 
+                active={scanActive} 
+                threatLevel={threatLevel} 
+                detectedThreats={detectedThreats}
+                dvwaConnected={dvwaConnected}
+                dvwaUrl={dvwaDetails?.url}
+                currentVulnerability={selectedVulnerability}
+                exploitPayload={exploitPayload}
+              />
             </div>
 
             <div>
@@ -430,7 +502,7 @@ const ScanControl = () => {
                     <div className="text-blue-400">[+] Setting up {scanMode} fuzzing mode</div>
                     {scanProgress > 20 && <div className="text-yellow-400">[!] Testing parameter 'id' for SQL injection</div>}
                     {scanProgress > 40 && <div className="text-yellow-400">[!] Testing parameter 'search' for XSS vulnerabilities</div>}
-                    {scanProgress > 60 && <div className="text-red-400">[!] Potential SQL injection found in 'id' parameter</div>}
+                    {scanProgress > 60 && exploitPayload && <div className="text-red-400">[!] Testing exploit: {exploitPayload.length > 30 ? exploitPayload.substring(0, 30) + '...' : exploitPayload}</div>}
                     {scanProgress > 80 && <div className="text-yellow-400">[!] Testing authentication bypass techniques</div>}
                   </>
                 )}

@@ -1,19 +1,33 @@
 
 import React, { useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import gsap from 'gsap';
 
 interface CyberpunkScannerAnimationProps {
   active?: boolean;
   threatLevel?: 'none' | 'low' | 'medium' | 'high' | 'critical';
   detectedThreats?: number;
+  dvwaConnected?: boolean;
+  dvwaUrl?: string;
+  currentVulnerability?: string;
+  exploitPayload?: string;
 }
 
 export const CyberpunkScannerAnimation: React.FC<CyberpunkScannerAnimationProps> = ({
   active = false,
   threatLevel = 'none',
-  detectedThreats = 0
+  detectedThreats = 0,
+  dvwaConnected = false,
+  dvwaUrl = '',
+  currentVulnerability = '',
+  exploitPayload = ''
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scannerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const beamRef = useRef<HTMLDivElement>(null);
+  const glitchTextRef = useRef<HTMLDivElement>(null);
+  
   // Define colors based on threat level
   const getThreatColor = () => {
     switch (threatLevel) {
@@ -26,333 +40,320 @@ export const CyberpunkScannerAnimation: React.FC<CyberpunkScannerAnimationProps>
   };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Set canvas dimensions
-    const setCanvasDimensions = () => {
-      const parent = canvas.parentElement;
-      if (parent) {
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
-      }
-    };
-
-    setCanvasDimensions();
-    window.addEventListener('resize', setCanvasDimensions);
-
-    // Variables for the animation
-    let animationFrameId: number;
-    let scanLine = 0;
-    let scanDirection = 1;
-    let particles: Array<{
-      x: number;
-      y: number;
-      radius: number;
-      color: string;
-      speed: number;
-      opacity: number;
-    }> = [];
-    let hexagons: Array<{
-      x: number;
-      y: number;
-      size: number;
-      color: string;
-      pulse: number;
-      pulseDirection: number;
-      highlighted: boolean;
-    }> = [];
-    let threatNodes: Array<{
-      x: number;
-      y: number;
-      radius: number;
-      color: string;
-      pulseRadius: number;
-      pulseOpacity: number;
-      pulseGrowing: boolean;
-    }> = [];
-
-    // Create particles
-    const createParticles = () => {
-      particles = [];
-      const particleCount = Math.floor(canvas.width / 15);
+    if (!active || !containerRef.current) return;
+    
+    const threatColor = getThreatColor();
+    
+    // Initialize the scanner animation
+    const scanner = scannerRef.current;
+    const grid = gridRef.current;
+    const beam = beamRef.current;
+    const glitchText = glitchTextRef.current;
+    
+    if (scanner && grid && beam) {
+      // Reset animations
+      gsap.killTweensOf([scanner, grid, beam]);
       
-      for (let i = 0; i < particleCount; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          radius: Math.random() * 2 + 1,
-          color: Math.random() > 0.85 ? getThreatColor() : '#4facfe',
-          speed: Math.random() * 1 + 0.5,
-          opacity: Math.random() * 0.7 + 0.3
+      // Scanner rotation animation
+      gsap.to(scanner, {
+        rotation: 360,
+        duration: 8,
+        repeat: -1,
+        ease: "linear"
+      });
+      
+      // Scanner pulse animation
+      gsap.to(scanner, {
+        opacity: 0.7,
+        scale: 1.05,
+        duration: 1.5,
+        repeat: -1,
+        yoyo: true,
+        ease: "sine.inOut"
+      });
+      
+      // Grid movement animation
+      gsap.to(grid, {
+        backgroundPosition: '0 -100px',
+        duration: 10,
+        repeat: -1,
+        ease: "linear"
+      });
+      
+      // Scan beam animation
+      gsap.fromTo(beam, 
+        { top: 0, opacity: 0.5 },
+        { 
+          top: '100%', 
+          opacity: 0.8,
+          duration: 2, 
+          repeat: -1, 
+          ease: "power1.inOut",
+          yoyo: true
+        }
+      );
+      
+      // Malware detection animation (if threats found)
+      if (threatLevel !== 'none' && glitchText) {
+        gsap.set(glitchText, { display: 'flex' });
+        
+        // Create glitch effect
+        const glitchTl = gsap.timeline({ repeat: -1, repeatDelay: 3 });
+        
+        glitchTl.to(glitchText, {
+          x: () => `${Math.random() * 10 - 5}px`,
+          y: () => `${Math.random() * 5 - 2.5}px`,
+          skewX: () => `${Math.random() * 4 - 2}deg`,
+          textShadow: `${threatColor} 2px 0px, cyan -2px 0px`,
+          duration: 0.1,
+          repeat: 20,
+          yoyo: true,
+          ease: "steps(1)"
         });
+      } else if (glitchText) {
+        gsap.set(glitchText, { display: 'none' });
       }
-    };
-
-    // Create hexagon grid
-    const createHexagons = () => {
-      hexagons = [];
-      const size = 30;
-      const horizontalSpacing = size * 1.7;
-      const verticalSpacing = size * 1.5;
-      
-      for (let x = 0; x < canvas.width + size; x += horizontalSpacing) {
-        for (let y = 0; y < canvas.height + size; y += verticalSpacing) {
-          // Offset every second row
-          const offset = (Math.floor(y / verticalSpacing) % 2) * (horizontalSpacing / 2);
-          
-          hexagons.push({
-            x: x + offset,
-            y,
-            size,
-            color: Math.random() > 0.95 ? getThreatColor() : '#1e3a5f',
-            pulse: Math.random(),
-            pulseDirection: Math.random() > 0.5 ? 1 : -1,
-            highlighted: Math.random() > 0.92
-          });
-        }
-      }
-    };
-
-    // Create threat nodes (only when active and threat level is not none)
-    const createThreatNodes = () => {
-      if (!active || threatLevel === 'none') {
-        threatNodes = [];
-        return;
-      }
-      
-      threatNodes = [];
-      const threatCount = threatLevel === 'critical' ? 5 : 
-                         threatLevel === 'high' ? 4 :
-                         threatLevel === 'medium' ? 3 : 
-                         threatLevel === 'low' ? 2 : 0;
-      
-      for (let i = 0; i < threatCount; i++) {
-        threatNodes.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          radius: 6 + Math.random() * 4,
-          color: getThreatColor(),
-          pulseRadius: 10,
-          pulseOpacity: 1,
-          pulseGrowing: true
-        });
-      }
-    };
-
-    createParticles();
-    createHexagons();
-    createThreatNodes();
-
-    // Draw hexagon
-    const drawHexagon = (x: number, y: number, size: number, color: string, highlighted: boolean) => {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = (i * Math.PI) / 3;
-        const xPos = x + size * Math.cos(angle);
-        const yPos = y + size * Math.sin(angle);
-        if (i === 0) {
-          ctx.moveTo(xPos, yPos);
-        } else {
-          ctx.lineTo(xPos, yPos);
-        }
-      }
-      ctx.closePath();
-      
-      if (highlighted) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.3;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      }
-    };
-
-    // Draw scanning effect
-    const drawScanner = () => {
-      if (!active) return;
-      
-      // Create gradient for scan line
-      const gradient = ctx.createLinearGradient(0, scanLine - 5, 0, scanLine + 5);
-      gradient.addColorStop(0, 'rgba(79, 172, 254, 0)');
-      gradient.addColorStop(0.5, `rgba(79, 172, 254, ${active ? 0.8 : 0.2})`);
-      gradient.addColorStop(1, 'rgba(79, 172, 254, 0)');
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, scanLine - 5, canvas.width, 10);
-      
-      // Scan line movement
-      scanLine += scanDirection * 3;
-      if (scanLine >= canvas.height || scanLine <= 0) {
-        scanDirection *= -1;
-      }
-    };
-
-    // Draw detection indicators
-    const drawThreatNodes = () => {
-      threatNodes.forEach(node => {
-        // Draw the center
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-        ctx.fillStyle = node.color;
-        ctx.fill();
-        
-        // Draw pulse effect
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, node.pulseRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = node.color;
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = node.pulseOpacity;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-        
-        // Update pulse
-        if (node.pulseGrowing) {
-          node.pulseRadius += 0.8;
-          node.pulseOpacity -= 0.02;
-          if (node.pulseRadius > 50) {
-            node.pulseGrowing = false;
-            node.pulseRadius = 10;
-            node.pulseOpacity = 1;
-          }
-        }
-        
-        // Draw warning icon
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '10px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('!', node.x, node.y);
-      });
-    };
-
-    // Draw hexagonal grid
-    const drawHexagonalGrid = () => {
-      hexagons.forEach(hexagon => {
-        // Update pulse
-        hexagon.pulse += 0.01 * hexagon.pulseDirection;
-        if (hexagon.pulse > 1 || hexagon.pulse < 0.3) {
-          hexagon.pulseDirection *= -1;
-        }
-        
-        // Draw with varying opacity based on pulse
-        const scanProximity = Math.abs(hexagon.y - scanLine);
-        const isNearScan = active && scanProximity < 50;
-        
-        if (isNearScan) {
-          hexagon.highlighted = true;
-          setTimeout(() => {
-            hexagon.highlighted = Math.random() > 0.7;
-          }, 500 + Math.random() * 1000);
-        }
-        
-        // Draw hexagon
-        drawHexagon(
-          hexagon.x, 
-          hexagon.y, 
-          hexagon.size * (isNearScan ? 1.1 : 1) * (hexagon.highlighted ? hexagon.pulse : 1),
-          isNearScan ? '#4facfe' : hexagon.color,
-          hexagon.highlighted
-        );
-      });
-    };
-
-    // Draw data particles and connections
-    const drawParticles = () => {
-      // Draw particles
-      particles.forEach(point => {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, point.radius, 0, Math.PI * 2);
-        ctx.fillStyle = point.color;
-        ctx.globalAlpha = point.opacity;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        
-        // Update particle position
-        point.y += point.speed;
-        if (point.y > canvas.height) {
-          point.y = 0;
-          point.x = Math.random() * canvas.width;
-        }
-        
-        // Highlight particles near scan line
-        if (active && Math.abs(point.y - scanLine) < 20) {
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, point.radius * 2, 0, Math.PI * 2);
-          ctx.fillStyle = '#ffffff';
-          ctx.globalAlpha = 0.3;
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      });
-    };
-
-    // Main animation loop
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw dark background with grid
-      ctx.fillStyle = 'rgba(10, 15, 25, 0.4)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      drawHexagonalGrid();
-      drawParticles();
-      drawScanner();
-      drawThreatNodes();
-      
-      // Display threat level and detection count if needed
-      if (active && threatLevel !== 'none') {
-        ctx.fillStyle = getThreatColor();
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`THREAT LEVEL: ${threatLevel.toUpperCase()}`, canvas.width / 2, 30);
-        
-        if (detectedThreats > 0) {
-          ctx.fillText(`DETECTIONS: ${detectedThreats}`, canvas.width / 2, 50);
-        }
-      }
-      
-      animationFrameId = requestAnimationFrame(animate);
-    };
-
-    animate();
-
+    }
+    
     return () => {
-      window.removeEventListener('resize', setCanvasDimensions);
-      cancelAnimationFrame(animationFrameId);
+      gsap.killTweensOf([scanner, grid, beam, glitchText]);
     };
-  }, [active, threatLevel, detectedThreats]);
-
-  // Add glitching "MALWARE DETECTED" text for critical threats
-  const malwareDetectedEl = (
-    active && threatLevel === 'critical' ? (
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 text-2xl md:text-4xl font-bold font-mono text-red-500 animate-pulse">
-        MALWARE DETECTED
-      </div>
-    ) : null
-  );
+  }, [active, threatLevel]);
 
   return (
-    <div className="relative w-full h-full">
-      <canvas ref={canvasRef} className="w-full h-full rounded-lg" />
-      {malwareDetectedEl}
+    <div 
+      ref={containerRef}
+      className="relative w-full h-full overflow-hidden bg-black/80 rounded-md"
+      style={{ perspective: '1000px' }}
+    >
+      {/* Background grid */}
+      <div 
+        ref={gridRef}
+        className="absolute inset-0 z-0"
+        style={{
+          backgroundImage: `
+            linear-gradient(0deg, transparent 24%, ${getThreatColor()}1a 25%, ${getThreatColor()}1a 26%, transparent 27%, transparent 74%, ${getThreatColor()}1a 75%, ${getThreatColor()}1a 76%, transparent 77%, transparent),
+            linear-gradient(90deg, transparent 24%, ${getThreatColor()}1a 25%, ${getThreatColor()}1a 26%, transparent 27%, transparent 74%, ${getThreatColor()}1a 75%, ${getThreatColor()}1a 76%, transparent 77%, transparent)
+          `,
+          backgroundSize: '50px 50px',
+          opacity: 0.5
+        }}
+      />
       
-      {active && detectedThreats > 0 && (
-        <div className="absolute bottom-3 right-3 bg-black/50 backdrop-blur-sm px-3 py-1 rounded border border-gray-700 text-xs font-mono">
-          <span className="text-cyan-400">Scanning... </span>
-          <span className={`${threatLevel === 'none' ? 'text-green-400' : threatLevel === 'low' ? 'text-green-400' : threatLevel === 'medium' ? 'text-yellow-400' : threatLevel === 'high' ? 'text-orange-400' : 'text-red-400'}`}>
-            {detectedThreats} {detectedThreats === 1 ? 'threat' : 'threats'} detected
-          </span>
+      {/* Circular radar scanner */}
+      <div
+        ref={scannerRef}
+        className="absolute top-1/2 left-1/2 w-[200px] h-[200px] -ml-[100px] -mt-[100px] z-10"
+      >
+        <div className="w-full h-full rounded-full border-2 border-cyan-500/50 flex items-center justify-center"
+          style={{ boxShadow: `0 0 20px ${getThreatColor()}80` }}
+        >
+          {/* Inner circles */}
+          <div className="w-3/4 h-3/4 rounded-full border border-cyan-400/30" />
+          <div className="absolute w-1/2 h-1/2 rounded-full border border-cyan-300/20" />
+          
+          {/* Scan lines */}
+          <div className="absolute w-full h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
+          <div className="absolute h-full w-[2px] bg-gradient-to-b from-transparent via-cyan-400 to-transparent" />
+          
+          {/* Radar sweep */}
+          <div 
+            className="absolute top-1/2 left-1/2 h-[50%] w-[4px] -ml-[2px] origin-bottom transform rotate-0"
+            style={{ 
+              background: `linear-gradient(to top, ${getThreatColor()}, transparent)`,
+              boxShadow: `0 0 15px ${getThreatColor()}`,
+            }}
+          />
         </div>
+      </div>
+      
+      {/* Digital readouts */}
+      <div className="absolute top-4 left-4 z-20">
+        <div className="font-mono text-xs text-cyan-400">
+          <div className="flex gap-2 items-center mb-1">
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+            <span>SCAN STATUS: {active ? 'ACTIVE' : 'STANDBY'}</span>
+          </div>
+          <div className="text-[10px] opacity-70">TARGET SYSTEM ANALYSIS</div>
+          
+          {dvwaConnected && (
+            <div className="mt-2 p-1.5 bg-black/30 border border-cyan-900/30 rounded-sm text-[10px]">
+              <div className="text-green-400 flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                DVWA CONNECTED
+              </div>
+              <div className="mt-0.5 text-[9px] opacity-80 break-all">{dvwaUrl || 'localhost/dvwa'}</div>
+              
+              {currentVulnerability && (
+                <div className="mt-1 text-yellow-400">
+                  VULNERABILITY: {currentVulnerability}
+                </div>
+              )}
+              
+              {exploitPayload && (
+                <div className="mt-0.5 font-bold text-red-400 break-all">
+                  PAYLOAD: {exploitPayload}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <div className="absolute top-4 right-4 z-20">
+        <div className="font-mono text-xs text-right">
+          <div className={`text-${threatLevel === 'none' ? 'cyan-400' : getThreatColor().replace('#', '')}`}>
+            THREAT LEVEL: {threatLevel.toUpperCase()}
+          </div>
+          <div className="text-[10px] text-cyan-400 opacity-70">
+            {detectedThreats > 0 ? `${detectedThreats} THREAT${detectedThreats !== 1 ? 'S' : ''} DETECTED` : 'NO THREATS DETECTED'}
+          </div>
+        </div>
+      </div>
+      
+      {/* Horizontal scan beam */}
+      <div 
+        ref={beamRef}
+        className="absolute left-0 w-full h-1 z-15"
+        style={{ 
+          background: `linear-gradient(to right, transparent, ${getThreatColor()}, transparent)`,
+          boxShadow: `0 0 10px ${getThreatColor()}`,
+          opacity: 0.7
+        }}
+      />
+      
+      {/* Blueprint circuit lines */}
+      <div className="absolute inset-0 z-5">
+        <svg width="100%" height="100%" className="opacity-20">
+          <g stroke={getThreatColor()} strokeWidth="1" fill="none">
+            <AnimatePresence>
+              {active && (
+                <>
+                  <motion.path 
+                    d="M10,10 L50,10 L50,50 L100,50" 
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    exit={{ pathLength: 0 }}
+                    transition={{ duration: 2, repeat: -1, repeatType: "loop", repeatDelay: 3 }}
+                  />
+                  <motion.path 
+                    d="M100,10 L180,10 L180,120" 
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    exit={{ pathLength: 0 }}
+                    transition={{ duration: 1.5, repeat: -1, repeatType: "loop", repeatDelay: 2, delay: 0.5 }}
+                  />
+                  <motion.path 
+                    d="M10,100 L80,100 L80,180 L200,180" 
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    exit={{ pathLength: 0 }}
+                    transition={{ duration: 2.5, repeat: -1, repeatType: "loop", repeatDelay: 1, delay: 1 }}
+                  />
+                </>
+              )}
+            </AnimatePresence>
+          </g>
+        </svg>
+      </div>
+      
+      {/* Glitching MALWARE text */}
+      <div 
+        ref={glitchTextRef}
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 text-4xl font-bold font-mono hidden items-center justify-center"
+      >
+        <div className={`text-${threatLevel === 'critical' ? 'red-500' : getThreatColor().replace('#', '')}`}>
+          {threatLevel === 'critical' ? 'MALWARE' : 
+           threatLevel === 'high' ? 'THREAT' : 
+           threatLevel === 'medium' ? 'WARNING' : 
+           threatLevel === 'low' ? 'CAUTION' : ''}
+        </div>
+      </div>
+      
+      {/* Security Elements */}
+      <AnimatePresence>
+        {active && (
+          <>
+            {/* Moving UI components */}
+            <motion.div 
+              className="absolute top-[80%] left-4 z-20 w-[120px] h-[40px] border border-cyan-500/50 font-mono text-[10px] text-cyan-400 p-1 rounded-sm"
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 0.8, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span>PROC:</span>
+                <span className="text-right">ACTIVE</span>
+              </div>
+              <div className="w-full h-[6px] bg-black/50 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-cyan-500"
+                  initial={{ width: '0%' }}
+                  animate={{ width: ['30%', '80%', '45%', '90%', '60%'] }}
+                  transition={{ duration: 4, repeat: -1, repeatType: "reverse" }}
+                />
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              className="absolute top-[80%] right-4 z-20 w-[120px] h-[40px] border border-cyan-500/50 font-mono text-[10px] text-cyan-400 p-1 rounded-sm"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 0.8, x: 0 }}
+              exit={{ opacity: 0, x: 50 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span>MEM:</span>
+                <span className="text-right">{Math.floor(Math.random() * 1024)}MB</span>
+              </div>
+              <div className="w-full h-[6px] bg-black/50 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-cyan-500"
+                  initial={{ width: '0%' }}
+                  animate={{ width: ['20%', '70%', '40%', '85%', '55%'] }}
+                  transition={{ duration: 5, repeat: -1, repeatType: "reverse" }}
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+      
+      {/* DVWA Vulnerability Readout */}
+      {active && dvwaConnected && (
+        <motion.div 
+          className="absolute bottom-[20%] left-1/2 -translate-x-1/2 z-20 w-[80%] max-w-[400px] border border-yellow-500/50 font-mono text-[10px] text-yellow-400 p-2 rounded-sm bg-black/50"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 30 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="text-[11px] font-bold mb-1 text-center">DVWA EXPLOIT DETECTION</div>
+          <div className="flex justify-between items-center mb-1">
+            <span>TYPE:</span>
+            <span className="text-right font-bold">{currentVulnerability || 'SQL INJECTION'}</span>
+          </div>
+          {exploitPayload && (
+            <div className="w-full mt-1 p-1 bg-black/50 rounded-sm break-all">
+              <div className="text-red-400 font-bold text-[8px] mb-0.5">EXPLOIT:</div>
+              <div className="text-[8px]">{exploitPayload}</div>
+            </div>
+          )}
+        </motion.div>
+      )}
+      
+      {/* Glitch overlay */}
+      {active && (
+        <motion.div 
+          className="absolute inset-0 z-40 pointer-events-none mix-blend-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.05, 0, 0.08, 0] }}
+          transition={{ duration: 0.5, repeat: -1, repeatDelay: Math.random() * 5 + 2 }}
+          style={{
+            backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+          }}
+        />
       )}
     </div>
   );
