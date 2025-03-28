@@ -45,4 +45,4 @@ export const GridItem = React.forwardRef<HTMLDivElement, GridItemProps>(
 );
 GridItem.displayName = "GridItem";
 
-export { Grid, GridItem };
+// Remove the duplicate export statement at the end
