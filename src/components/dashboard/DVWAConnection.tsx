@@ -17,8 +17,8 @@ import {
   FormMessage, 
   Input, 
   Switch 
-} from '@/components/ui/'; // Fixed import path by removing 'ui' shorthand
-import { CirclePulse } from 'lucide-react'; // Changed Pulse to CirclePulse
+} from '@/components/ui'; // Fixed import path by removing 'ui' shorthand
+import { Circle } from 'lucide-react'; // Changed CirclePulse to Circle
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
