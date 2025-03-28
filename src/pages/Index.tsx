@@ -15,12 +15,13 @@ import { Progress } from '@/components/ui/progress';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart } from 'recharts';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { AdvancedScannerAnimation } from '@/components/dashboard/AdvancedScannerAnimation';
+import { ScannerAnimation } from '@/components/dashboard/ScannerAnimation';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { ThreatLevelIndicator } from '@/components/dashboard/ThreatLevelIndicator';
 import { RecentScansTable } from '@/components/dashboard/RecentScansTable';
 import { ResourceUsage } from '@/components/dashboard/ResourceUsage';
 import { Button } from '@/components/ui/button';
+import { EnhancedScannerAnimation } from '@/components/dashboard/EnhancedScannerAnimation';
 
 // Mock data for charts
 const vulnerabilityData = [
@@ -127,7 +128,7 @@ const Dashboard = () => {
             </div>
             
             <div className="h-48 w-full">
-              <AdvancedScannerAnimation active={scanActive} />
+              <EnhancedScannerAnimation active={scanActive} threatLevel={scanActive ? 'medium' : 'none'} />
             </div>
           </CardContent>
           <CardFooter className="text-sm text-muted-foreground">
@@ -171,7 +172,7 @@ const Dashboard = () => {
           </CardFooter>
         </Card>
 
-        {/* Middle row - Fixed the overlapping by separating into two rows */}
+        {/* Middle row - Fixed the overlapping by separating rows */}
         <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-indigo-900/30 shadow-lg shadow-indigo-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Vulnerability Distribution</CardTitle>
@@ -211,7 +212,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Resource usage card - moved to its own row */}
+        {/* Performance metrics card in its own row */}
         <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-cyan-900/30 shadow-lg shadow-cyan-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Performance Metrics</CardTitle>
