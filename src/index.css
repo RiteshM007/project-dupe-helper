@@ -58,6 +58,13 @@
   html {
     @apply scroll-smooth;
   }
+
+  /* Responsive adjustments */
+  @media (max-width: 640px) {
+    :root {
+      --radius: 0.5rem;
+    }
+  }
 }
 
 @layer utilities {
@@ -70,6 +77,7 @@
     display: none;
   }
 
+  /* Glass and blur effects */
   .glass-card {
     @apply backdrop-blur-xl bg-white/5 border-white/10 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.3)];
   }
@@ -78,6 +86,7 @@
     @apply backdrop-blur-2xl bg-black/40 border-white/10;
   }
   
+  /* Text effects */
   .text-gradient {
     @apply bg-gradient-to-br from-white via-white/90 to-white/70 bg-clip-text text-transparent;
   }
@@ -86,6 +95,7 @@
     @apply bg-gradient-to-br from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent;
   }
 
+  /* Glow effects */
   .neon-glow {
     @apply relative;
   }
@@ -100,6 +110,7 @@
     @apply opacity-100;
   }
 
+  /* Background patterns */
   .cyber-grid {
     background-size: 40px 40px;
     background-image: 
@@ -112,6 +123,7 @@
     background-size: 20px 20px;
   }
 
+  /* Animation effects */
   .scan-line {
     overflow: hidden;
     position: relative;
@@ -220,5 +232,19 @@
     100% {
       clip-path: inset(44% 0% 55% 0%);
     }
+  }
+
+  /* Responsive utility classes */
+  .responsive-padding {
+    @apply p-2 sm:p-3 md:p-4 lg:p-6;
+  }
+
+  .responsive-container {
+    @apply w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .chart-container {
+    @apply w-full overflow-hidden;
+    min-height: 200px;
   }
 }

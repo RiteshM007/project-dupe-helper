@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
 
 interface ResourceUsageProps {
   label: string;
@@ -24,7 +23,7 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
   const percentage = (value / max) * 100;
   
   return (
-    <div className="space-y-2 w-full">
+    <div className="space-y-2 w-full mb-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div className={`p-1.5 rounded-md bg-gradient-to-br ${color}`}>
@@ -37,7 +36,7 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
       
       <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-700/50">
         <div 
-          className={`absolute inset-0 h-full bg-gradient-to-r ${color} transition-all duration-300`}
+          className={`absolute inset-0 h-full bg-gradient-to-r ${color} transition-all duration-300 ease-in-out`}
           style={{ width: `${percentage}%` }}
         />
       </div>

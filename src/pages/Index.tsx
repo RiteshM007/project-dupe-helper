@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Shield, 
@@ -22,6 +23,7 @@ import { ResourceUsage } from '@/components/dashboard/ResourceUsage';
 import { Button } from '@/components/ui/button';
 import { EnhancedScannerAnimation } from '@/components/dashboard/EnhancedScannerAnimation';
 import { Grid, GridItem } from '@/components/ui/grid';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const vulnerabilityData = [
   { name: 'SQL Injection', count: 5, color: '#ff4d6d' },
@@ -68,6 +70,8 @@ const Dashboard = () => {
     low: 23
   });
   
+  const isMobile = useIsMobile();
+  
   useEffect(() => {
     if (scanActive) {
       const interval = setInterval(() => {
@@ -98,76 +102,80 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="md:col-span-2 bg-card/50 backdrop-blur-sm border-purple-900/30 shadow-lg shadow-purple-500/5">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-xl font-bold">Active Scan Status</CardTitle>
-                <CardDescription>Real-time vulnerability detection</CardDescription>
-              </div>
-              <Button 
-                onClick={toggleScan}
-                className={`px-4 py-2 font-medium rounded-md transition-all duration-300 ${
-                  scanActive 
-                    ? 'bg-red-500/80 hover:bg-red-600/80 text-white' 
-                    : 'bg-emerald-500/80 hover:bg-emerald-600/80 text-white'
-                }`}
-              >
-                {scanActive ? 'Stop Scan' : 'Start Scan'}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center mb-4">
-                <Progress value={scanProgress} className="h-2 bg-gray-700/50" />
-                <span className="ml-4 text-sm font-mono">{scanProgress}%</span>
-              </div>
-              
-              <div className="h-48 w-full">
-                <EnhancedScannerAnimation active={scanActive} threatLevel={scanActive ? 'medium' : 'none'} />
-              </div>
-            </CardContent>
-            <CardFooter className="text-sm text-muted-foreground">
-              Target: https://example-vulnerable-site.com
-            </CardFooter>
-          </Card>
+      <div className="flex flex-col w-full gap-6 pb-6">
+        <Grid cols={1} colsMd={3} gap={6} className="w-full">
+          <GridItem spanMd={2} className="w-full">
+            <Card className="w-full bg-card/50 backdrop-blur-sm border-purple-900/30 shadow-lg shadow-purple-500/5">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-bold">Active Scan Status</CardTitle>
+                  <CardDescription>Real-time vulnerability detection</CardDescription>
+                </div>
+                <Button 
+                  onClick={toggleScan}
+                  className={`px-4 py-2 font-medium rounded-md transition-all duration-300 ${
+                    scanActive 
+                      ? 'bg-red-500/80 hover:bg-red-600/80 text-white' 
+                      : 'bg-emerald-500/80 hover:bg-emerald-600/80 text-white'
+                  }`}
+                >
+                  {scanActive ? 'Stop Scan' : 'Start Scan'}
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center mb-4">
+                  <Progress value={scanProgress} className="h-2 bg-gray-700/50 flex-grow" />
+                  <span className="ml-4 text-sm font-mono">{scanProgress}%</span>
+                </div>
+                
+                <div className="h-48 w-full overflow-hidden">
+                  <EnhancedScannerAnimation active={scanActive} threatLevel={scanActive ? 'medium' : 'none'} />
+                </div>
+              </CardContent>
+              <CardFooter className="text-sm text-muted-foreground">
+                Target: https://example-vulnerable-site.com
+              </CardFooter>
+            </Card>
+          </GridItem>
 
-          <Card className="bg-card/50 backdrop-blur-sm border-blue-900/30 shadow-lg shadow-blue-500/5">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">Threat Detection</CardTitle>
-              <CardDescription>Current vulnerability summary</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ThreatLevelIndicator 
-                label="Critical" 
-                count={threatStats.critical} 
-                icon={ShieldX} 
-                color="bg-red-500" 
-              />
-              <ThreatLevelIndicator 
-                label="High" 
-                count={threatStats.high} 
-                icon={ShieldAlert} 
-                color="bg-orange-500" 
-              />
-              <ThreatLevelIndicator 
-                label="Medium" 
-                count={threatStats.medium} 
-                icon={AlertTriangle} 
-                color="bg-yellow-500" 
-              />
-              <ThreatLevelIndicator 
-                label="Low" 
-                count={threatStats.low} 
-                icon={ShieldCheck} 
-                color="bg-green-500" 
-              />
-            </CardContent>
-            <CardFooter className="text-sm text-muted-foreground">
-              Last updated: {new Date().toLocaleTimeString()}
-            </CardFooter>
-          </Card>
-        </div>
+          <GridItem className="w-full">
+            <Card className="h-full bg-card/50 backdrop-blur-sm border-blue-900/30 shadow-lg shadow-blue-500/5">
+              <CardHeader>
+                <CardTitle className="text-xl font-bold">Threat Detection</CardTitle>
+                <CardDescription>Current vulnerability summary</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ThreatLevelIndicator 
+                  label="Critical" 
+                  count={threatStats.critical} 
+                  icon={ShieldX} 
+                  color="bg-red-500" 
+                />
+                <ThreatLevelIndicator 
+                  label="High" 
+                  count={threatStats.high} 
+                  icon={ShieldAlert} 
+                  color="bg-orange-500" 
+                />
+                <ThreatLevelIndicator 
+                  label="Medium" 
+                  count={threatStats.medium} 
+                  icon={AlertTriangle} 
+                  color="bg-yellow-500" 
+                />
+                <ThreatLevelIndicator 
+                  label="Low" 
+                  count={threatStats.low} 
+                  icon={ShieldCheck} 
+                  color="bg-green-500" 
+                />
+              </CardContent>
+              <CardFooter className="text-sm text-muted-foreground">
+                Last updated: {new Date().toLocaleTimeString()}
+              </CardFooter>
+            </Card>
+          </GridItem>
+        </Grid>
 
         <Card className="w-full bg-card/50 backdrop-blur-sm border-indigo-900/30 shadow-lg shadow-indigo-500/5">
           <CardHeader>
@@ -175,7 +183,7 @@ const Dashboard = () => {
             <CardDescription>Attack vectors detected during scans</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
+            <div className="h-64 w-full overflow-hidden">
               <ChartContainer config={chartConfig.vulnerabilities}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={vulnerabilityData} barGap={8} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
@@ -193,9 +201,9 @@ const Dashboard = () => {
                     <ChartTooltip 
                       cursor={{ fill: 'rgba(100, 100, 100, 0.1)' }}
                       content={
-                        <ChartTooltipContent className="z-50 text-xs" />
+                        <ChartTooltipContent className="z-[1050] text-xs" />
                       } 
-                      wrapperStyle={{ zIndex: 1000 }}
+                      wrapperStyle={{ zIndex: 1050, pointerEvents: 'none' }}
                     />
                     <Bar 
                       dataKey="count" 
@@ -216,9 +224,9 @@ const Dashboard = () => {
             <CardDescription>Request volume and response times</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2">
-                <div className="h-64">
+            <Grid cols={1} colsMd={3} gap={6} className="w-full">
+              <GridItem spanMd={2} className="w-full">
+                <div className="h-64 w-full overflow-hidden">
                   <ChartContainer config={chartConfig.performance}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={performanceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -246,9 +254,9 @@ const Dashboard = () => {
                         <ChartTooltip 
                           cursor={{ stroke: 'rgba(100, 100, 100, 0.2)', strokeWidth: 1 }}
                           content={
-                            <ChartTooltipContent className="z-50 text-xs" />
+                            <ChartTooltipContent className="z-[1050] text-xs" />
                           }
-                          wrapperStyle={{ zIndex: 1000, pointerEvents: 'none' }}
+                          wrapperStyle={{ zIndex: 1050, pointerEvents: 'none' }}
                         />
                         <Area 
                           type="monotone" 
@@ -268,27 +276,29 @@ const Dashboard = () => {
                     </ResponsiveContainer>
                   </ChartContainer>
                 </div>
-              </div>
+              </GridItem>
               
-              <div className="space-y-4">
-                <ResourceUsage 
-                  label="CPU Usage" 
-                  value={cpuUsage} 
-                  icon={Cpu} 
-                  max={100} 
-                  unit="%" 
-                  color="from-blue-500 to-purple-500" 
-                />
-                <ResourceUsage 
-                  label="Memory Usage" 
-                  value={memoryUsage} 
-                  icon={Zap} 
-                  max={100} 
-                  unit="%" 
-                  color="from-purple-500 to-pink-500" 
-                />
-              </div>
-            </div>
+              <GridItem className="w-full">
+                <div className="flex flex-col space-y-6 h-full justify-center">
+                  <ResourceUsage 
+                    label="CPU Usage" 
+                    value={cpuUsage} 
+                    icon={Cpu} 
+                    max={100} 
+                    unit="%" 
+                    color="from-blue-500 to-purple-500" 
+                  />
+                  <ResourceUsage 
+                    label="Memory Usage" 
+                    value={memoryUsage} 
+                    icon={Zap} 
+                    max={100} 
+                    unit="%" 
+                    color="from-purple-500 to-pink-500" 
+                  />
+                </div>
+              </GridItem>
+            </Grid>
           </CardContent>
         </Card>
 
@@ -297,7 +307,7 @@ const Dashboard = () => {
             <CardTitle className="text-xl font-bold">Recent Scans</CardTitle>
             <CardDescription>Latest scan activities</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             <RecentScansTable />
           </CardContent>
         </Card>
