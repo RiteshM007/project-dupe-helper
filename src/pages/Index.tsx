@@ -265,28 +265,29 @@ const Dashboard = () => {
                       />
                     </AreaChart>
                   </ResponsiveContainer>
-                </div>
+                </ChartContainer>
               </div>
-              
-              <div className="space-y-4">
-                <ResourceUsage 
-                  label="CPU Usage" 
-                  value={cpuUsage} 
-                  icon={Cpu} 
-                  max={100} 
-                  unit="%" 
-                  color="from-blue-500 to-purple-500" 
-                />
-                <ResourceUsage 
-                  label="Memory Usage" 
-                  value={memoryUsage} 
-                  icon={Zap} 
-                  max={100} 
-                  unit="%" 
-                  color="from-purple-500 to-pink-500" 
-                />
-              </div>
-            </CardContent>
+            </div>
+            
+            <div className="space-y-4">
+              <ResourceUsage 
+                label="CPU Usage" 
+                value={cpuUsage} 
+                icon={Cpu} 
+                max={100} 
+                unit="%" 
+                color="from-blue-500 to-purple-500" 
+              />
+              <ResourceUsage 
+                label="Memory Usage" 
+                value={memoryUsage} 
+                icon={Zap} 
+                max={100} 
+                unit="%" 
+                color="from-purple-500 to-pink-500" 
+              />
+            </div>
+          </CardContent>
         </Card>
 
         {/* Bottom row */}
