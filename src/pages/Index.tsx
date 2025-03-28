@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Shield, 
@@ -22,8 +21,8 @@ import { RecentScansTable } from '@/components/dashboard/RecentScansTable';
 import { ResourceUsage } from '@/components/dashboard/ResourceUsage';
 import { Button } from '@/components/ui/button';
 import { EnhancedScannerAnimation } from '@/components/dashboard/EnhancedScannerAnimation';
+import { Grid, GridItem } from '@/components/ui/grid';
 
-// Mock data for charts
 const vulnerabilityData = [
   { name: 'SQL Injection', count: 5, color: '#ff4d6d' },
   { name: 'XSS', count: 12, color: '#f77f00' },
@@ -43,7 +42,6 @@ const performanceData = [
   { time: '06:00', requests: 370, responseTime: 70 },
 ];
 
-// Chart configuration
 const chartConfig = {
   vulnerabilities: {
     red: { color: '#ff4d6d', label: 'Critical' },
@@ -70,7 +68,6 @@ const Dashboard = () => {
     low: 23
   });
   
-  // Simulate progress and resource usage changes
   useEffect(() => {
     if (scanActive) {
       const interval = setInterval(() => {
@@ -82,7 +79,6 @@ const Dashboard = () => {
           return prev + 1;
         });
         
-        // Simulate fluctuating resource usage
         setCpuUsage(Math.min(95, Math.max(25, cpuUsage + (Math.random() * 10 - 5))));
         setMemoryUsage(Math.min(95, Math.max(30, memoryUsage + (Math.random() * 8 - 4))));
       }, 300);
@@ -102,78 +98,78 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Top row */}
-        <Card className="md:col-span-2 bg-card/50 backdrop-blur-sm border-purple-900/30 shadow-lg shadow-purple-500/5">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-xl font-bold">Active Scan Status</CardTitle>
-              <CardDescription>Real-time vulnerability detection</CardDescription>
-            </div>
-            <Button 
-              onClick={toggleScan}
-              className={`px-4 py-2 font-medium rounded-md transition-all duration-300 ${
-                scanActive 
-                  ? 'bg-red-500/80 hover:bg-red-600/80 text-white' 
-                  : 'bg-emerald-500/80 hover:bg-emerald-600/80 text-white'
-              }`}
-            >
-              {scanActive ? 'Stop Scan' : 'Start Scan'}
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center mb-4">
-              <Progress value={scanProgress} className="h-2 bg-gray-700/50" />
-              <span className="ml-4 text-sm font-mono">{scanProgress}%</span>
-            </div>
-            
-            <div className="h-48 w-full">
-              <EnhancedScannerAnimation active={scanActive} threatLevel={scanActive ? 'medium' : 'none'} />
-            </div>
-          </CardContent>
-          <CardFooter className="text-sm text-muted-foreground">
-            Target: https://example-vulnerable-site.com
-          </CardFooter>
-        </Card>
+      <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="md:col-span-2 bg-card/50 backdrop-blur-sm border-purple-900/30 shadow-lg shadow-purple-500/5">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold">Active Scan Status</CardTitle>
+                <CardDescription>Real-time vulnerability detection</CardDescription>
+              </div>
+              <Button 
+                onClick={toggleScan}
+                className={`px-4 py-2 font-medium rounded-md transition-all duration-300 ${
+                  scanActive 
+                    ? 'bg-red-500/80 hover:bg-red-600/80 text-white' 
+                    : 'bg-emerald-500/80 hover:bg-emerald-600/80 text-white'
+                }`}
+              >
+                {scanActive ? 'Stop Scan' : 'Start Scan'}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center mb-4">
+                <Progress value={scanProgress} className="h-2 bg-gray-700/50" />
+                <span className="ml-4 text-sm font-mono">{scanProgress}%</span>
+              </div>
+              
+              <div className="h-48 w-full">
+                <EnhancedScannerAnimation active={scanActive} threatLevel={scanActive ? 'medium' : 'none'} />
+              </div>
+            </CardContent>
+            <CardFooter className="text-sm text-muted-foreground">
+              Target: https://example-vulnerable-site.com
+            </CardFooter>
+          </Card>
 
-        <Card className="bg-card/50 backdrop-blur-sm border-blue-900/30 shadow-lg shadow-blue-500/5">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">Threat Detection</CardTitle>
-            <CardDescription>Current vulnerability summary</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <ThreatLevelIndicator 
-              label="Critical" 
-              count={threatStats.critical} 
-              icon={ShieldX} 
-              color="bg-red-500" 
-            />
-            <ThreatLevelIndicator 
-              label="High" 
-              count={threatStats.high} 
-              icon={ShieldAlert} 
-              color="bg-orange-500" 
-            />
-            <ThreatLevelIndicator 
-              label="Medium" 
-              count={threatStats.medium} 
-              icon={AlertTriangle} 
-              color="bg-yellow-500" 
-            />
-            <ThreatLevelIndicator 
-              label="Low" 
-              count={threatStats.low} 
-              icon={ShieldCheck} 
-              color="bg-green-500" 
-            />
-          </CardContent>
-          <CardFooter className="text-sm text-muted-foreground">
-            Last updated: {new Date().toLocaleTimeString()}
-          </CardFooter>
-        </Card>
+          <Card className="bg-card/50 backdrop-blur-sm border-blue-900/30 shadow-lg shadow-blue-500/5">
+            <CardHeader>
+              <CardTitle className="text-xl font-bold">Threat Detection</CardTitle>
+              <CardDescription>Current vulnerability summary</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ThreatLevelIndicator 
+                label="Critical" 
+                count={threatStats.critical} 
+                icon={ShieldX} 
+                color="bg-red-500" 
+              />
+              <ThreatLevelIndicator 
+                label="High" 
+                count={threatStats.high} 
+                icon={ShieldAlert} 
+                color="bg-orange-500" 
+              />
+              <ThreatLevelIndicator 
+                label="Medium" 
+                count={threatStats.medium} 
+                icon={AlertTriangle} 
+                color="bg-yellow-500" 
+              />
+              <ThreatLevelIndicator 
+                label="Low" 
+                count={threatStats.low} 
+                icon={ShieldCheck} 
+                color="bg-green-500" 
+              />
+            </CardContent>
+            <CardFooter className="text-sm text-muted-foreground">
+              Last updated: {new Date().toLocaleTimeString()}
+            </CardFooter>
+          </Card>
+        </div>
 
-        {/* Middle row - Fixed the overlapping by separating rows */}
-        <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-indigo-900/30 shadow-lg shadow-indigo-500/5">
+        <Card className="w-full bg-card/50 backdrop-blur-sm border-indigo-900/30 shadow-lg shadow-indigo-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Vulnerability Distribution</CardTitle>
             <CardDescription>Attack vectors detected during scans</CardDescription>
@@ -182,7 +178,7 @@ const Dashboard = () => {
             <div className="h-64">
               <ChartContainer config={chartConfig.vulnerabilities}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={vulnerabilityData} barGap={8}>
+                  <BarChart data={vulnerabilityData} barGap={8} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                     <XAxis 
                       dataKey="name" 
                       tick={{ fill: 'currentColor', fontSize: 12 }}
@@ -195,9 +191,11 @@ const Dashboard = () => {
                       tickLine={{ stroke: '#666' }}
                     />
                     <ChartTooltip 
+                      cursor={{ fill: 'rgba(100, 100, 100, 0.1)' }}
                       content={
-                        <ChartTooltipContent className="text-xs" />
+                        <ChartTooltipContent className="z-50 text-xs" />
                       } 
+                      wrapperStyle={{ zIndex: 1000 }}
                     />
                     <Bar 
                       dataKey="count" 
@@ -212,87 +210,89 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Performance metrics card in its own row */}
-        <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-cyan-900/30 shadow-lg shadow-cyan-500/5">
+        <Card className="w-full bg-card/50 backdrop-blur-sm border-cyan-900/30 shadow-lg shadow-cyan-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Performance Metrics</CardTitle>
             <CardDescription>Request volume and response times</CardDescription>
           </CardHeader>
-          <CardContent className="grid md:grid-cols-3 gap-6">
-            <div className="md:col-span-2">
-              <div className="h-64">
-                <ChartContainer config={chartConfig.performance}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={performanceData}>
-                      <defs>
-                        <linearGradient id="requestsGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.1}/>
-                        </linearGradient>
-                        <linearGradient id="responseTimeGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <XAxis 
-                        dataKey="time" 
-                        tick={{ fill: 'currentColor', fontSize: 12 }}
-                        axisLine={{ stroke: '#666' }}
-                        tickLine={{ stroke: '#666' }}
-                      />
-                      <YAxis 
-                        tick={{ fill: 'currentColor', fontSize: 12 }}
-                        axisLine={{ stroke: '#666' }}
-                        tickLine={{ stroke: '#666' }}
-                      />
-                      <ChartTooltip 
-                        content={
-                          <ChartTooltipContent className="text-xs" />
-                        } 
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="requests" 
-                        stroke="#7c3aed" 
-                        fillOpacity={1}
-                        fill="url(#requestsGradient)" 
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="responseTime" 
-                        stroke="#60a5fa" 
-                        fillOpacity={1}
-                        fill="url(#responseTimeGradient)" 
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2">
+                <div className="h-64">
+                  <ChartContainer config={chartConfig.performance}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={performanceData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="requestsGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#7c3aed" stopOpacity={0.1}/>
+                          </linearGradient>
+                          <linearGradient id="responseTimeGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        <XAxis 
+                          dataKey="time" 
+                          tick={{ fill: 'currentColor', fontSize: 12 }}
+                          axisLine={{ stroke: '#666' }}
+                          tickLine={{ stroke: '#666' }}
+                        />
+                        <YAxis 
+                          tick={{ fill: 'currentColor', fontSize: 12 }}
+                          axisLine={{ stroke: '#666' }}
+                          tickLine={{ stroke: '#666' }}
+                        />
+                        <ChartTooltip 
+                          cursor={{ stroke: 'rgba(100, 100, 100, 0.2)', strokeWidth: 1 }}
+                          content={
+                            <ChartTooltipContent className="z-50 text-xs" />
+                          }
+                          wrapperStyle={{ zIndex: 1000, pointerEvents: 'none' }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="requests" 
+                          stroke="#7c3aed" 
+                          fillOpacity={1}
+                          fill="url(#requestsGradient)" 
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="responseTime" 
+                          stroke="#60a5fa" 
+                          fillOpacity={1}
+                          fill="url(#responseTimeGradient)" 
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                </div>
               </div>
-            </div>
-            
-            <div className="space-y-4">
-              <ResourceUsage 
-                label="CPU Usage" 
-                value={cpuUsage} 
-                icon={Cpu} 
-                max={100} 
-                unit="%" 
-                color="from-blue-500 to-purple-500" 
-              />
-              <ResourceUsage 
-                label="Memory Usage" 
-                value={memoryUsage} 
-                icon={Zap} 
-                max={100} 
-                unit="%" 
-                color="from-purple-500 to-pink-500" 
-              />
+              
+              <div className="space-y-4">
+                <ResourceUsage 
+                  label="CPU Usage" 
+                  value={cpuUsage} 
+                  icon={Cpu} 
+                  max={100} 
+                  unit="%" 
+                  color="from-blue-500 to-purple-500" 
+                />
+                <ResourceUsage 
+                  label="Memory Usage" 
+                  value={memoryUsage} 
+                  icon={Zap} 
+                  max={100} 
+                  unit="%" 
+                  color="from-purple-500 to-pink-500" 
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Bottom row */}
-        <Card className="md:col-span-3 bg-card/50 backdrop-blur-sm border-emerald-900/30 shadow-lg shadow-emerald-500/5">
+        <Card className="w-full bg-card/50 backdrop-blur-sm border-emerald-900/30 shadow-lg shadow-emerald-500/5">
           <CardHeader>
             <CardTitle className="text-xl font-bold">Recent Scans</CardTitle>
             <CardDescription>Latest scan activities</CardDescription>
