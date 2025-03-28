@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Play, Pause, Square, AlertTriangle, ChevronRight, ChevronDown, Lock, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';

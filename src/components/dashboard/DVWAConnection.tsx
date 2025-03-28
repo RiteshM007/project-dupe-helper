@@ -37,7 +37,7 @@ export const DVWAConnection: React.FC<DVWAConnectionProps> = ({
   const [securityLevel, setSecurityLevel] = useState<'low' | 'medium' | 'high' | 'impossible'>(
     connectionDetails?.securityLevel || 'low'
   );
-  const [autoLogin, setAutoLogin] = useState(connectionDetails?.autoLogin || true);
+  const [autoLogin, setAutoLogin] = useState(connectionDetails?.autoLogin || false);
   const [testingConnection, setTestingConnection] = useState(false);
 
   const handleTestConnection = () => {
