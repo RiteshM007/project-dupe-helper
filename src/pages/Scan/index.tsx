@@ -1,43 +1,27 @@
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { Grid, GridItem } from '@/components/ui/grid';
 
-import React, { useState } from 'react';
-import { Grid } from '@/components/ui/grid';
-import { DVWAConnection, DVWAConfig } from '@/components/dashboard/DVWAConnection';
-import { CyberpunkScannerAnimation } from '@/components/dashboard/CyberpunkScannerAnimation';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import ScanControl from "../ScanControl";
-
-const ScanPage = () => {
-  const [isDVWAConnected, setIsDVWAConnected] = useState(false);
-  const [dvwaConfig, setDvwaConfig] = useState<DVWAConfig | null>(null);
-  
-  const handleConnect = (config: DVWAConfig) => {
-    setDvwaConfig(config);
-    setIsDVWAConnected(true);
-  };
-  
-  const handleDisconnect = () => {
-    setIsDVWAConnected(false);
-    setDvwaConfig(null);
-  };
-  
+const Scan = () => {
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <Grid className="grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-            <ScanControl />
-          </div>
-          <div>
-            <DVWAConnection 
-              isConnected={isDVWAConnected}
-              onConnect={handleConnect}
-              onDisconnect={handleDisconnect}
-            />
-          </div>
-        </Grid>
-      </div>
-    </DashboardLayout>
+    <div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Scan Page</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Grid cols={2} gap={4}>
+            <GridItem span={1}>
+              <p>This is the scan page content.</p>
+            </GridItem>
+            <GridItem span={1}>
+              <p>More content here.</p>
+            </GridItem>
+          </Grid>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
-export default ScanPage;
+export default Scan;

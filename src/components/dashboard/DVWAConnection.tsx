@@ -17,8 +17,8 @@ import {
   FormMessage, 
   Input, 
   Switch 
-} from '@/components/ui'; // Import without shorthand
-import { Pulse } from 'lucide-react'; // Fixed import name
+} from '@/components/ui/'; // Fixed import path by removing 'ui' shorthand
+import { CirclePulse } from 'lucide-react'; // Changed Pulse to CirclePulse
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -68,9 +68,17 @@ export const DVWAConnection: React.FC<DVWAConnectionProps> = ({
   const onSubmit = (data: z.infer<typeof dvwaFormSchema>) => {
     setIsConnecting(true);
     
+    // Ensure all required fields are provided before calling onConnect
+    const config: DVWAConfig = {
+      url: data.url,
+      username: data.username,
+      password: data.password,
+      autoLogin: data.autoLogin
+    };
+    
     // Simulate connection delay
     setTimeout(() => {
-      onConnect(data);
+      onConnect(config);
       setIsConnecting(false);
     }, 1500);
   };
@@ -87,7 +95,7 @@ export const DVWAConnection: React.FC<DVWAConnectionProps> = ({
           <CardTitle className="text-xl font-bold">DVWA Connection</CardTitle>
           {isConnected && (
             <Badge className="bg-green-500/80 text-white px-2 py-1 flex items-center gap-1">
-              <Pulse className="h-3 w-3" />
+              <div className="h-3 w-3 rounded-full bg-green-200 animate-pulse"></div>
               Connected
             </Badge>
           )}
