@@ -24,7 +24,7 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
   const percentage = (value / max) * 100;
   
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 w-full">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div className={`p-1.5 rounded-md bg-gradient-to-br ${color}`}>

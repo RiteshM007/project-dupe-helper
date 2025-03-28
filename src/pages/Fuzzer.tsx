@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChart as PieChartIcon, BarChart as BarChartIcon, ActivityIcon } from 'lucide-react';
+import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChartIcon, BarChartIcon, ActivityIcon } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PieChart, Pie, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { ThreatLevelIndicator } from "@/components/dashboard/ThreatLevelIndicator";
-import { CyberpunkScannerAnimation } from "@/components/dashboard/CyberpunkScannerAnimation";
+import { EnhancedScannerAnimation } from "@/components/dashboard/EnhancedScannerAnimation";
+import { Grid, GridItem } from "@/components/ui/grid";
 
 // Colors for charts
 const CHART_COLORS = {
@@ -498,18 +499,19 @@ const Fuzzer = () => {
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* First row: Severity Distribution and Vulnerability Types */}
+                        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Vulnerability Distribution */}
-                          <Card className="border-white/10 bg-white/5">
+                          <Card className="border-white/10 bg-white/5 w-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-sm flex items-center">
                                 <PieChartIcon className="h-4 w-4 mr-2" />
                                 Severity Distribution
                               </CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="w-full">
                               {getPieChartData().length > 0 ? (
-                                <div className="h-72">
+                                <div className="h-64 w-full">
                                   <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                       <Pie
@@ -526,13 +528,13 @@ const Fuzzer = () => {
                                           <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                       </Pie>
-                                      <Tooltip />
+                                      <Tooltip contentStyle={{ backgroundColor: '#222', border: '1px solid #444', borderRadius: '4px', zIndex: 1000 }} />
                                       <Legend />
                                     </PieChart>
                                   </ResponsiveContainer>
                                 </div>
                               ) : (
-                                <div className="h-72 flex items-center justify-center text-white/50">
+                                <div className="h-64 flex items-center justify-center text-white/50">
                                   No vulnerabilities detected
                                 </div>
                               )}
@@ -540,16 +542,16 @@ const Fuzzer = () => {
                           </Card>
                           
                           {/* Vulnerability Types */}
-                          <Card className="border-white/10 bg-white/5">
+                          <Card className="border-white/10 bg-white/5 w-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-sm flex items-center">
                                 <BarChartIcon className="h-4 w-4 mr-2" />
                                 Vulnerability Types
                               </CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="w-full">
                               {getVulnerabilityTypeData().length > 0 ? (
-                                <div className="h-72">
+                                <div className="h-64 w-full">
                                   <ResponsiveContainer width="100%" height="100%">
                                     <BarChart
                                       data={getVulnerabilityTypeData()}
@@ -568,7 +570,8 @@ const Fuzzer = () => {
                                           backgroundColor: '#222', 
                                           border: '1px solid #444',
                                           borderRadius: '4px',
-                                          color: '#eee'
+                                          color: '#eee',
+                                          zIndex: 1000
                                         }} 
                                       />
                                       <Legend />
@@ -577,7 +580,7 @@ const Fuzzer = () => {
                                   </ResponsiveContainer>
                                 </div>
                               ) : (
-                                <div className="h-72 flex items-center justify-center text-white/50">
+                                <div className="h-64 flex items-center justify-center text-white/50">
                                   No vulnerability types data
                                 </div>
                               )}
@@ -585,60 +588,64 @@ const Fuzzer = () => {
                           </Card>
                         </div>
                         
-                        {/* Scan Performance Metrics */}
-                        <Card className="border-white/10 bg-white/5">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm flex items-center">
-                              <ActivityIcon className="h-4 w-4 mr-2" />
-                              Scan Timeline Analysis
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="h-72">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <LineChart
-                                  data={getTimelineData()}
-                                  margin={{
-                                    top: 5,
-                                    right: 30,
-                                    left: 20,
-                                    bottom: 5,
-                                  }}
-                                >
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                                  <XAxis dataKey="progress" stroke="#aaa" />
-                                  <YAxis stroke="#aaa" />
-                                  <Tooltip 
-                                    contentStyle={{ 
-                                      backgroundColor: '#222', 
-                                      border: '1px solid #444',
-                                      borderRadius: '4px',
-                                      color: '#eee'
-                                    }} 
-                                  />
-                                  <Legend />
-                                  <Line type="monotone" dataKey="Critical" stroke={CHART_COLORS.critical} activeDot={{ r: 8 }} />
-                                  <Line type="monotone" dataKey="High" stroke={CHART_COLORS.high} />
-                                  <Line type="monotone" dataKey="Medium" stroke={CHART_COLORS.medium} />
-                                  <Line type="monotone" dataKey="Low" stroke={CHART_COLORS.low} />
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </CardContent>
-                        </Card>
+                        {/* Second row: Scan Performance Metrics */}
+                        <div className="w-full">
+                          <Card className="border-white/10 bg-white/5 w-full">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm flex items-center">
+                                <ActivityIcon className="h-4 w-4 mr-2" />
+                                Scan Timeline Analysis
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="w-full">
+                              <div className="h-64 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart
+                                    data={getTimelineData()}
+                                    margin={{
+                                      top: 5,
+                                      right: 30,
+                                      left: 20,
+                                      bottom: 5,
+                                    }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                                    <XAxis dataKey="progress" stroke="#aaa" />
+                                    <YAxis stroke="#aaa" />
+                                    <Tooltip 
+                                      contentStyle={{ 
+                                        backgroundColor: '#222', 
+                                        border: '1px solid #444',
+                                        borderRadius: '4px',
+                                        color: '#eee',
+                                        zIndex: 1000
+                                      }} 
+                                    />
+                                    <Legend />
+                                    <Line type="monotone" dataKey="Critical" stroke={CHART_COLORS.critical} activeDot={{ r: 8 }} />
+                                    <Line type="monotone" dataKey="High" stroke={CHART_COLORS.high} />
+                                    <Line type="monotone" dataKey="Medium" stroke={CHART_COLORS.medium} />
+                                    <Line type="monotone" dataKey="Low" stroke={CHART_COLORS.low} />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Third row: Response Code Distribution and Scan Visualization */}
+                        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Response Code Distribution */}
-                          <Card className="border-white/10 bg-white/5">
+                          <Card className="border-white/10 bg-white/5 w-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-sm flex items-center">
                                 <BarChartIcon className="h-4 w-4 mr-2" />
                                 Response Code Distribution
                               </CardTitle>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="w-full">
                               {getResponseCodeData().length > 0 ? (
-                                <div className="h-60">
+                                <div className="h-60 w-full">
                                   <ResponsiveContainer width="100%" height="100%">
                                     <BarChart
                                       data={getResponseCodeData()}
@@ -657,7 +664,8 @@ const Fuzzer = () => {
                                           backgroundColor: '#222', 
                                           border: '1px solid #444',
                                           borderRadius: '4px',
-                                          color: '#eee'
+                                          color: '#eee',
+                                          zIndex: 1000
                                         }} 
                                       />
                                       <Legend />
@@ -674,16 +682,15 @@ const Fuzzer = () => {
                           </Card>
                           
                           {/* Live Scanner Visualization */}
-                          <Card className="border-white/10 bg-white/5">
+                          <Card className="border-white/10 bg-white/5 w-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-sm">Scan Visualization</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                              <div className="h-60">
-                                <CyberpunkScannerAnimation 
+                            <CardContent className="w-full">
+                              <div className="h-60 w-full">
+                                <EnhancedScannerAnimation 
                                   active={scanning} 
                                   threatLevel={threatLevel}
-                                  detectedThreats={threats.critical + threats.high + threats.medium + threats.low}
                                 />
                               </div>
                             </CardContent>
