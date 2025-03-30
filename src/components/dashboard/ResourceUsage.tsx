@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ResourceUsageProps {
   label: string;
@@ -34,12 +35,23 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
         <span className="text-sm font-mono">{value.toFixed(1)}{unit}</span>
       </div>
       
-      <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-700/50">
-        <div 
-          className={`absolute inset-0 h-full bg-gradient-to-r ${color} transition-all duration-300 ease-in-out`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-700/50">
+              <div 
+                className={`absolute inset-0 h-full bg-gradient-to-r ${color} transition-all duration-300 ease-in-out`}
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="font-mono text-xs">
+              {value.toFixed(1)}{unit} of {max}{unit} ({percentage.toFixed(1)}%)
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 };
