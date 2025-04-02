@@ -53,6 +53,10 @@
   
   body {
     @apply bg-background text-foreground antialiased overflow-hidden;
+    background-image: 
+      radial-gradient(circle at 10% 20%, rgba(91, 37, 170, 0.1) 0%, rgba(7, 14, 44, 0.01) 50%),
+      radial-gradient(circle at 90% 80%, rgba(91, 37, 170, 0.1) 0%, rgba(7, 14, 44, 0.01) 50%);
+    background-attachment: fixed;
   }
 
   html {
@@ -121,6 +125,45 @@
   .cyber-dots {
     background-image: radial-gradient(rgba(148, 85, 235, 0.1) 1px, transparent 1px);
     background-size: 20px 20px;
+  }
+
+  /* Card styles */
+  .cyberpunk-card {
+    @apply relative overflow-hidden rounded-xl border border-purple-500/20 bg-gradient-to-br from-black/60 to-purple-900/20 backdrop-blur-md;
+    box-shadow: 0 10px 30px -10px rgba(91, 37, 170, 0.2), 
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  .cyberpunk-card::before {
+    content: '';
+    @apply absolute -top-1 left-0 h-1 w-full bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50;
+  }
+
+  /* Animated border */
+  .animated-border {
+    @apply relative rounded-xl;
+  }
+  
+  .animated-border::after {
+    content: '';
+    @apply absolute inset-0 rounded-xl;
+    background: linear-gradient(
+      60deg,
+      rgba(84, 58, 183, 0.1) 0%,
+      rgba(129, 53, 190, 0.1) 25%, 
+      rgba(199, 66, 190, 0.1) 50%,
+      rgba(129, 53, 190, 0.1) 75%,
+      rgba(84, 58, 183, 0.1) 100%
+    );
+    z-index: -1;
+    background-size: 200% 200%;
+    animation: gradientBorder 6s ease infinite;
+  }
+  
+  @keyframes gradientBorder {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
 
   /* Animation effects */
@@ -234,6 +277,36 @@
     }
   }
 
+  /* Button effects */
+  .cyber-button {
+    @apply relative inline-flex items-center justify-center px-4 py-2 overflow-hidden font-mono text-sm font-medium text-white bg-purple-900/40 rounded-lg group;
+  }
+  
+  .cyber-button::before {
+    content: '';
+    @apply absolute top-0 left-0 w-full h-full bg-gradient-to-br from-purple-600 to-blue-500 opacity-0 transition-opacity duration-300 ease-out;
+  }
+  
+  .cyber-button:hover::before {
+    @apply opacity-20;
+  }
+  
+  .cyber-button::after {
+    content: '';
+    @apply absolute inset-0 -mt-px rounded-lg border-t border-l border-r border-white/20;
+  }
+  
+  /* Dashboard specific */
+  .dashboard-card {
+    @apply relative overflow-hidden rounded-xl border border-white/5 bg-black/40 backdrop-blur-md transition-all duration-300;
+    box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.2);
+  }
+  
+  .dashboard-card:hover {
+    @apply border-purple-500/20;
+    box-shadow: 0 8px 30px -5px rgba(91, 37, 170, 0.3);
+  }
+
   /* Responsive utility classes */
   .responsive-padding {
     @apply p-2 sm:p-3 md:p-4 lg:p-6;
@@ -244,7 +317,30 @@
   }
 
   .chart-container {
-    @apply w-full overflow-hidden;
+    @apply w-full overflow-hidden bg-black/20 backdrop-blur-sm rounded-xl border border-white/5 p-4;
     min-height: 200px;
+  }
+  
+  /* Hover effects */
+  .hover-glow {
+    @apply transition-all duration-300;
+  }
+  
+  .hover-glow:hover {
+    box-shadow: 0 0 15px theme('colors.purple.500');
+  }
+  
+  /* Pulse animation */
+  .pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
   }
 }
