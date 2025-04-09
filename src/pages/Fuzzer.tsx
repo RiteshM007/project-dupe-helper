@@ -493,170 +493,172 @@ const Fuzzer = () => {
                   <TabsTrigger value="results">Results</TabsTrigger>
                   <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 </TabsList>
+                
+                <TabsContent value="logs" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
+                  <ScrollArea className="flex-1 border rounded-md h-[40vh]">
+                    <div className="p-4 space-y-2 font-mono text-sm">
+                      {activityLogs.length > 0 ? (
+                        activityLogs.map((log, index) => (
+                          <div key={index} className="flex">
+                            <span className="text-muted-foreground mr-2">
+                              [{new Date(log.timestamp).toLocaleTimeString()}]
+                            </span>
+                            <span>{log.message}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-muted-foreground text-center py-8">
+                          No logs to display. Start the fuzzer to generate logs.
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="reports" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
+                  <ScrollArea className="flex-1 border rounded-md h-[40vh]">
+                    <div className="p-4 space-y-4">
+                      {reports.length > 0 ? (
+                        reports.map((report, index) => (
+                          <div key={index} className="bg-muted p-3 rounded-md font-mono text-xs whitespace-pre-wrap">
+                            {report.data}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-muted-foreground text-center py-8">
+                          No reports to display. Start the fuzzer to generate reports.
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="results" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
+                  <ScrollArea className="flex-1 border rounded-md h-[40vh]">
+                    <div className="p-4">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2">Payload</th>
+                            <th className="text-left py-2">Type</th>
+                            <th className="text-left py-2">Severity</th>
+                            <th className="text-left py-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dataset.length > 0 ? (
+                            dataset.map((item, index) => (
+                              <tr key={index} className="border-b hover:bg-muted/50">
+                                <td className="py-2 font-mono text-xs truncate max-w-[200px]">
+                                  {item.payload}
+                                </td>
+                                <td className="py-2">
+                                  {item.vulnerability_type || "unknown"}
+                                </td>
+                                <td className="py-2">
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`
+                                      ${item.severity === 'critical' && 'border-red-500 text-red-500'}
+                                      ${item.severity === 'high' && 'border-orange-500 text-orange-500'}
+                                      ${item.severity === 'medium' && 'border-yellow-500 text-yellow-500'}
+                                      ${item.severity === 'low' && 'border-green-500 text-green-500'}
+                                      ${item.severity === 'info' && 'border-blue-500 text-blue-500'}
+                                    `}
+                                  >
+                                    {item.severity || "unknown"}
+                                  </Badge>
+                                </td>
+                                <td className="py-2">
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`
+                                      ${item.label === 'malicious' && 'border-red-500 bg-red-500/10'}
+                                      ${item.label === 'suspicious' && 'border-yellow-500 bg-yellow-500/10'}
+                                      ${item.label === 'safe' && 'border-green-500 bg-green-500/10'}
+                                    `}
+                                  >
+                                    {item.label}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={4} className="text-center text-muted-foreground py-8">
+                                No results to display. Start the fuzzer to generate results.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+                
+                <TabsContent value="analytics" className="flex-1 overflow-hidden h-full mt-0">
+                  {dataset.length > 0 ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[40vh]">
+                      <div className="border rounded-md p-4">
+                        <h3 className="text-sm font-medium mb-2">Severity Distribution</h3>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={severityData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={renderCustomizedLabel}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {severityData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name.toLowerCase() as keyof typeof CHART_COLORS]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="border rounded-md p-4">
+                        <h3 className="text-sm font-medium mb-2">Vulnerability Types</h3>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <BarChart
+                            data={vulnerabilityTypeData}
+                            margin={{
+                              top: 5,
+                              right: 30,
+                              left: 20,
+                              bottom: 5,
+                            }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="count" fill="#8884d8">
+                              {vulnerabilityTypeData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-center py-8">
+                      No data available for analysis. Start the fuzzer to generate data.
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
             </CardHeader>
             
             <CardContent className="flex-1 pb-1 overflow-hidden flex flex-col">
-              <TabsContent value="logs" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
-                <ScrollArea className="flex-1 border rounded-md h-[40vh]">
-                  <div className="p-4 space-y-2 font-mono text-sm">
-                    {activityLogs.length > 0 ? (
-                      activityLogs.map((log, index) => (
-                        <div key={index} className="flex">
-                          <span className="text-muted-foreground mr-2">
-                            [{new Date(log.timestamp).toLocaleTimeString()}]
-                          </span>
-                          <span>{log.message}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-muted-foreground text-center py-8">
-                        No logs to display. Start the fuzzer to generate logs.
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-              
-              <TabsContent value="reports" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
-                <ScrollArea className="flex-1 border rounded-md h-[40vh]">
-                  <div className="p-4 space-y-4">
-                    {reports.length > 0 ? (
-                      reports.map((report, index) => (
-                        <div key={index} className="bg-muted p-3 rounded-md font-mono text-xs whitespace-pre-wrap">
-                          {report.data}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-muted-foreground text-center py-8">
-                        No reports to display. Start the fuzzer to generate reports.
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-              
-              <TabsContent value="results" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
-                <ScrollArea className="flex-1 border rounded-md h-[40vh]">
-                  <div className="p-4">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2">Payload</th>
-                          <th className="text-left py-2">Type</th>
-                          <th className="text-left py-2">Severity</th>
-                          <th className="text-left py-2">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dataset.length > 0 ? (
-                          dataset.map((item, index) => (
-                            <tr key={index} className="border-b hover:bg-muted/50">
-                              <td className="py-2 font-mono text-xs truncate max-w-[200px]">
-                                {item.payload}
-                              </td>
-                              <td className="py-2">
-                                {item.vulnerability_type || "unknown"}
-                              </td>
-                              <td className="py-2">
-                                <Badge 
-                                  variant="outline" 
-                                  className={`
-                                    ${item.severity === 'critical' && 'border-red-500 text-red-500'}
-                                    ${item.severity === 'high' && 'border-orange-500 text-orange-500'}
-                                    ${item.severity === 'medium' && 'border-yellow-500 text-yellow-500'}
-                                    ${item.severity === 'low' && 'border-green-500 text-green-500'}
-                                    ${item.severity === 'info' && 'border-blue-500 text-blue-500'}
-                                  `}
-                                >
-                                  {item.severity || "unknown"}
-                                </Badge>
-                              </td>
-                              <td className="py-2">
-                                <Badge 
-                                  variant="outline" 
-                                  className={`
-                                    ${item.label === 'malicious' && 'border-red-500 bg-red-500/10'}
-                                    ${item.label === 'suspicious' && 'border-yellow-500 bg-yellow-500/10'}
-                                    ${item.label === 'safe' && 'border-green-500 bg-green-500/10'}
-                                  `}
-                                >
-                                  {item.label}
-                                </Badge>
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={4} className="text-center text-muted-foreground py-8">
-                              No results to display. Start the fuzzer to generate results.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-              
-              <TabsContent value="analytics" className="flex-1 overflow-hidden h-full mt-0">
-                {dataset.length > 0 ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[40vh]">
-                    <div className="border rounded-md p-4">
-                      <h3 className="text-sm font-medium mb-2">Severity Distribution</h3>
-                      <ResponsiveContainer width="100%" height={250}>
-                        <PieChart>
-                          <Pie
-                            data={severityData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={renderCustomizedLabel}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {severityData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name.toLowerCase() as keyof typeof CHART_COLORS]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="border rounded-md p-4">
-                      <h3 className="text-sm font-medium mb-2">Vulnerability Types</h3>
-                      <ResponsiveContainer width="100%" height={250}>
-                        <BarChart
-                          data={vulnerabilityTypeData}
-                          margin={{
-                            top: 5,
-                            right: 30,
-                            left: 20,
-                            bottom: 5,
-                          }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="count" fill="#8884d8">
-                            {vulnerabilityTypeData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground text-center py-8">
-                    No data available for analysis. Start the fuzzer to generate data.
-                  </div>
-                )}
-              </TabsContent>
+              {/* We don't need duplicate TabsContent here */}
             </CardContent>
           </Card>
         </div>
