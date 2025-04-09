@@ -17,6 +17,7 @@ export class WebFuzzer {
     this.vulnerabilityTypes = ['xss', 'sqli', 'lfi', 'rce', 'csrf', 'auth'];
     this.dvwaSession = null;
     this.securityLevel = 'low';
+    this.dvwaUrl = '';
   }
 
   logActivity(message) {
@@ -117,6 +118,9 @@ export class WebFuzzer {
   async connectToDVWA(url, username, password, securityLevel) {
     this.logActivity(`Connecting to DVWA at ${url}...`);
     
+    // Store the DVWA URL for later use
+    this.dvwaUrl = url.replace(/\/$/, ''); // Remove trailing slash if present
+    
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 1500));
     
@@ -130,8 +134,72 @@ export class WebFuzzer {
     return {
       success: true,
       session: this.dvwaSession,
-      securityLevel: this.securityLevel
+      securityLevel: this.securityLevel,
+      url: this.dvwaUrl
     };
+  }
+
+  openDVWAInNewTab() {
+    if (!this.dvwaUrl) {
+      this.logActivity("Error: Not connected to DVWA. Please connect first.");
+      return false;
+    }
+    
+    // Open DVWA in a new tab
+    const dvwaWindow = window.open(this.dvwaUrl, '_blank');
+    
+    if (!dvwaWindow) {
+      this.logActivity("Warning: Pop-up blocker may have prevented opening DVWA. Please check your browser settings.");
+      return false;
+    }
+    
+    this.logActivity(`Opened DVWA in a new browser tab: ${this.dvwaUrl}`);
+    return true;
+  }
+
+  openVulnerabilityPage(vulnerabilityType) {
+    if (!this.dvwaUrl) {
+      this.logActivity("Error: Not connected to DVWA. Please connect first.");
+      return false;
+    }
+    
+    let path = '';
+    
+    // Map vulnerability type to DVWA page
+    switch (vulnerabilityType) {
+      case 'xss':
+        path = '/vulnerabilities/xss_r/';
+        break;
+      case 'sqli':
+        path = '/vulnerabilities/sqli/';
+        break;
+      case 'csrf':
+        path = '/vulnerabilities/csrf/';
+        break;
+      case 'upload':
+        path = '/vulnerabilities/upload/';
+        break;
+      case 'exec':
+      case 'rce':
+        path = '/vulnerabilities/exec/';
+        break;
+      case 'lfi':
+        path = '/vulnerabilities/fi/';
+        break;
+      default:
+        path = '/';
+    }
+    
+    const url = `${this.dvwaUrl}${path}`;
+    const dvwaWindow = window.open(url, '_blank');
+    
+    if (!dvwaWindow) {
+      this.logActivity(`Warning: Pop-up blocker may have prevented opening ${vulnerabilityType} page. Please check your browser settings.`);
+      return false;
+    }
+    
+    this.logActivity(`Opened ${vulnerabilityType} vulnerability page in a new browser tab: ${url}`);
+    return true;
   }
 
   initializeDataset() {
@@ -180,13 +248,40 @@ export class WebFuzzer {
     await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 700));
     
     // Simulate response characteristics
-    const responseCode = Math.random() > 0.7 
-      ? Math.floor(Math.random() * 100) + 400 
-      : Math.floor(Math.random() * 100) + 200;
+    let responseCode, alertDetected, errorDetected, bodyWordCountChanged;
     
-    const alertDetected = Math.random() > 0.7;
-    const errorDetected = responseCode >= 500;
-    const bodyWordCountChanged = Math.random() > 0.5;
+    // Different behavior based on vulnerability type
+    switch (vulnerabilityType) {
+      case 'xss':
+        responseCode = Math.random() > 0.8 ? 500 : 200;
+        alertDetected = payload.includes('alert') || payload.includes('script');
+        errorDetected = responseCode >= 500;
+        bodyWordCountChanged = Math.random() > 0.3;
+        break;
+      case 'sqli':
+        responseCode = Math.random() > 0.7 ? 500 : (Math.random() > 0.5 ? 200 : 300);
+        alertDetected = Math.random() > 0.7;
+        errorDetected = responseCode >= 500;
+        bodyWordCountChanged = Math.random() > 0.5;
+        break;
+      case 'lfi':
+        responseCode = Math.random() > 0.6 ? 404 : 200;
+        alertDetected = false;
+        errorDetected = responseCode >= 400;
+        bodyWordCountChanged = responseCode === 200;
+        break;
+      case 'rce':
+        responseCode = Math.random() > 0.8 ? 500 : 200;
+        alertDetected = false;
+        errorDetected = responseCode >= 500;
+        bodyWordCountChanged = Math.random() > 0.2;
+        break;
+      default:
+        responseCode = Math.random() > 0.7 ? Math.floor(Math.random() * 100) + 400 : Math.floor(Math.random() * 100) + 200;
+        alertDetected = Math.random() > 0.7;
+        errorDetected = responseCode >= 500;
+        bodyWordCountChanged = Math.random() > 0.5;
+    }
     
     // Log details about the payload test
     if (alertDetected) {
@@ -202,7 +297,7 @@ export class WebFuzzer {
     }
     
     // Generate a unique ID for this test
-    const uniqueId = 'test-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const uniqueId = `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
     // Prepare report data
     const reportData = [
@@ -252,6 +347,15 @@ export class WebFuzzer {
     
     this.logActivity(`Testing for vulnerabilities: ${vulnTypesToTest.join(', ')}`);
     
+    // Calculate total tests to run
+    let totalTestsToRun = 0;
+    vulnTypesToTest.forEach(vulnType => {
+      const payloads = this.getPayloadsForVulnerability(vulnType);
+      totalTestsToRun += payloads.length;
+    });
+    
+    let testsCompleted = 0;
+    
     // Simulate scanning process for each vulnerability type
     for (const vulnType of vulnTypesToTest) {
       if (!this.scanActive) {
@@ -272,10 +376,11 @@ export class WebFuzzer {
         
         await this.testVulnerability(vulnType, payload);
         this.payloadsProcessed++;
-        this.scanProgress = (this.payloadsProcessed / (this.totalPayloads * vulnTypesToTest.length)) * 100;
+        testsCompleted++;
+        this.scanProgress = (testsCompleted / totalTestsToRun) * 100;
         
         if (onProgressUpdate) {
-          onProgressUpdate(this.scanProgress, this.payloadsProcessed, this.totalPayloads);
+          onProgressUpdate(this.scanProgress, this.payloadsProcessed, totalTestsToRun);
         }
       }
       

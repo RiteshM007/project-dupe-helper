@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChartIcon, BarChartIcon, ActivityIcon, Globe, Target, List } from 'lucide-react';
+import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChartIcon, BarChartIcon, ActivityIcon, Globe, Target, List, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { EnhancedScannerAnimation } from "@/components/dashboard/EnhancedScanner
 import { Grid, GridItem } from "@/components/ui/grid";
 import { WebFuzzer } from '@/backend/WebFuzzer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // Colors for charts
 const CHART_COLORS = {
@@ -60,6 +61,7 @@ const Fuzzer = () => {
   const [dvwaUsername, setDvwaUsername] = useState("admin");
   const [dvwaPassword, setDvwaPassword] = useState("password");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
   
   // State for fuzzing process
   const [targetUrl, setTargetUrl] = useState('http://localhost/dvwa/vulnerabilities/xss_r/');
@@ -110,6 +112,7 @@ const Fuzzer = () => {
           setIsDVWAConnected(true);
           toast.success("Connected to DVWA successfully");
           setTargetUrl(`${dvwaUrl}/vulnerabilities/xss_r/`);
+          setShowLoginDialog(false);
         } else {
           toast.error("Failed to connect to DVWA");
         }
@@ -124,6 +127,31 @@ const Fuzzer = () => {
   const handleDVWADisconnect = () => {
     setIsDVWAConnected(false);
     toast.info("Disconnected from DVWA");
+  };
+
+  // Handle open DVWA in new tab
+  const handleOpenDVWA = () => {
+    if (fuzzer && isDVWAConnected) {
+      const opened = fuzzer.openDVWAInNewTab();
+      if (!opened) {
+        toast.error("Failed to open DVWA. Please check if pop-up blocker is enabled.");
+      }
+    } else {
+      setShowLoginDialog(true);
+    }
+  };
+
+  // Handle open vulnerability page
+  const handleOpenVulnerabilityPage = (vulnerabilityType: string) => {
+    if (fuzzer && isDVWAConnected) {
+      const opened = fuzzer.openVulnerabilityPage(vulnerabilityType);
+      if (!opened) {
+        toast.error("Failed to open vulnerability page. Please check if pop-up blocker is enabled.");
+      }
+    } else {
+      toast.error("Connect to DVWA first");
+      setShowLoginDialog(true);
+    }
   };
 
   // Handle start fuzzing
@@ -312,32 +340,36 @@ const Fuzzer = () => {
             <CardContent className="py-2 px-4">
               {!isDVWAConnected ? (
                 <div className="flex gap-2">
-                  <Input 
-                    placeholder="DVWA URL" 
-                    value={dvwaUrl}
-                    onChange={(e) => setDvwaUrl(e.target.value)}
-                    className="h-8 text-xs"
-                  />
                   <Button 
+                    variant="outline" 
                     size="sm" 
-                    onClick={handleDVWAConnect}
-                    disabled={isConnecting}
-                    className="h-8"
+                    onClick={() => setShowLoginDialog(true)}
+                    className="h-8 w-full"
                   >
-                    {isConnecting ? "Connecting..." : "Connect"}
+                    Connect to DVWA
                   </Button>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-mono truncate max-w-[150px]">{dvwaUrl}</div>
-                  <Button 
-                    size="sm" 
-                    variant="destructive"
-                    onClick={handleDVWADisconnect}
-                    className="h-7 text-xs"
-                  >
-                    Disconnect
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={handleOpenDVWA}
+                      className="h-7 text-xs flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" /> Open
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      onClick={handleDVWADisconnect}
+                      className="h-7 text-xs"
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -414,6 +446,30 @@ const Fuzzer = () => {
                   ))}
                 </div>
               </div>
+              
+              {/* Quick Access Buttons for DVWA */}
+              {isDVWAConnected && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Quick Launch Pages
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {vulnerabilityTypes.map((type) => (
+                      type.id !== 'all' && (
+                        <Button 
+                          key={`launch-${type.id}`}
+                          size="sm" 
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => handleOpenVulnerabilityPage(type.id)}
+                        >
+                          {type.id.toUpperCase()}
+                        </Button>
+                      )
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
               {/* Control Buttons */}
@@ -494,7 +550,7 @@ const Fuzzer = () => {
                   <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 </TabsList>
                 
-                <TabsContent value="logs" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
+                <TabsContent value="logs" className="flex-1 overflow-hidden h-full mt-0">
                   <ScrollArea className="flex-1 border rounded-md h-[40vh]">
                     <div className="p-4 space-y-2 font-mono text-sm">
                       {activityLogs.length > 0 ? (
@@ -515,7 +571,7 @@ const Fuzzer = () => {
                   </ScrollArea>
                 </TabsContent>
                 
-                <TabsContent value="reports" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
+                <TabsContent value="reports" className="flex-1 overflow-hidden h-full mt-0">
                   <ScrollArea className="flex-1 border rounded-md h-[40vh]">
                     <div className="p-4 space-y-4">
                       {reports.length > 0 ? (
@@ -533,29 +589,29 @@ const Fuzzer = () => {
                   </ScrollArea>
                 </TabsContent>
                 
-                <TabsContent value="results" className="flex-1 overflow-hidden flex flex-col h-full mt-0">
+                <TabsContent value="results" className="flex-1 overflow-hidden h-full mt-0">
                   <ScrollArea className="flex-1 border rounded-md h-[40vh]">
                     <div className="p-4">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2">Payload</th>
-                            <th className="text-left py-2">Type</th>
-                            <th className="text-left py-2">Severity</th>
-                            <th className="text-left py-2">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Payload</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Severity</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {dataset.length > 0 ? (
                             dataset.map((item, index) => (
-                              <tr key={index} className="border-b hover:bg-muted/50">
-                                <td className="py-2 font-mono text-xs truncate max-w-[200px]">
+                              <TableRow key={index} className="hover:bg-muted/50">
+                                <TableCell className="font-mono text-xs truncate max-w-[200px]">
                                   {item.payload}
-                                </td>
-                                <td className="py-2">
+                                </TableCell>
+                                <TableCell>
                                   {item.vulnerability_type || "unknown"}
-                                </td>
-                                <td className="py-2">
+                                </TableCell>
+                                <TableCell>
                                   <Badge 
                                     variant="outline" 
                                     className={`
@@ -568,8 +624,8 @@ const Fuzzer = () => {
                                   >
                                     {item.severity || "unknown"}
                                   </Badge>
-                                </td>
-                                <td className="py-2">
+                                </TableCell>
+                                <TableCell>
                                   <Badge 
                                     variant="outline" 
                                     className={`
@@ -580,18 +636,18 @@ const Fuzzer = () => {
                                   >
                                     {item.label}
                                   </Badge>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))
                           ) : (
-                            <tr>
-                              <td colSpan={4} className="text-center text-muted-foreground py-8">
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                                 No results to display. Start the fuzzer to generate results.
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   </ScrollArea>
                 </TabsContent>
@@ -649,17 +705,16 @@ const Fuzzer = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-muted-foreground text-center py-8">
-                      No data available for analysis. Start the fuzzer to generate data.
+                    <div className="text-muted-foreground text-center py-8 border rounded-md h-[40vh] flex items-center justify-center">
+                      <div>
+                        <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                        <p>No data available for analysis. Start the fuzzer to generate data.</p>
+                      </div>
                     </div>
                   )}
                 </TabsContent>
               </Tabs>
             </CardHeader>
-            
-            <CardContent className="flex-1 pb-1 overflow-hidden flex flex-col">
-              {/* We don't need duplicate TabsContent here */}
-            </CardContent>
           </Card>
         </div>
 
@@ -683,6 +738,68 @@ const Fuzzer = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* DVWA Login Dialog */}
+        <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Connect to DVWA</DialogTitle>
+              <DialogDescription>
+                Enter the URL and credentials for your DVWA instance
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">DVWA URL</label>
+                <Input 
+                  placeholder="http://localhost/dvwa" 
+                  value={dvwaUrl}
+                  onChange={(e) => setDvwaUrl(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Username</label>
+                <Input 
+                  placeholder="admin" 
+                  value={dvwaUsername}
+                  onChange={(e) => setDvwaUsername(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Password</label>
+                <Input 
+                  type="password" 
+                  placeholder="password" 
+                  value={dvwaPassword}
+                  onChange={(e) => setDvwaPassword(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Security Level</label>
+                <Select 
+                  value={securityLevel}
+                  onValueChange={setSecurityLevel}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Security Level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="impossible">Impossible</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowLoginDialog(false)}>Cancel</Button>
+              <Button onClick={handleDVWAConnect} disabled={isConnecting}>
+                {isConnecting ? "Connecting..." : "Connect"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Export Dialog */}
         <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
