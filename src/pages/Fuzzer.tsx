@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChartIcon, BarChartIcon, ActivityIcon, Globe, Target, List, ExternalLink } from 'lucide-react';
+import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChartIcon, BarChartIcon, ActivityIcon, Globe, Target, List, ExternalLink, FileUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +20,6 @@ import { WebFuzzer } from '@/backend/WebFuzzer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-// Colors for charts
 const CHART_COLORS = {
   critical: '#ff2d55',
   high: '#ff9500',
@@ -43,7 +41,6 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
-// Define vulnerability types for selection
 const vulnerabilityTypes = [
   { id: 'xss', name: 'XSS (Cross-Site Scripting)', description: 'Tests for cross-site scripting vulnerabilities' },
   { id: 'sqli', name: 'SQL Injection', description: 'Tests for SQL injection vulnerabilities' },
@@ -55,7 +52,6 @@ const vulnerabilityTypes = [
 ];
 
 const Fuzzer = () => {
-  // State for DVWA connection
   const [isDVWAConnected, setIsDVWAConnected] = useState(false);
   const [dvwaUrl, setDvwaUrl] = useState("");
   const [dvwaUsername, setDvwaUsername] = useState("admin");
@@ -63,7 +59,6 @@ const Fuzzer = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   
-  // State for fuzzing process
   const [targetUrl, setTargetUrl] = useState('http://localhost/dvwa/vulnerabilities/xss_r/');
   const [wordlistFile, setWordlistFile] = useState('wordlists/xss-payloads.txt');
   const [selectedVulnerabilities, setSelectedVulnerabilities] = useState<string[]>(['xss']);
@@ -73,7 +68,6 @@ const Fuzzer = () => {
   const [payloadsProcessed, setPayloadsProcessed] = useState(0);
   const [totalPayloads, setTotalPayloads] = useState(0);
   
-  // State for results
   const [logs, setLogs] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [dataset, setDataset] = useState<any[]>([]);
@@ -83,14 +77,15 @@ const Fuzzer = () => {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState("json");
   const [exportContent, setExportContent] = useState("");
-  
-  // Initialize fuzzer
+  const [customPayloads, setCustomPayloads] = useState<string[]>([]);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const newFuzzer = new WebFuzzer(targetUrl, wordlistFile);
     setFuzzer(newFuzzer);
   }, [targetUrl, wordlistFile]);
 
-  // Connect to DVWA
   const handleDVWAConnect = async () => {
     if (!dvwaUrl) {
       toast.error("DVWA URL is required");
@@ -129,7 +124,6 @@ const Fuzzer = () => {
     toast.info("Disconnected from DVWA");
   };
 
-  // Handle open DVWA in new tab
   const handleOpenDVWA = () => {
     if (fuzzer && isDVWAConnected) {
       const opened = fuzzer.openDVWAInNewTab();
@@ -141,7 +135,6 @@ const Fuzzer = () => {
     }
   };
 
-  // Handle open vulnerability page
   const handleOpenVulnerabilityPage = (vulnerabilityType: string) => {
     if (fuzzer && isDVWAConnected) {
       const opened = fuzzer.openVulnerabilityPage(vulnerabilityType);
@@ -154,7 +147,6 @@ const Fuzzer = () => {
     }
   };
 
-  // Handle start fuzzing
   const handleStartFuzzing = async () => {
     if (!fuzzer) return;
     
@@ -183,7 +175,6 @@ const Fuzzer = () => {
     }
   };
 
-  // Handle pause fuzzing
   const handlePauseFuzzing = () => {
     if (!fuzzer) return;
     
@@ -198,7 +189,6 @@ const Fuzzer = () => {
     }
   };
 
-  // Handle stop fuzzing
   const handleStopFuzzing = () => {
     if (!fuzzer) return;
     
@@ -208,12 +198,10 @@ const Fuzzer = () => {
     toast.info("Fuzzing stopped");
   };
 
-  // Handle vulnerability type selection
   const handleVulnerabilityChange = (vulnerabilityId: string) => {
     if (vulnerabilityId === 'all') {
       setSelectedVulnerabilities(['all']);
     } else {
-      // Remove 'all' if it's selected and add the new vulnerability
       const newSelection = selectedVulnerabilities.filter(v => v !== 'all');
       
       if (newSelection.includes(vulnerabilityId)) {
@@ -224,7 +212,6 @@ const Fuzzer = () => {
     }
   };
 
-  // Calculate statistics for charts
   const calculateSeverityCounts = () => {
     const counts = {
       critical: 0,
@@ -261,7 +248,6 @@ const Fuzzer = () => {
     }));
   };
 
-  // Generate export content
   const generateExportContent = () => {
     switch (activeTab) {
       case "logs":
@@ -276,14 +262,13 @@ const Fuzzer = () => {
         return exportFormat === "json" 
           ? JSON.stringify(dataset, null, 2) 
           : dataset.map(item => {
-              return `Payload: ${item.payload}\nSeverity: ${item.severity}\nLabel: ${item.label}\nTimestamp: ${item.timestamp}`;
+              return `Payload: ${item.payload}\nSeverity: ${item.severity}\nLabel: ${item.label}\nVulnerability Type: ${item.vulnerability_type}\nTimestamp: ${item.timestamp}`;
             }).join('\n\n');
       default:
         return "";
     }
   };
 
-  // Handle export dialog
   const handleShowExportDialog = () => {
     const content = generateExportContent();
     setExportContent(content);
@@ -292,11 +277,16 @@ const Fuzzer = () => {
 
   const handleExportData = () => {
     const content = exportContent;
+    if (!content || content.trim() === "") {
+      toast.error("No content to export");
+      return;
+    }
+
     const blob = new Blob([content], { type: exportFormat === "json" ? "application/json" : "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `fuzzer-${activeTab}.${exportFormat === "json" ? "json" : "txt"}`;
+    a.download = `fuzzer-${activeTab}-${new Date().toISOString().split('T')[0]}.${exportFormat === "json" ? "json" : "txt"}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -305,17 +295,54 @@ const Fuzzer = () => {
     toast.success(`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} exported successfully`);
   };
 
-  // Chart data
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const payloads = content.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0 && !line.startsWith('#'));
+        
+        setCustomPayloads(payloads);
+        toast.success(`Loaded ${payloads.length} custom payloads successfully`);
+        
+        if (fuzzer) {
+          fuzzer.logActivity(`Loaded ${payloads.length} custom payloads from file: ${file.name}`);
+        }
+        setShowUploadDialog(false);
+      } catch (error) {
+        toast.error(`Failed to parse payload file: ${error}`);
+      }
+    };
+    
+    reader.onerror = () => {
+      toast.error("Error reading payload file");
+    };
+    
+    reader.readAsText(file);
+  };
+
+  const applyCustomPayloads = () => {
+    if (!fuzzer || customPayloads.length === 0) return;
+    
+    fuzzer.wordlist = [...fuzzer.wordlist, ...customPayloads];
+    fuzzer.totalPayloads = fuzzer.wordlist.length;
+    fuzzer.logActivity(`Added ${customPayloads.length} custom payloads. Total payloads: ${fuzzer.totalPayloads}`);
+    toast.success(`Added ${customPayloads.length} custom payloads to fuzzer`);
+  };
+
   const severityData = calculateSeverityCounts();
   const vulnerabilityTypeData = calculateVulnerabilityTypeCounts();
 
-  // Filter logs by type
   const activityLogs = logs.filter(log => log.type === "activity");
-  
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Web Fuzzer</h1>
@@ -324,7 +351,6 @@ const Fuzzer = () => {
             </p>
           </div>
           
-          {/* DVWA Connection Status */}
           <Card className="w-full md:w-auto bg-card/50 backdrop-blur-sm border-indigo-900/30">
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
@@ -376,16 +402,13 @@ const Fuzzer = () => {
           </Card>
         </div>
 
-        {/* Configuration and Results Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-          {/* Configuration Panel */}
           <Card className="lg:col-span-2 bg-card/50 backdrop-blur-sm border-indigo-900/30">
             <CardHeader>
               <CardTitle>Fuzzing Configuration</CardTitle>
               <CardDescription>Configure target and fuzzing options</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Target URL */}
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="targetUrl">
                   Target URL
@@ -398,7 +421,6 @@ const Fuzzer = () => {
                 />
               </div>
               
-              {/* Security Level (for DVWA) */}
               {isDVWAConnected && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
@@ -421,7 +443,6 @@ const Fuzzer = () => {
                 </div>
               )}
               
-              {/* Vulnerability Type Selection */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Vulnerability Types to Test
@@ -447,7 +468,6 @@ const Fuzzer = () => {
                 </div>
               </div>
               
-              {/* Quick Access Buttons for DVWA */}
               {isDVWAConnected && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">
@@ -470,9 +490,49 @@ const Fuzzer = () => {
                   </div>
                 </div>
               )}
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Custom Payloads</label>
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowUploadDialog(true)}
+                      className="h-8 text-xs"
+                    >
+                      <Upload className="h-3 w-3 mr-1" /> Upload
+                    </Button>
+                    {customPayloads.length > 0 && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={applyCustomPayloads}
+                        className="h-8 text-xs"
+                      >
+                        Apply ({customPayloads.length})
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {customPayloads.length > 0 && (
+                  <div className="bg-muted/40 p-2 rounded-md text-xs">
+                    <div className="font-medium mb-1">Loaded {customPayloads.length} custom payloads</div>
+                    <ScrollArea className="h-20">
+                      <div className="font-mono text-xs space-y-1">
+                        {customPayloads.slice(0, 5).map((payload, i) => (
+                          <div key={i} className="truncate">{payload}</div>
+                        ))}
+                        {customPayloads.length > 5 && (
+                          <div className="text-muted-foreground">...and {customPayloads.length - 5} more</div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
-              {/* Control Buttons */}
               <div className="flex gap-2 w-full">
                 <Button 
                   className="flex-1" 
@@ -509,7 +569,6 @@ const Fuzzer = () => {
                 </Button>
               </div>
               
-              {/* Progress */}
               {scanActive && (
                 <div className="w-full space-y-1 mt-2">
                   <div className="flex justify-between text-xs">
@@ -525,7 +584,6 @@ const Fuzzer = () => {
             </CardFooter>
           </Card>
           
-          {/* Results Panel */}
           <Card className="lg:col-span-5 bg-card/50 backdrop-blur-sm border-indigo-900/30 flex flex-col">
             <CardHeader className="pb-2">
               <div className="flex justify-between items-center">
@@ -537,7 +595,7 @@ const Fuzzer = () => {
                     disabled={dataset.length === 0}
                     onClick={handleShowExportDialog}
                   >
-                    <FileText className="h-4 w-4 mr-1" /> Export
+                    <FileUp className="h-4 w-4 mr-1" /> Export
                   </Button>
                 </div>
               </div>
@@ -718,7 +776,6 @@ const Fuzzer = () => {
           </Card>
         </div>
 
-        {/* Visualization */}
         <Card className="bg-card/50 backdrop-blur-sm border-indigo-900/30">
           <CardHeader>
             <CardTitle>Real-time Scanning Visualization</CardTitle>
@@ -739,7 +796,6 @@ const Fuzzer = () => {
           </CardContent>
         </Card>
 
-        {/* DVWA Login Dialog */}
         <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -801,7 +857,6 @@ const Fuzzer = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Export Dialog */}
         <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
@@ -841,6 +896,49 @@ const Fuzzer = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancel</Button>
               <Button onClick={handleExportData}>Export</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Upload Custom Payloads</DialogTitle>
+              <DialogDescription>
+                Upload a text file containing custom payloads (one per line)
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-md p-6 cursor-pointer"
+                   onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm text-center text-muted-foreground">
+                  Click to select a file or drag and drop
+                </p>
+                <p className="text-xs text-center text-muted-foreground mt-1">
+                  Supported format: .txt
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+              </div>
+              
+              <div className="text-sm bg-muted/40 p-3 rounded-md">
+                <p className="font-medium mb-1">Format requirements:</p>
+                <ul className="list-disc pl-5 text-xs space-y-1">
+                  <li>One payload per line</li>
+                  <li>Empty lines will be ignored</li>
+                  <li>Lines starting with # will be treated as comments</li>
+                </ul>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
+              <Button onClick={() => fileInputRef.current?.click()}>Select File</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -1,4 +1,3 @@
-
 // WebFuzzer simulation for the frontend
 // This simulates the Python WebFuzzer class functionality
 
@@ -18,6 +17,7 @@ export class WebFuzzer {
     this.dvwaSession = null;
     this.securityLevel = 'low';
     this.dvwaUrl = '';
+    this.customPayloads = [];
   }
 
   logActivity(message) {
@@ -484,5 +484,86 @@ export class WebFuzzer {
 
   getReports() {
     return this.reports;
+  }
+
+  addCustomPayloads(payloads) {
+    if (!Array.isArray(payloads) || payloads.length === 0) {
+      return false;
+    }
+    
+    const validPayloads = payloads.filter(p => p && typeof p === 'string' && p.trim() !== '');
+    this.customPayloads = [...this.customPayloads, ...validPayloads];
+    this.wordlist = [...this.wordlist, ...validPayloads];
+    this.totalPayloads = this.wordlist.length;
+    
+    this.logActivity(`Added ${validPayloads.length} custom payloads to wordlist`);
+    return true;
+  }
+
+  clearCustomPayloads() {
+    const count = this.customPayloads.length;
+    
+    // Remove custom payloads from wordlist
+    for (const payload of this.customPayloads) {
+      const index = this.wordlist.indexOf(payload);
+      if (index !== -1) {
+        this.wordlist.splice(index, 1);
+      }
+    }
+    
+    this.customPayloads = [];
+    this.totalPayloads = this.wordlist.length;
+    
+    this.logActivity(`Cleared ${count} custom payloads from wordlist`);
+    return true;
+  }
+
+  exportResults(format = 'json') {
+    let exportData;
+    
+    if (format === 'json') {
+      exportData = JSON.stringify({
+        target: this.targetUrl,
+        timestamp: new Date().toISOString(),
+        securityLevel: this.securityLevel,
+        results: this.dataset,
+        payloads: this.wordlist,
+        stats: {
+          totalPayloads: this.totalPayloads,
+          processedPayloads: this.payloadsProcessed,
+          maliciousCount: this.dataset.filter(d => d.label === 'malicious').length,
+          suspiciousCount: this.dataset.filter(d => d.label === 'suspicious').length,
+          safeCount: this.dataset.filter(d => d.label === 'safe').length
+        }
+      }, null, 2);
+    } else {
+      // Text format
+      const stats = [
+        `Target URL: ${this.targetUrl}`,
+        `Timestamp: ${new Date().toISOString()}`,
+        `Security Level: ${this.securityLevel}`,
+        `Total Payloads: ${this.totalPayloads}`,
+        `Processed Payloads: ${this.payloadsProcessed}`,
+        `Malicious Results: ${this.dataset.filter(d => d.label === 'malicious').length}`,
+        `Suspicious Results: ${this.dataset.filter(d => d.label === 'suspicious').length}`,
+        `Safe Results: ${this.dataset.filter(d => d.label === 'safe').length}`,
+        `\n--- RESULTS ---\n`
+      ];
+      
+      const results = this.dataset.map(d => 
+        `Payload: ${d.payload}\n` +
+        `Label: ${d.label}\n` +
+        `Severity: ${d.severity}\n` +
+        `Vulnerability Type: ${d.vulnerability_type}\n` +
+        `Response Code: ${d.response_code}\n` +
+        `Timestamp: ${d.timestamp}\n` +
+        `-------------------`
+      );
+      
+      exportData = [...stats, ...results].join('\n');
+    }
+    
+    this.logActivity(`Exported results in ${format} format`);
+    return exportData;
   }
 }
