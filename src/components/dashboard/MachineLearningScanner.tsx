@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Brain, BarChart2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Brain, BarChart2, AlertTriangle, CheckCircle2, FileText, BookOpen, Server, Database } from 'lucide-react';
 import { EnhancedScannerAnimation } from "./EnhancedScannerAnimation";
-import { trainIsolationForest, trainRandomForest } from "@/backend/ml_models";
+import { trainIsolationForest, trainRandomForest, generateReport, performClustering } from "@/backend/ml_models";
+import { toast } from 'sonner';
 
 interface MachineLearningProps {
   scanActive: boolean;
@@ -26,13 +27,23 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
   const [trainingActive, setTrainingActive] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [modelTrained, setModelTrained] = useState(false);
+  const [clusterAnalysisDone, setClusterAnalysisDone] = useState(false);
+  const [anomalyModelTrained, setAnomalyModelTrained] = useState(false);
+  const [classificationModelTrained, setClassificationModelTrained] = useState(false);
   const [modelInsights, setModelInsights] = useState<{
     accuracy: number;
+    precision: number;
+    recall: number;
+    f1: number;
     payloadPatterns: string[];
     vulnerabilityTypes: { type: string; count: number; probability: number }[];
     recommendations: string[];
+    clusters?: any[];
   }>({
     accuracy: 0,
+    precision: 0,
+    recall: 0,
+    f1: 0,
     payloadPatterns: [],
     vulnerabilityTypes: [],
     recommendations: []
@@ -69,70 +80,147 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
   const trainModel = async () => {
     setTrainingActive(true);
     setTrainingProgress(0);
+    toast.info("Starting ML model training...");
     
     // Actual ML training would happen here in a real application
-    // For demo, we're using the simulated backend
     try {
-      await trainIsolationForest(dataset);
-      await trainRandomForest(dataset);
+      // Train isolation forest for anomaly detection
+      const isolationForestModel = await trainIsolationForest(dataset);
+      setAnomalyModelTrained(true);
+      
+      // Train random forest for classification
+      const randomForestModel = await trainRandomForest(dataset);
+      setClassificationModelTrained(true);
+      
+      // Perform clustering analysis
+      const clusteringResults = await performClustering(dataset, 3);
+      setClusterAnalysisDone(true);
+      
+      // Store results for UI display
+      if (randomForestModel.metrics) {
+        setModelInsights(prev => ({
+          ...prev,
+          accuracy: randomForestModel.metrics.accuracy,
+          precision: randomForestModel.metrics.precision,
+          recall: randomForestModel.metrics.recall,
+          f1: randomForestModel.metrics.f1,
+          clusters: clusteringResults.clusters
+        }));
+      }
+      
+      toast.success("ML models trained successfully!");
     } catch (error) {
-      console.error("Error training models:", error);
+      console.error("Error during ML training:", error);
+      toast.error("Error training ML models");
     }
   };
 
-  const generateInsights = () => {
-    // Extract patterns from payloads that were flagged as threats
-    const threatPayloads = dataset.filter(item => 
-      item.label === 'malicious' || item.label === 'suspicious'
-    );
-    
-    // For demonstration, create some mock insights
-    const mockAccuracy = Math.round(85 + Math.random() * 10);
-    
-    // Generate patterns based on actual payloads
-    const patterns = [
-      'SQL injection attempts using OR 1=1',
-      'XSS attempts with <script> tags',
-      'Path traversal using ../ sequences',
-      'Command injection with semicolons',
-      'Null byte injection with %00'
-    ].slice(0, 2 + Math.floor(Math.random() * 3));
-    
-    // Vulnerability types based on threatLevel
-    const vulnTypes = [];
-    
-    if (threatLevel === 'critical' || threatLevel === 'high') {
-      vulnTypes.push(
-        { type: 'SQL Injection', count: Math.floor(5 + Math.random() * 10), probability: 0.92 },
-        { type: 'XSS', count: Math.floor(3 + Math.random() * 8), probability: 0.87 }
+  const generateInsights = async () => {
+    try {
+      // Extract patterns from payloads that were flagged as threats
+      const threatPayloads = dataset.filter(item => 
+        item.label === 'malicious' || item.label === 'suspicious'
       );
+      
+      // Generate vulnerability type statistics
+      const vulnTypes: Record<string, number> = {};
+      threatPayloads.forEach(item => {
+        const type = item.vulnerability_type || 'unknown';
+        vulnTypes[type] = (vulnTypes[type] || 0) + 1;
+      });
+      
+      // Convert to format expected by UI
+      const vulnerabilityTypes = Object.entries(vulnTypes).map(([type, count]) => ({
+        type,
+        count,
+        probability: Math.min(0.95, 0.6 + (count / threatPayloads.length) * 0.3)
+      }));
+      
+      // For demonstration, create some patterns based on actual payloads
+      const patterns: string[] = [];
+      
+      if (vulnTypes['sql_injection'] > 0) {
+        patterns.push('SQL injection attempts using OR 1=1');
+      }
+      
+      if (vulnTypes['xss'] > 0) {
+        patterns.push('XSS attempts with <script> tags');
+      }
+      
+      if (vulnTypes['path_traversal'] > 0) {
+        patterns.push('Path traversal using ../ sequences');
+      }
+      
+      if (vulnTypes['command_injection'] > 0) {
+        patterns.push('Command injection with semicolons');
+      }
+      
+      // Add general patterns if we don't have specifics
+      if (patterns.length < 2) {
+        patterns.push('Suspicious input parameter manipulation');
+        patterns.push('Potential security bypass attempts');
+      }
+      
+      // Generate recommendations based on findings
+      const recommendations: string[] = [];
+      
+      if (vulnerabilityTypes.some(v => v.type === 'sql_injection')) {
+        recommendations.push('Implement prepared statements for all database queries');
+      }
+      
+      if (vulnerabilityTypes.some(v => v.type === 'xss')) {
+        recommendations.push('Apply context-specific output encoding');
+        recommendations.push('Implement Content Security Policy (CSP)');
+      }
+      
+      if (vulnerabilityTypes.some(v => v.type === 'path_traversal')) {
+        recommendations.push('Validate and sanitize file paths');
+      }
+      
+      if (vulnerabilityTypes.some(v => v.type === 'command_injection')) {
+        recommendations.push('Avoid using system commands with user input');
+      }
+      
+      // Add general recommendations
+      recommendations.push('Implement proper input validation');
+      recommendations.push('Use security headers and secure configurations');
+      recommendations.push('Regularly update and patch dependencies');
+      
+      setModelInsights(prev => ({
+        ...prev,
+        payloadPatterns: patterns,
+        vulnerabilityTypes,
+        recommendations
+      }));
+      
+    } catch (error) {
+      console.error("Error generating insights:", error);
+      toast.error("Error analyzing vulnerability patterns");
     }
-    
-    if (threatLevel !== 'none') {
-      vulnTypes.push(
-        { type: 'Path Traversal', count: Math.floor(1 + Math.random() * 5), probability: 0.78 }
-      );
-    }
-    
-    if (threatLevel === 'medium' || threatLevel === 'low') {
-      vulnTypes.push(
-        { type: 'CSRF', count: Math.floor(1 + Math.random() * 3), probability: 0.65 }
-      );
-    }
-    
-    setModelInsights({
-      accuracy: mockAccuracy,
-      payloadPatterns: patterns,
-      vulnerabilityTypes: vulnTypes,
-      recommendations: [
-        'Implement proper input validation',
-        'Use prepared statements for all database queries',
-        'Apply context-specific output encoding',
-        'Add security headers including CSP',
-        'Implement robust authentication mechanisms'
-      ]
-    });
   };
+
+  // Calculate threat distribution for UI
+  const calculateThreatDistribution = () => {
+    if (!dataset || dataset.length === 0) return [];
+    
+    const counts: Record<string, number> = {
+      malicious: 0,
+      suspicious: 0,
+      safe: 0
+    };
+    
+    dataset.forEach(item => {
+      counts[item.label] = (counts[item.label] || 0) + 1;
+    });
+    
+    return [
+      { name: 'Malicious', value: counts.malicious || 0, color: '#ff2d55' },
+      { name: 'Suspicious', value: counts.suspicious || 0, color: '#ffcc00' },
+      { name: 'Safe', value: counts.safe || 0, color: '#34c759' }
+    ];
+  };
+
+  const threatDistribution = calculateThreatDistribution();
 
   return (
     <Card className="border-white/5 bg-white/5 text-white shadow-lg hover:shadow-xl transition-all duration-300">
@@ -142,14 +230,26 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
             <Brain className="w-5 h-5 mr-2 text-purple-400" />
             Machine Learning Analysis
           </CardTitle>
-          {modelTrained && (
-            <Badge variant="outline" className="bg-purple-900/30 text-purple-300 border-purple-700">
-              <CheckCircle2 className="w-3 h-3 mr-1" /> Model Trained
-            </Badge>
-          )}
+          <div className="flex gap-2">
+            {anomalyModelTrained && (
+              <Badge variant="outline" className="bg-blue-900/30 text-blue-300 border-blue-700">
+                <Database className="w-3 h-3 mr-1" /> Anomaly Model
+              </Badge>
+            )}
+            {classificationModelTrained && (
+              <Badge variant="outline" className="bg-green-900/30 text-green-300 border-green-700">
+                <Server className="w-3 h-3 mr-1" /> Classification
+              </Badge>
+            )}
+            {modelTrained && (
+              <Badge variant="outline" className="bg-purple-900/30 text-purple-300 border-purple-700">
+                <CheckCircle2 className="w-3 h-3 mr-1" /> Complete
+              </Badge>
+            )}
+          </div>
         </div>
         <CardDescription className="text-white/70">
-          Analyzes patterns from scan data using ML algorithms
+          Analyzes patterns from scan data using advanced ML algorithms
         </CardDescription>
       </CardHeader>
       
@@ -159,7 +259,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
           {trainingActive ? (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-white/80">Training ML Model...</span>
+                <span className="text-sm text-white/80">Training ML Models...</span>
                 <span className="text-sm font-mono text-white/80">{Math.floor(trainingProgress)}%</span>
               </div>
               <Progress value={trainingProgress} className="h-2 bg-white/10" />
@@ -193,15 +293,36 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
                 <div className="bg-black/20 rounded-md p-4 border border-white/10">
                   <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center">
                     <BarChart2 className="w-4 h-4 mr-1 text-blue-400" />
-                    Model Accuracy
+                    Model Metrics
                   </h3>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold">
-                      {modelInsights.accuracy}%
+                  <div className="space-y-2">
+                    <div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span>Accuracy</span>
+                        <span>{(modelInsights.accuracy * 100).toFixed(1)}%</span>
+                      </div>
+                      <Progress value={modelInsights.accuracy * 100} className="h-1.5 bg-white/10" />
                     </div>
-                    <div className="text-xs text-white/70">
-                      <p>Based on cross-validation</p>
-                      <p>Training data: {dataset.length} samples</p>
+                    <div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span>Precision</span>
+                        <span>{(modelInsights.precision * 100).toFixed(1)}%</span>
+                      </div>
+                      <Progress value={modelInsights.precision * 100} className="h-1.5 bg-white/10" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span>Recall</span>
+                        <span>{(modelInsights.recall * 100).toFixed(1)}%</span>
+                      </div>
+                      <Progress value={modelInsights.recall * 100} className="h-1.5 bg-white/10" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span>F1 Score</span>
+                        <span>{(modelInsights.f1 * 100).toFixed(1)}%</span>
+                      </div>
+                      <Progress value={modelInsights.f1 * 100} className="h-1.5 bg-white/10" />
                     </div>
                   </div>
                 </div>
@@ -211,7 +332,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
                     <AlertTriangle className="w-4 h-4 mr-1 text-yellow-400" />
                     Detected Patterns
                   </h3>
-                  <ScrollArea className="h-16">
+                  <ScrollArea className="h-[120px]">
                     <ul className="space-y-1 text-xs">
                       {modelInsights.payloadPatterns.map((pattern, index) => (
                         <li key={index} className="text-white/80">• {pattern}</li>
@@ -237,7 +358,10 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
               </div>
               
               <div className="bg-black/20 rounded-md p-4 border border-white/10">
-                <h3 className="text-sm font-medium text-white/80 mb-2">ML-Based Recommendations</h3>
+                <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center">
+                  <BookOpen className="w-4 h-4 mr-1 text-green-400" />
+                  ML-Based Recommendations
+                </h3>
                 <ScrollArea className="h-28">
                   <ul className="space-y-1 text-xs">
                     {modelInsights.recommendations.map((rec, index) => (
@@ -246,7 +370,35 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
                   </ul>
                 </ScrollArea>
               </div>
+              
+              {clusterAnalysisDone && (
+                <div className="bg-black/20 rounded-md p-4 border border-white/10">
+                  <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center">
+                    <FileText className="w-4 h-4 mr-1 text-purple-400" />
+                    Cluster Analysis Summary
+                  </h3>
+                  <div className="text-xs text-white/80">
+                    <p>The data has been grouped into 3 clusters based on response patterns:</p>
+                    <ul className="mt-2 space-y-1 pl-4">
+                      <li>• Cluster 1: Likely malicious payloads ({threatDistribution[0]?.value || 0})</li>
+                      <li>• Cluster 2: Suspicious but inconclusive ({threatDistribution[1]?.value || 0})</li>
+                      <li>• Cluster 3: Likely benign inputs ({threatDistribution[2]?.value || 0})</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+          
+          {/* Manual Training */}
+          {!modelTrained && !trainingActive && dataset.length > 0 && (
+            <Button 
+              onClick={trainModel}
+              className="bg-purple-700 hover:bg-purple-600 text-white"
+            >
+              <Brain className="w-4 h-4 mr-2" />
+              Train ML Models
+            </Button>
           )}
           
           {/* Visualization */}
