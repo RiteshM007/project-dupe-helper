@@ -37,6 +37,8 @@ CORS(app)  # Enable CORS for all routes
 active_fuzzers = {}
 # Background tasks
 background_tasks = {}
+# Trained models storage
+trained_models = {}
 
 def run_fuzzing_task(session_id, fuzzer):
     """Background task to run fuzzing process"""
@@ -125,6 +127,11 @@ def start_fuzzing(session_id):
                 'error': 'Fuzzing already in progress'
             }), 400
         
+        # Get vulnerability types and custom payloads from request if available
+        data = request.json or {}
+        vulnerability_types = data.get('vulnerabilityTypes', [])
+        custom_payloads = data.get('customPayloads', [])
+        
         # Initialize fuzzing
         fuzzer.scan_active = True
         fuzzer.scan_progress = 0
@@ -133,8 +140,19 @@ def start_fuzzing(session_id):
         # Load wordlist
         fuzzer.loadWordlist()
         
+        # Add custom payloads if provided
+        if custom_payloads:
+            fuzzer.wordlist.extend(custom_payloads)
+            fuzzer.total_payloads = len(fuzzer.wordlist)
+            fuzzer.logActivity(f"Added {len(custom_payloads)} custom payloads")
+        
         # Initialize dataset
         fuzzer.initializeDataset()
+        
+        # Apply vulnerability type filters if specified
+        if vulnerability_types:
+            fuzzer.setVulnerabilityTypes(vulnerability_types)
+            fuzzer.logActivity(f"Applied filter for vulnerability types: {', '.join(vulnerability_types)}")
         
         fuzzer.logActivity("Starting fuzzing process...")
         
@@ -150,7 +168,8 @@ def start_fuzzing(session_id):
         
         return jsonify({
             'success': True,
-            'message': 'Fuzzing process started'
+            'message': 'Fuzzing process started',
+            'total_payloads': fuzzer.total_payloads
         })
     except Exception as e:
         logger.error(f"Error starting fuzzing: {traceback.format_exc()}")
@@ -211,6 +230,75 @@ def get_dataset(session_id):
         'dataset': fuzzer.getDataset()
     })
 
+@app.route('/api/fuzzer/<session_id>/payloads', methods=['POST'])
+def upload_payloads(session_id):
+    """Upload custom payloads for a fuzzing session"""
+    if session_id not in active_fuzzers:
+        return jsonify({'success': False, 'error': 'Invalid session ID'}), 404
+    
+    fuzzer = active_fuzzers[session_id]
+    data = request.json
+    
+    if not data or 'payloads' not in data:
+        return jsonify({'success': False, 'error': 'No payloads provided'}), 400
+    
+    payloads = data['payloads']
+    
+    try:
+        # Add the payloads to the fuzzer
+        fuzzer.addCustomPayloads(payloads)
+        
+        return jsonify({
+            'success': True,
+            'message': f"Added {len(payloads)} custom payloads",
+            'total_payloads': fuzzer.total_payloads
+        })
+    except Exception as e:
+        logger.error(f"Error uploading payloads: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/fuzzer/<session_id>/results', methods=['POST'])
+def save_results(session_id):
+    """Save results from a fuzzing session"""
+    if session_id not in active_fuzzers:
+        return jsonify({'success': False, 'error': 'Invalid session ID'}), 404
+    
+    fuzzer = active_fuzzers[session_id]
+    data = request.json
+    
+    if not data or 'results' not in data:
+        return jsonify({'success': False, 'error': 'No results provided'}), 400
+    
+    results = data['results']
+    
+    try:
+        # Save results to file
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        save_path = f"results/fuzzing-results-{timestamp}.json"
+        
+        # Create results directory if it doesn't exist
+        os.makedirs("results", exist_ok=True)
+        
+        with open(save_path, 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        fuzzer.logActivity(f"Saved results to {save_path}")
+        
+        return jsonify({
+            'success': True,
+            'message': f"Results saved to {save_path}",
+            'file_path': save_path
+        })
+    except Exception as e:
+        logger.error(f"Error saving results: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/ml/train', methods=['POST'])
 def train_models():
     """Train machine learning models on provided dataset"""
@@ -227,18 +315,32 @@ def train_models():
         isolation_forest = train_isolation_forest(dataset)
         random_forest = train_random_forest(dataset)
         
+        # Store models for later use
+        model_id = f"model_{int(time.time())}"
+        trained_models[model_id] = {
+            'isolation_forest': isolation_forest,
+            'random_forest': random_forest,
+            'timestamp': time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+        }
+        
         return jsonify({
             'success': True,
+            'model_id': model_id,
             'isolation_forest': {
                 'type': isolation_forest.get('type'),
                 'timestamp': isolation_forest.get('timestamp'),
-                'features': isolation_forest.get('features')
+                'contamination': isolation_forest.get('contamination'),
+                'features': isolation_forest.get('features'),
+                'isTrained': isolation_forest.get('isTrained', False)
             },
             'random_forest': {
                 'type': random_forest.get('type'),
                 'timestamp': random_forest.get('timestamp'),
+                'n_estimators': random_forest.get('n_estimators'),
                 'feature_importance': random_forest.get('feature_importance'),
-                'features': random_forest.get('features')
+                'features': random_forest.get('features'),
+                'metrics': random_forest.get('metrics', {}),
+                'isTrained': random_forest.get('isTrained', False)
             }
         })
     except Exception as e:
@@ -253,6 +355,7 @@ def analyze_dataset():
     """Analyze dataset using machine learning techniques"""
     data = request.json
     dataset = data.get('dataset', [])
+    options = data.get('options', {})
     
     if not dataset:
         return jsonify({'success': False, 'error': 'No dataset provided'}), 400
@@ -260,8 +363,11 @@ def analyze_dataset():
     try:
         logger.info(f"Analyzing dataset with {len(dataset)} samples")
         
+        # Get cluster count from options or use default
+        cluster_count = options.get('clusterCount', 3)
+        
         # Perform clustering
-        clustering_results = perform_clustering(dataset)
+        clustering_results = perform_clustering(dataset, cluster_count)
         
         # Generate attack signatures
         signatures = generate_attack_signatures(dataset)
@@ -292,12 +398,132 @@ def create_report():
         logger.info("Generating security report")
         report = generate_report(results, model_info)
         
+        # Save report to file
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        save_path = f"reports/security-report-{timestamp}.json"
+        
+        # Create reports directory if it doesn't exist
+        os.makedirs("reports", exist_ok=True)
+        
+        with open(save_path, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        logger.info(f"Report saved to {save_path}")
+        
         return jsonify({
             'success': True,
-            'report': report
+            'report': report,
+            'file_path': save_path
         })
     except Exception as e:
         logger.error(f"Error generating report: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/cluster', methods=['POST'])
+def cluster_data():
+    """Perform clustering on dataset"""
+    data = request.json
+    dataset = data.get('dataset', [])
+    cluster_count = data.get('clusterCount', 3)
+    
+    if not dataset:
+        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
+    
+    try:
+        logger.info(f"Performing clustering with {cluster_count} clusters on {len(dataset)} samples")
+        clustering_results = perform_clustering(dataset, cluster_count)
+        
+        return jsonify({
+            'success': True,
+            'clustering': clustering_results
+        })
+    except Exception as e:
+        logger.error(f"Error performing clustering: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/generate-signatures', methods=['POST'])
+def create_signatures():
+    """Generate attack signatures from dataset"""
+    data = request.json
+    dataset = data.get('dataset', [])
+    
+    if not dataset:
+        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
+    
+    try:
+        logger.info(f"Generating attack signatures from {len(dataset)} samples")
+        signatures = generate_attack_signatures(dataset)
+        
+        return jsonify({
+            'success': True,
+            'signatures': signatures
+        })
+    except Exception as e:
+        logger.error(f"Error generating signatures: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/predict', methods=['POST'])
+def predict_sample():
+    """Predict a sample using trained models"""
+    data = request.json
+    sample = data.get('sample')
+    model_type = data.get('modelType', 'isolation_forest')
+    model_id = data.get('modelId')
+    
+    if not sample:
+        return jsonify({'success': False, 'error': 'No sample provided'}), 400
+    
+    try:
+        # Try to get model from stored models
+        if model_id and model_id in trained_models:
+            model = trained_models[model_id].get(model_type)
+        else:
+            # Use latest model if available
+            latest_model_id = list(trained_models.keys())[-1] if trained_models else None
+            model = trained_models.get(latest_model_id, {}).get(model_type) if latest_model_id else None
+        
+        if not model:
+            return jsonify({'success': False, 'error': 'No trained model available'}), 400
+        
+        # Extract features from sample
+        features = [
+            sample.get("response_code", 200),
+            1 if sample.get("body_word_count_changed", False) else 0,
+            1 if sample.get("alert_detected", False) else 0,
+            1 if sample.get("error_detected", False) else 0
+        ]
+        
+        # Make prediction based on model type
+        if model_type == 'isolation_forest':
+            prediction = predict_anomaly(features, model)
+            result = {
+                'anomaly': prediction,
+                'is_anomaly': prediction == -1,
+                'sample': sample
+            }
+        else:  # random_forest
+            prediction = predict_effectiveness(features, model)
+            result = {
+                'effective': prediction,
+                'is_effective': prediction == 1,
+                'sample': sample
+            }
+        
+        return jsonify({
+            'success': True,
+            'prediction': result
+        })
+    except Exception as e:
+        logger.error(f"Error predicting sample: {traceback.format_exc()}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -329,15 +555,10 @@ def cleanup_sessions():
             'error': str(e)
         }), 500
 
-# Update Python dependencies in requirements.txt
-<lov-write file_path="server/requirements.txt">
-flask==2.0.1
-flask-cors==3.0.10
-scikit-learn==1.0.2
-numpy==1.22.3
-pandas==1.4.2
-matplotlib==3.5.1
-requests==2.27.1
-python-dotenv==0.20.0
-tqdm==4.64.0
-colorama==0.4.4
+if __name__ == '__main__':
+    # Create necessary directories
+    os.makedirs("models", exist_ok=True)
+    os.makedirs("results", exist_ok=True)
+    os.makedirs("reports", exist_ok=True)
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)

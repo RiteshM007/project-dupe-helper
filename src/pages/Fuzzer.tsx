@@ -1,6 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChartIcon, BarChartIcon, ActivityIcon, Globe, Target, List, ExternalLink, FileUp } from 'lucide-react';
+import { 
+  Play, Pause, StopCircle, AlertTriangle, FileText, Upload, PieChartIcon, BarChartIcon, 
+  ActivityIcon, Globe, Target, List, ExternalLink, FileUp, Brain, Database, Terminal, 
+  Eye, Save, ArrowUpRight, Filter, Settings as SettingsIcon, Download, Share2
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,13 +24,20 @@ import { Grid, GridItem } from "@/components/ui/grid";
 import { WebFuzzer } from '@/backend/WebFuzzer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { Link } from "react-router-dom";
+import { fuzzerApi, mlApi } from "@/services/api";
+import { useMutation } from "@tanstack/react-query";
 
 const CHART_COLORS = {
   critical: '#ff2d55',
   high: '#ff9500',
   medium: '#ffcc00',
   low: '#34c759',
-  info: '#0a84ff'
+  info: '#0a84ff',
+  malicious: '#ef4444',
+  suspicious: '#f97316',
+  safe: '#10b981'
 };
 
 const RADIAN = Math.PI / 180;
@@ -50,6 +62,57 @@ const vulnerabilityTypes = [
   { id: 'auth', name: 'Authentication Bypass', description: 'Tests for authentication bypass methods' },
   { id: 'all', name: 'All Vulnerabilities', description: 'Tests for all vulnerability types' }
 ];
+
+const payloadPresets = {
+  xss: [
+    '<script>alert(1)</script>',
+    '<img src="x" onerror="alert(1)">',
+    '<svg onload="alert(1)">',
+    'javascript:alert(1)',
+    '"><script>alert(1)</script>',
+    '"-confirm(1)-"',
+    '<body onload="alert(1)">',
+    '<iframe src="javascript:alert(1)">',
+    '<details open ontoggle="alert(1)">',
+    '<video><source onerror="alert(1)">'
+  ],
+  sqli: [
+    "' OR 1=1 --",
+    "admin' --",
+    "' UNION SELECT 1,2,3 --",
+    "1' ORDER BY 10 --",
+    "1'; DROP TABLE users --",
+    "' OR '1'='1",
+    "' AND 1=0 UNION SELECT null, table_name FROM information_schema.tables --",
+    "1' AND '1'='1",
+    "1' AND '1'='0",
+    "'; WAITFOR DELAY '0:0:5' --"
+  ],
+  lfi: [
+    "../../../etc/passwd",
+    "../../../../etc/passwd",
+    "..\\..\\windows\\win.ini",
+    "/etc/passwd",
+    "../../../../../../../../etc/passwd",
+    "file:///etc/passwd",
+    "php://filter/convert.base64-encode/resource=index.php",
+    "data:text/plain,<?php echo shell_exec($_GET['cmd']);?>",
+    "file://etc/passwd",
+    "/var/www/html/config.php"
+  ],
+  rce: [
+    "; ls -la",
+    "& ping -c 3 127.0.0.1",
+    "| cat /etc/passwd",
+    "$(cat /etc/passwd)",
+    "`cat /etc/passwd`",
+    "|| dir",
+    "&& ls -la",
+    "; cat /etc/passwd ; ls -la",
+    "| net user",
+    "$(sleep 5)"
+  ]
+};
 
 const Fuzzer = () => {
   const [isDVWAConnected, setIsDVWAConnected] = useState(false);
@@ -78,13 +141,177 @@ const Fuzzer = () => {
   const [exportFormat, setExportFormat] = useState("json");
   const [exportContent, setExportContent] = useState("");
   const [customPayloads, setCustomPayloads] = useState<string[]>([]);
+  const [customPayloadsText, setCustomPayloadsText] = useState("");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showPayloadDialog, setShowPayloadDialog] = useState(false);
+  const [selectedPayloadPreset, setSelectedPayloadPreset] = useState<string | null>(null);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [advancedSettings, setAdvancedSettings] = useState({
+    requestTimeout: 5000,
+    requestDelay: 100,
+    maxRequests: 1000,
+    followRedirects: true,
+    detectBodyChanges: true,
+    detectAlerts: true,
+    detectErrors: true,
+    saveResponses: false,
+    useML: true
+  });
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [modelTrained, setModelTrained] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Set up API mutations
+  const createFuzzerMutation = useMutation({
+    mutationFn: (data: { targetUrl: string, wordlistFile: string }) => 
+      fuzzerApi.createFuzzer(data.targetUrl, data.wordlistFile),
+    onSuccess: (data) => {
+      setSessionId(data.session_id);
+      toast.success("Fuzzer created successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to create fuzzer: ${error}`);
+    }
+  });
+
+  const startFuzzingMutation = useMutation({
+    mutationFn: (data: { sessionId: string, vulnerabilityTypes: string[], customPayloads: string[] }) => 
+      fuzzerApi.startFuzzing(data.sessionId, data.vulnerabilityTypes, data.customPayloads),
+    onSuccess: () => {
+      setScanActive(true);
+      setScanPaused(false);
+      toast.success("Fuzzing started successfully");
+      startStatusPolling();
+    },
+    onError: (error) => {
+      toast.error(`Failed to start fuzzing: ${error}`);
+    }
+  });
+
+  const stopFuzzingMutation = useMutation({
+    mutationFn: (sessionId: string) => fuzzerApi.stopFuzzing(sessionId),
+    onSuccess: () => {
+      setScanActive(false);
+      setScanPaused(false);
+      toast.success("Fuzzing stopped successfully");
+      stopStatusPolling();
+    },
+    onError: (error) => {
+      toast.error(`Failed to stop fuzzing: ${error}`);
+    }
+  });
+
+  const saveResultsMutation = useMutation({
+    mutationFn: (data: { sessionId: string, results: any[] }) => 
+      fuzzerApi.saveResults(data.sessionId, data.results),
+    onSuccess: (data) => {
+      toast.success(`Results saved to ${data.file_path}`);
+    },
+    onError: (error) => {
+      toast.error(`Failed to save results: ${error}`);
+    }
+  });
+
+  const trainModelsMutation = useMutation({
+    mutationFn: (dataset: any[]) => mlApi.trainModels(dataset),
+    onSuccess: (data) => {
+      setModelTrained(true);
+      toast.success("Models trained successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to train models: ${error}`);
+    }
+  });
 
   useEffect(() => {
     const newFuzzer = new WebFuzzer(targetUrl, wordlistFile);
     setFuzzer(newFuzzer);
+    
+    // Create fuzzer on server
+    if (targetUrl) {
+      createFuzzerMutation.mutate({ targetUrl, wordlistFile });
+    }
+    
+    return () => {
+      // Clean up interval on unmount
+      if (statusIntervalRef.current) {
+        clearInterval(statusIntervalRef.current);
+      }
+    };
   }, [targetUrl, wordlistFile]);
+
+  const startStatusPolling = () => {
+    if (statusIntervalRef.current) {
+      clearInterval(statusIntervalRef.current);
+    }
+    
+    if (sessionId) {
+      statusIntervalRef.current = setInterval(async () => {
+        try {
+          const status = await fuzzerApi.getFuzzerStatus(sessionId);
+          
+          if (status.success) {
+            setScanActive(status.active);
+            setScanProgress(status.progress);
+            setPayloadsProcessed(status.payloads_processed);
+            setTotalPayloads(status.total_payloads);
+            
+            if (status.logs && status.logs.length > 0) {
+              setLogs(prevLogs => {
+                const newLogs = [...prevLogs];
+                for (const log of status.logs) {
+                  if (!newLogs.some(existingLog => 
+                    existingLog.timestamp === log.timestamp && existingLog.message === log.message
+                  )) {
+                    newLogs.push(log);
+                  }
+                }
+                return newLogs;
+              });
+            }
+            
+            if (status.reports && status.reports.length > 0) {
+              setReports(prevReports => {
+                const newReports = [...prevReports];
+                for (const report of status.reports) {
+                  if (!newReports.some(existingReport => 
+                    existingReport.timestamp === report.timestamp && existingReport.data === report.data
+                  )) {
+                    newReports.push(report);
+                  }
+                }
+                return newReports;
+              });
+            }
+            
+            // If scan has completed, get the full dataset
+            if (!status.active && status.progress === 100) {
+              const datasetResponse = await fuzzerApi.getDataset(sessionId);
+              if (datasetResponse.success && datasetResponse.dataset) {
+                setDataset(datasetResponse.dataset);
+                
+                // Stop polling if we have the data
+                stopStatusPolling();
+                
+                toast.success("Fuzzing completed successfully");
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error polling fuzzer status:", error);
+        }
+      }, 2000);
+    }
+  };
+
+  const stopStatusPolling = () => {
+    if (statusIntervalRef.current) {
+      clearInterval(statusIntervalRef.current);
+      statusIntervalRef.current = null;
+    }
+  };
 
   const handleDVWAConnect = async () => {
     if (!dvwaUrl) {
@@ -148,54 +375,47 @@ const Fuzzer = () => {
   };
 
   const handleStartFuzzing = async () => {
-    if (!fuzzer) return;
-    
-    setScanActive(true);
-    setScanPaused(false);
+    if (!sessionId) {
+      toast.error("No active session. Please refresh the page and try again.");
+      return;
+    }
     
     try {
-      await fuzzer.startFuzzing(
-        selectedVulnerabilities,
-        (progress, processed, total) => {
-          setScanProgress(progress);
-          setPayloadsProcessed(processed);
-          setTotalPayloads(total);
-        },
-        (dataset, logs, reports) => {
-          setDataset(dataset);
-          setLogs(logs);
-          setReports(reports);
-          toast.success("Fuzzing completed successfully");
-          setScanActive(false);
-        }
-      );
+      await startFuzzingMutation.mutate({
+        sessionId,
+        vulnerabilityTypes: selectedVulnerabilities,
+        customPayloads
+      });
+      
+      if (fuzzer) {
+        fuzzer.logActivity("Starting fuzzing process...");
+      }
     } catch (error) {
       toast.error(`Fuzzing error: ${error}`);
-      setScanActive(false);
     }
   };
 
   const handlePauseFuzzing = () => {
-    if (!fuzzer) return;
+    setScanPaused(!scanPaused);
     
-    if (scanActive && !scanPaused) {
-      fuzzer.pauseScan();
-      setScanPaused(true);
-      toast.info("Fuzzing paused");
-    } else if (scanPaused) {
-      fuzzer.resumeScan();
-      setScanPaused(false);
-      toast.info("Fuzzing resumed");
+    if (fuzzer) {
+      fuzzer.logActivity(scanPaused ? "Fuzzing resumed" : "Fuzzing paused");
     }
+    
+    toast.info(scanPaused ? "Fuzzing resumed" : "Fuzzing paused");
   };
 
   const handleStopFuzzing = () => {
-    if (!fuzzer) return;
+    if (!sessionId) {
+      toast.error("No active session to stop");
+      return;
+    }
     
-    fuzzer.stopScan();
-    setScanActive(false);
-    setScanPaused(false);
-    toast.info("Fuzzing stopped");
+    stopFuzzingMutation.mutate(sessionId);
+    
+    if (fuzzer) {
+      fuzzer.logActivity("Fuzzing stopped");
+    }
   };
 
   const handleVulnerabilityChange = (vulnerabilityId: string) => {
@@ -248,6 +468,25 @@ const Fuzzer = () => {
     }));
   };
 
+  const calculateLabelCounts = () => {
+    const counts = {
+      malicious: 0,
+      suspicious: 0,
+      safe: 0
+    };
+    
+    dataset.forEach(item => {
+      if (item.label) {
+        counts[item.label as keyof typeof counts]++;
+      }
+    });
+    
+    return Object.entries(counts).map(([key, value]) => ({
+      name: key.charAt(0).toUpperCase() + key.slice(1),
+      value
+    }));
+  };
+
   const generateExportContent = () => {
     switch (activeTab) {
       case "logs":
@@ -264,6 +503,14 @@ const Fuzzer = () => {
           : dataset.map(item => {
               return `Payload: ${item.payload}\nSeverity: ${item.severity}\nLabel: ${item.label}\nVulnerability Type: ${item.vulnerability_type}\nTimestamp: ${item.timestamp}`;
             }).join('\n\n');
+      case "analytics":
+        return exportFormat === "json"
+          ? JSON.stringify({
+              severity: calculateSeverityCounts(),
+              vulnerabilityTypes: calculateVulnerabilityTypeCounts(),
+              labels: calculateLabelCounts()
+            }, null, 2)
+          : `Severity Distribution:\n${calculateSeverityCounts().map(item => `${item.name}: ${item.value}`).join('\n')}\n\nVulnerability Types:\n${calculateVulnerabilityTypeCounts().map(item => `${item.name}: ${item.count}`).join('\n')}\n\nLabels Distribution:\n${calculateLabelCounts().map(item => `${item.name}: ${item.value}`).join('\n')}`;
       default:
         return "";
     }
@@ -293,6 +540,14 @@ const Fuzzer = () => {
     URL.revokeObjectURL(url);
     setShowExportDialog(false);
     toast.success(`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} exported successfully`);
+    
+    // Also save to server if this is the results tab
+    if (activeTab === "results" && sessionId) {
+      saveResultsMutation.mutate({
+        sessionId,
+        results: dataset
+      });
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -308,6 +563,7 @@ const Fuzzer = () => {
           .filter(line => line.length > 0 && !line.startsWith('#'));
         
         setCustomPayloads(payloads);
+        setCustomPayloadsText(payloads.join('\n'));
         toast.success(`Loaded ${payloads.length} custom payloads successfully`);
         
         if (fuzzer) {
@@ -326,7 +582,39 @@ const Fuzzer = () => {
     reader.readAsText(file);
   };
 
-  const applyCustomPayloads = () => {
+  const handleSaveCustomPayloads = () => {
+    if (customPayloadsText.trim() === "") {
+      toast.error("No payloads to save");
+      return;
+    }
+    
+    const payloads = customPayloadsText.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0 && !line.startsWith('#'));
+    
+    setCustomPayloads(payloads);
+    toast.success(`Saved ${payloads.length} custom payloads`);
+    setShowPayloadDialog(false);
+    
+    if (fuzzer) {
+      fuzzer.logActivity(`Added ${payloads.length} custom payloads from editor`);
+    }
+  };
+
+  const handleApplyPayloadPreset = (presetType: string) => {
+    if (!payloadPresets[presetType as keyof typeof payloadPresets]) {
+      toast.error("Invalid preset type");
+      return;
+    }
+    
+    const presetPayloads = payloadPresets[presetType as keyof typeof payloadPresets];
+    setCustomPayloadsText(presetPayloads.join('\n'));
+    setSelectedPayloadPreset(presetType);
+    
+    toast.success(`Applied ${presetType.toUpperCase()} payload preset with ${presetPayloads.length} payloads`);
+  };
+
+  const handleApplyCustomPayloads = () => {
     if (!fuzzer || customPayloads.length === 0) return;
     
     fuzzer.wordlist = [...fuzzer.wordlist, ...customPayloads];
@@ -335,8 +623,51 @@ const Fuzzer = () => {
     toast.success(`Added ${customPayloads.length} custom payloads to fuzzer`);
   };
 
+  const handleSaveSettings = () => {
+    if (fuzzer) {
+      fuzzer.requestTimeout = advancedSettings.requestTimeout;
+      fuzzer.requestDelay = advancedSettings.requestDelay;
+      fuzzer.maxRequests = advancedSettings.maxRequests;
+      fuzzer.followRedirects = advancedSettings.followRedirects;
+      fuzzer.detectBodyChanges = advancedSettings.detectBodyChanges;
+      fuzzer.detectAlerts = advancedSettings.detectAlerts;
+      fuzzer.detectErrors = advancedSettings.detectErrors;
+      fuzzer.saveResponses = advancedSettings.saveResponses;
+      fuzzer.useML = advancedSettings.useML;
+      
+      fuzzer.logActivity("Updated fuzzer settings");
+      toast.success("Settings saved successfully");
+    }
+    
+    setShowSettingsDialog(false);
+  };
+
+  const handleTrainModels = () => {
+    if (dataset.length === 0) {
+      toast.error("No dataset available. Please run a fuzzing scan first.");
+      return;
+    }
+    
+    trainModelsMutation.mutate(dataset);
+    
+    if (fuzzer) {
+      fuzzer.logActivity("Training machine learning models on collected dataset");
+    }
+  };
+
+  const handleAnalyzeData = () => {
+    if (dataset.length === 0) {
+      toast.error("No dataset available. Please run a fuzzing scan first.");
+      return;
+    }
+    
+    // Navigate to ML Analysis page
+    window.location.href = "/ml-analysis";
+  };
+
   const severityData = calculateSeverityCounts();
   const vulnerabilityTypeData = calculateVulnerabilityTypeCounts();
+  const labelData = calculateLabelCounts();
 
   const activityLogs = logs.filter(log => log.type === "activity");
 
@@ -351,61 +682,81 @@ const Fuzzer = () => {
             </p>
           </div>
           
-          <Card className="w-full md:w-auto bg-card/50 backdrop-blur-sm border-indigo-900/30">
-            <CardHeader className="py-3 px-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">DVWA Connection</CardTitle>
-                {isDVWAConnected && (
-                  <Badge className="bg-green-500/80 text-white px-2 py-0.5 text-xs flex items-center gap-1">
-                    <div className="h-2 w-2 rounded-full bg-green-200 animate-pulse"></div>
-                    Connected
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="py-2 px-4">
-              {!isDVWAConnected ? (
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setShowLoginDialog(true)}
-                    className="h-8 w-full"
-                  >
-                    Connect to DVWA
-                  </Button>
-                </div>
-              ) : (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Card className="w-full md:w-auto bg-card/50 backdrop-blur-sm border-indigo-900/30">
+              <CardHeader className="py-3 px-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-mono truncate max-w-[150px]">{dvwaUrl}</div>
+                  <CardTitle className="text-sm font-medium">DVWA Connection</CardTitle>
+                  {isDVWAConnected && (
+                    <Badge className="bg-green-500/80 text-white px-2 py-0.5 text-xs flex items-center gap-1">
+                      <div className="h-2 w-2 rounded-full bg-green-200 animate-pulse"></div>
+                      Connected
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="py-2 px-4">
+                {!isDVWAConnected ? (
                   <div className="flex gap-2">
                     <Button 
+                      variant="outline" 
                       size="sm" 
-                      variant="outline"
-                      onClick={handleOpenDVWA}
-                      className="h-7 text-xs flex items-center gap-1"
+                      onClick={() => setShowLoginDialog(true)}
+                      className="h-8 w-full"
                     >
-                      <ExternalLink className="h-3 w-3" /> Open
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="destructive"
-                      onClick={handleDVWADisconnect}
-                      className="h-7 text-xs"
-                    >
-                      Disconnect
+                      Connect to DVWA
                     </Button>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-mono truncate max-w-[150px]">{dvwaUrl}</div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={handleOpenDVWA}
+                        className="h-7 text-xs flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3" /> Open
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={handleDVWADisconnect}
+                        className="h-7 text-xs"
+                      >
+                        Disconnect
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            <Link to="/ml-analysis">
+              <Button variant="outline" className="flex items-center gap-2 h-full">
+                <Brain className="h-4 w-4" />
+                Machine Learning Analysis
+                <ArrowUpRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
           <Card className="lg:col-span-2 bg-card/50 backdrop-blur-sm border-indigo-900/30">
             <CardHeader>
-              <CardTitle>Fuzzing Configuration</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Fuzzing Configuration</CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setShowSettingsDialog(true)}
+                  className="h-8 w-8"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                </Button>
+              </div>
               <CardDescription>Configure target and fuzzing options</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -503,16 +854,14 @@ const Fuzzer = () => {
                     >
                       <Upload className="h-3 w-3 mr-1" /> Upload
                     </Button>
-                    {customPayloads.length > 0 && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={applyCustomPayloads}
-                        className="h-8 text-xs"
-                      >
-                        Apply ({customPayloads.length})
-                      </Button>
-                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowPayloadDialog(true)}
+                      className="h-8 text-xs"
+                    >
+                      <Eye className="h-3 w-3 mr-1" /> Edit
+                    </Button>
                   </div>
                 </div>
                 {customPayloads.length > 0 && (
@@ -528,8 +877,51 @@ const Fuzzer = () => {
                         )}
                       </div>
                     </ScrollArea>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleApplyCustomPayloads}
+                      className="w-full mt-2 h-7 text-xs"
+                    >
+                      Apply Payloads
+                    </Button>
                   </div>
                 )}
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Machine Learning</label>
+                  <Badge 
+                    variant={modelTrained ? "default" : "outline"}
+                    className={modelTrained ? "bg-green-500" : ""}
+                  >
+                    {modelTrained ? "Trained" : "Not Trained"}
+                  </Badge>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1 h-8 text-xs"
+                    disabled={dataset.length === 0}
+                    onClick={handleTrainModels}
+                  >
+                    <Brain className="h-3 w-3 mr-1" /> Train Models
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1 h-8 text-xs"
+                    disabled={dataset.length === 0}
+                    onClick={handleAnalyzeData}
+                  >
+                    <Database className="h-3 w-3 mr-1" /> Analyze Data
+                  </Button>
+                </div>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
@@ -537,7 +929,7 @@ const Fuzzer = () => {
                 <Button 
                   className="flex-1" 
                   onClick={handleStartFuzzing}
-                  disabled={scanActive || !fuzzer}
+                  disabled={scanActive || !sessionId}
                 >
                   <Play className="mr-1 h-4 w-4" /> Start
                 </Button>
@@ -546,7 +938,7 @@ const Fuzzer = () => {
                   className="flex-1" 
                   variant="outline" 
                   onClick={handlePauseFuzzing}
-                  disabled={!scanActive || !fuzzer}
+                  disabled={!scanActive || !sessionId}
                 >
                   {scanPaused ? (
                     <>
@@ -563,7 +955,7 @@ const Fuzzer = () => {
                   className="flex-1" 
                   variant="destructive" 
                   onClick={handleStopFuzzing}
-                  disabled={!scanActive || !fuzzer}
+                  disabled={!scanActive || !sessionId}
                 >
                   <StopCircle className="mr-1 h-4 w-4" /> Stop
                 </Button>
@@ -597,6 +989,15 @@ const Fuzzer = () => {
                   >
                     <FileUp className="h-4 w-4 mr-1" /> Export
                   </Button>
+                  <Link to="/ml-analysis">
+                    <Button 
+                      variant="default" 
+                      size="sm"
+                      disabled={dataset.length === 0}
+                    >
+                      <Brain className="h-4 w-4 mr-1" /> ML Analysis
+                    </Button>
+                  </Link>
                 </div>
               </div>
               
@@ -712,7 +1113,7 @@ const Fuzzer = () => {
                 
                 <TabsContent value="analytics" className="flex-1 overflow-hidden h-full mt-0">
                   {dataset.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[40vh]">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[40vh]">
                       <div className="border rounded-md p-4">
                         <h3 className="text-sm font-medium mb-2">Severity Distribution</h3>
                         <ResponsiveContainer width="100%" height={250}>
@@ -722,20 +1123,20 @@ const Fuzzer = () => {
                               cx="50%"
                               cy="50%"
                               labelLine={false}
-                              label={renderCustomizedLabel}
                               outerRadius={80}
                               fill="#8884d8"
                               dataKey="value"
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                             >
                               {severityData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name.toLowerCase() as keyof typeof CHART_COLORS]} />
                               ))}
                             </Pie>
                             <Tooltip />
-                            <Legend />
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
+                      
                       <div className="border rounded-md p-4">
                         <h3 className="text-sm font-medium mb-2">Vulnerability Types</h3>
                         <ResponsiveContainer width="100%" height={250}>
@@ -752,13 +1153,35 @@ const Fuzzer = () => {
                             <XAxis dataKey="name" />
                             <YAxis />
                             <Tooltip />
-                            <Legend />
                             <Bar dataKey="count" fill="#8884d8">
                               {vulnerabilityTypeData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={Object.values(CHART_COLORS)[index % Object.values(CHART_COLORS).length]} />
                               ))}
                             </Bar>
                           </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      
+                      <div className="border rounded-md p-4">
+                        <h3 className="text-sm font-medium mb-2">Classification Labels</h3>
+                        <ResponsiveContainer width="100%" height={250}>
+                          <PieChart>
+                            <Pie
+                              data={labelData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                            >
+                              {labelData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={CHART_COLORS[entry.name.toLowerCase() as keyof typeof CHART_COLORS]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                          </PieChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
@@ -939,6 +1362,197 @@ const Fuzzer = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
               <Button onClick={() => fileInputRef.current?.click()}>Select File</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        <Dialog open={showPayloadDialog} onOpenChange={setShowPayloadDialog}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Custom Payloads Editor</DialogTitle>
+              <DialogDescription>
+                Create or edit custom payloads for fuzzing
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={selectedPayloadPreset === 'xss' ? 'bg-primary text-primary-foreground' : ''}
+                  onClick={() => handleApplyPayloadPreset('xss')}
+                >
+                  XSS Payloads
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={selectedPayloadPreset === 'sqli' ? 'bg-primary text-primary-foreground' : ''}
+                  onClick={() => handleApplyPayloadPreset('sqli')}
+                >
+                  SQL Injection
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={selectedPayloadPreset === 'lfi' ? 'bg-primary text-primary-foreground' : ''}
+                  onClick={() => handleApplyPayloadPreset('lfi')}
+                >
+                  LFI / Path Traversal
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={selectedPayloadPreset === 'rce' ? 'bg-primary text-primary-foreground' : ''}
+                  onClick={() => handleApplyPayloadPreset('rce')}
+                >
+                  RCE Payloads
+                </Button>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Enter payloads (one per line)
+                </label>
+                <Textarea
+                  className="font-mono text-sm h-[300px]"
+                  placeholder="Enter payloads here, one per line"
+                  value={customPayloadsText}
+                  onChange={(e) => setCustomPayloadsText(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPayloadDialog(false)}>Cancel</Button>
+              <Button onClick={handleSaveCustomPayloads}>Save Payloads</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Advanced Fuzzer Settings</DialogTitle>
+              <DialogDescription>
+                Configure advanced settings for the web fuzzer
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Request Timeout (ms)</label>
+                <Input 
+                  type="number"
+                  value={advancedSettings.requestTimeout}
+                  onChange={(e) => setAdvancedSettings({
+                    ...advancedSettings,
+                    requestTimeout: parseInt(e.target.value)
+                  })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Request Delay (ms)</label>
+                <Input 
+                  type="number"
+                  value={advancedSettings.requestDelay}
+                  onChange={(e) => setAdvancedSettings({
+                    ...advancedSettings,
+                    requestDelay: parseInt(e.target.value)
+                  })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Max Requests</label>
+                <Input 
+                  type="number"
+                  value={advancedSettings.maxRequests}
+                  onChange={(e) => setAdvancedSettings({
+                    ...advancedSettings,
+                    maxRequests: parseInt(e.target.value)
+                  })}
+                />
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="followRedirects" 
+                    checked={advancedSettings.followRedirects}
+                    onCheckedChange={(checked) => setAdvancedSettings({
+                      ...advancedSettings,
+                      followRedirects: checked === true
+                    })}
+                  />
+                  <label htmlFor="followRedirects" className="text-sm">Follow Redirects</label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="detectBodyChanges" 
+                    checked={advancedSettings.detectBodyChanges}
+                    onCheckedChange={(checked) => setAdvancedSettings({
+                      ...advancedSettings,
+                      detectBodyChanges: checked === true
+                    })}
+                  />
+                  <label htmlFor="detectBodyChanges" className="text-sm">Detect Body Changes</label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="detectAlerts" 
+                    checked={advancedSettings.detectAlerts}
+                    onCheckedChange={(checked) => setAdvancedSettings({
+                      ...advancedSettings,
+                      detectAlerts: checked === true
+                    })}
+                  />
+                  <label htmlFor="detectAlerts" className="text-sm">Detect JavaScript Alerts</label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="detectErrors" 
+                    checked={advancedSettings.detectErrors}
+                    onCheckedChange={(checked) => setAdvancedSettings({
+                      ...advancedSettings,
+                      detectErrors: checked === true
+                    })}
+                  />
+                  <label htmlFor="detectErrors" className="text-sm">Detect Error Messages</label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="saveResponses" 
+                    checked={advancedSettings.saveResponses}
+                    onCheckedChange={(checked) => setAdvancedSettings({
+                      ...advancedSettings,
+                      saveResponses: checked === true
+                    })}
+                  />
+                  <label htmlFor="saveResponses" className="text-sm">Save Full Responses</label>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="useML" 
+                    checked={advancedSettings.useML}
+                    onCheckedChange={(checked) => setAdvancedSettings({
+                      ...advancedSettings,
+                      useML: checked === true
+                    })}
+                  />
+                  <label htmlFor="useML" className="text-sm">Use Machine Learning</label>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>Cancel</Button>
+              <Button onClick={handleSaveSettings}>Save Settings</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

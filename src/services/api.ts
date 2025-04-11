@@ -23,9 +23,12 @@ export const fuzzerApi = {
     }
   },
   
-  startFuzzing: async (sessionId: string) => {
+  startFuzzing: async (sessionId: string, vulnerabilityTypes: string[] = [], customPayloads: string[] = []) => {
     try {
-      const response = await api.post(`/fuzzer/${sessionId}/start`);
+      const response = await api.post(`/fuzzer/${sessionId}/start`, { 
+        vulnerabilityTypes,
+        customPayloads
+      });
       return response.data;
     } catch (error) {
       console.error('Error starting fuzzing:', error);
@@ -61,6 +64,26 @@ export const fuzzerApi = {
       console.error('Error getting dataset:', error);
       throw error;
     }
+  },
+  
+  uploadPayloads: async (sessionId: string, payloads: string[]) => {
+    try {
+      const response = await api.post(`/fuzzer/${sessionId}/payloads`, { payloads });
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading payloads:', error);
+      throw error;
+    }
+  },
+  
+  saveResults: async (sessionId: string, results: any) => {
+    try {
+      const response = await api.post(`/fuzzer/${sessionId}/results`, { results });
+      return response.data;
+    } catch (error) {
+      console.error('Error saving results:', error);
+      throw error;
+    }
   }
 };
 
@@ -76,9 +99,9 @@ export const mlApi = {
     }
   },
   
-  analyzeDataset: async (dataset: any[]) => {
+  analyzeDataset: async (dataset: any[], options = {}) => {
     try {
-      const response = await api.post('/ml/analyze', { dataset });
+      const response = await api.post('/ml/analyze', { dataset, options });
       return response.data;
     } catch (error) {
       console.error('Error analyzing dataset:', error);
@@ -94,10 +117,64 @@ export const mlApi = {
       console.error('Error generating report:', error);
       throw error;
     }
+  },
+  
+  performClustering: async (dataset: any[], clusterCount: number = 3) => {
+    try {
+      const response = await api.post('/ml/cluster', { dataset, clusterCount });
+      return response.data;
+    } catch (error) {
+      console.error('Error performing clustering:', error);
+      throw error;
+    }
+  },
+  
+  generateSignatures: async (dataset: any[]) => {
+    try {
+      const response = await api.post('/ml/generate-signatures', { dataset });
+      return response.data;
+    } catch (error) {
+      console.error('Error generating signatures:', error);
+      throw error;
+    }
+  },
+  
+  predictSample: async (sample: any, modelType: string = 'isolation_forest') => {
+    try {
+      const response = await api.post('/ml/predict', { sample, modelType });
+      return response.data;
+    } catch (error) {
+      console.error('Error predicting sample:', error);
+      throw error;
+    }
+  }
+};
+
+// System management API
+export const systemApi = {
+  getStatus: async () => {
+    try {
+      const response = await api.get('/health');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting system status:', error);
+      throw error;
+    }
+  },
+  
+  cleanupSessions: async () => {
+    try {
+      const response = await api.post('/fuzzer/cleanup');
+      return response.data;
+    } catch (error) {
+      console.error('Error cleaning up sessions:', error);
+      throw error;
+    }
   }
 };
 
 export default {
   fuzzer: fuzzerApi,
-  ml: mlApi
+  ml: mlApi,
+  system: systemApi
 };

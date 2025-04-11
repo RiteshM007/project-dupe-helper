@@ -12,6 +12,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Terminal from "./pages/Terminal";
 import NotFound from "./pages/NotFound";
+import MLAnalysis from "./pages/MLAnalysis";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/fuzzer" element={<Fuzzer />} />
             <Route path="/machine-learning" element={<MachineLearning />} />
+            <Route path="/ml-analysis" element={<MLAnalysis />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/terminal" element={<Terminal />} />
