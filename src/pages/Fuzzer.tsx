@@ -16,6 +16,11 @@ import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
+// Import or define the API base URL
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:5000/api';
+
 const Fuzzer = () => {
   const [targetUrl, setTargetUrl] = useState('http://localhost:8080');
   const [customPayloads, setCustomPayloads] = useState('');
