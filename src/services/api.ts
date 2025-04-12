@@ -3,13 +3,32 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
-// Create axios instance
+// Create axios instance with timeout
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 30000 // 30 second timeout
 });
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      console.error('API Error Response:', error.response.status, error.response.data);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('API No Response:', error.request);
+    } else {
+      // Something happened in setting up the request
+      console.error('API Request Error:', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Fuzzer API
 export const fuzzerApi = {
@@ -198,7 +217,7 @@ export const systemApi = {
       return response.data;
     } catch (error) {
       console.error('Error getting system status:', error);
-      throw error;
+      throw { message: 'Server unavailable', originalError: error };
     }
   },
   
