@@ -84,14 +84,24 @@ export const fuzzerApi = {
       console.error('Error saving results:', error);
       throw error;
     }
+  },
+  
+  exportResults: async (sessionId: string, format: string = 'json') => {
+    try {
+      const response = await api.get(`/fuzzer/${sessionId}/export?format=${format}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error exporting results:', error);
+      throw error;
+    }
   }
 };
 
 // Machine Learning API
 export const mlApi = {
-  trainModels: async (dataset: any[]) => {
+  trainModels: async (dataset: any[], options: any = {}) => {
     try {
-      const response = await api.post('/ml/train', { dataset });
+      const response = await api.post('/ml/train', { dataset, options });
       return response.data;
     } catch (error) {
       console.error('Error training models:', error);
@@ -99,7 +109,7 @@ export const mlApi = {
     }
   },
   
-  analyzeDataset: async (dataset: any[], options = {}) => {
+  analyzeDataset: async (dataset: any[], options: any = {}) => {
     try {
       const response = await api.post('/ml/analyze', { dataset, options });
       return response.data;
@@ -145,6 +155,36 @@ export const mlApi = {
       return response.data;
     } catch (error) {
       console.error('Error predicting sample:', error);
+      throw error;
+    }
+  },
+  
+  getModelInfo: async () => {
+    try {
+      const response = await api.get('/ml/models-info');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting model info:', error);
+      throw error;
+    }
+  },
+  
+  runBenchmark: async (options: any = {}) => {
+    try {
+      const response = await api.post('/ml/benchmark', { options });
+      return response.data;
+    } catch (error) {
+      console.error('Error running benchmark:', error);
+      throw error;
+    }
+  },
+  
+  exportModel: async (modelType: string, format: string = 'joblib') => {
+    try {
+      const response = await api.get(`/ml/export-model?type=${modelType}&format=${format}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error exporting model:', error);
       throw error;
     }
   }

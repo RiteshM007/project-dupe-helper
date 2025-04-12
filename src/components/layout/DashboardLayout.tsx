@@ -1,12 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
   LayoutDashboard, 
-  Scan, 
-  FileBarChart, 
   Zap, 
+  FileBarChart, 
   Settings, 
   Terminal, 
   Moon, 
@@ -39,9 +37,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    { icon: Scan, label: 'Scan Control', path: '/scan' },
     { icon: Zap, label: 'Fuzzer', path: '/fuzzer' },
-    { icon: Brain, label: 'ML Analysis', path: '/machine-learning' },
+    { icon: Brain, label: 'ML Analysis', path: '/ml-analysis' },
     { icon: FileBarChart, label: 'Reports', path: '/reports' },
     { icon: Settings, label: 'Settings', path: '/settings' },
     { icon: Terminal, label: 'Terminal', path: '/terminal' },
