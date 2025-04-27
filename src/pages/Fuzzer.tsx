@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { ScanAnalytics } from '@/components/dashboard/ScanAnalytics';
-import { RecentScansList } from '@/components/dashboard/RecentScansList';
-import { ThreatDetection } from '@/components/dashboard/ThreatDetection';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 
+// Import or define the API base URL
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8080/api';
@@ -31,22 +29,13 @@ const Fuzzer = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [serverStatus, setServerStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const [vulnerabilityTypes, setVulnerabilityTypes] = useState(['xss', 'sqli']);
-  const [recentScans, setRecentScans] = useState<Array<{
-    id: string;
-    timestamp: Date;
-    target: string;
-  }>>([]);
-  const [threats, setThreats] = useState<Array<{
-    id: string;
-    title: string;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    detectedAt: Date;
-  }>>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Check server status on component mount
     checkServerStatus();
     
+    // Cleanup on component unmount
     return () => {
       if (sessionId && isScanning) {
         stopScan();
@@ -58,46 +47,13 @@ const Fuzzer = () => {
     let interval: ReturnType<typeof setInterval>;
     
     if (sessionId && isScanning) {
-      interval = setInterval(async () => {
-        try {
-          const statusResponse = await fuzzerApi.getFuzzerStatus(sessionId);
-          
-          if (statusResponse.success) {
-            setProgress(statusResponse.progress || 0);
-            
-            if (statusResponse.progress === 100) {
-              setRecentScans(prev => [
-                {
-                  id: sessionId,
-                  timestamp: new Date(),
-                  target: targetUrl,
-                },
-                ...prev,
-              ]);
-            }
-
-            if (statusResponse.threats) {
-              setThreats(prev => [
-                ...statusResponse.threats.map((threat: any) => ({
-                  id: Math.random().toString(),
-                  title: threat.message,
-                  severity: threat.severity,
-                  detectedAt: new Date(),
-                })),
-                ...prev,
-              ]);
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching status:', error);
-        }
-      }, 1000);
+      interval = setInterval(fetchStatus, 1000);
     }
     
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [sessionId, isScanning, targetUrl]);
+  }, [sessionId, isScanning]);
 
   const checkServerStatus = async () => {
     try {
@@ -126,6 +82,7 @@ const Fuzzer = () => {
         return;
       }
 
+      // Create fuzzer session
       const createResponse = await fuzzerApi.createFuzzer(targetUrl);
       
       if (!createResponse.success) {
@@ -135,11 +92,13 @@ const Fuzzer = () => {
       setSessionId(createResponse.session_id);
       addLog(`Fuzzer created for ${targetUrl}`);
       
+      // Prepare custom payloads if any
       const payloadsArray = customPayloads
         .split('\n')
         .map(p => p.trim())
         .filter(p => p);
       
+      // Start fuzzing process
       const startResponse = await fuzzerApi.startFuzzing(
         createResponse.session_id, 
         vulnerabilityTypes,
@@ -197,16 +156,19 @@ const Fuzzer = () => {
       if (statusResponse.success) {
         setProgress(statusResponse.progress || 0);
         
+        // Add new logs if available
         if (statusResponse.logs && statusResponse.logs.length > 0) {
           const newLogs = statusResponse.logs
             .filter((log: any) => log.type === 'activity')
             .map((log: any) => `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.message}`);
           
+          // Only add new logs that aren't already in the state
           if (newLogs.length > 0) {
             setLogs(prev => [...prev, ...newLogs]);
           }
         }
         
+        // Check if scanning has completed
         if (!statusResponse.active && statusResponse.progress === 100) {
           setIsScanning(false);
           toast({
@@ -214,6 +176,7 @@ const Fuzzer = () => {
             description: "The fuzzing process has completed",
           });
           
+          // Redirect to ML analysis with this session data
           if (statusResponse.dataset && statusResponse.dataset.length > 0) {
             navigate('/ml-analysis', { 
               state: { 
@@ -226,6 +189,7 @@ const Fuzzer = () => {
       }
     } catch (error) {
       console.error('Error fetching status:', error);
+      // Don't show toast for every status fetch error
     }
   };
 
@@ -264,13 +228,19 @@ const Fuzzer = () => {
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-6">Web Application Fuzzer</h1>
         
-        <ScanAnalytics />
+        {serverStatus === 'offline' && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Server Connection Error</AlertTitle>
+            <AlertDescription>
+              Unable to connect to the fuzzing server. Please ensure it's running at {API_BASE_URL}.
+              <Button variant="outline" size="sm" className="ml-2 mt-2" onClick={checkServerStatus}>
+                Retry Connection
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <RecentScansList scans={recentScans} />
-          <ThreatDetection threats={threats} />
-        </div>
-
         <Tabs defaultValue="config">
           <TabsList>
             <TabsTrigger value="config">Configuration</TabsTrigger>
