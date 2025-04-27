@@ -5,9 +5,17 @@ import { saveAs } from 'file-saver';
 interface ScanReport {
   id: string;
   timestamp: string;
-  vulnerabilities: any[];
+  vulnerabilities: Array<{
+    type: string;
+    severity: string;
+    count: number;
+  }>;
   payloads: string[];
-  responses: any[];
+  responses: Array<{
+    status: number;
+    body: string;
+    headers: Record<string, string>;
+  }>;
   summary: {
     totalScans: number;
     vulnerabilitiesDetected: number;
@@ -44,8 +52,19 @@ const generateMockScanReports = (): ScanReport[] => {
   }));
 };
 
+interface MLDataItem {
+  payload: string;
+  response_code: number;
+  alert_detected: boolean;
+  error_detected: boolean;
+  body_word_count_changed: boolean;
+  vulnerability_type: string;
+  label: string;
+  severity: string;
+}
+
 // Generate ML dataset
-const generateMLDataset = () => {
+const generateMLDataset = (): MLDataItem[] => {
   return Array.from({ length: 30 }, (_, i) => ({
     payload: `Payload ${i}`,
     response_code: [200, 403, 500][Math.floor(Math.random() * 3)],
@@ -58,8 +77,21 @@ const generateMLDataset = () => {
   }));
 };
 
+interface SummaryReport {
+  generatedAt: string;
+  scansPeriod: string;
+  totalScans: number;
+  totalVulnerabilities: number;
+  averageSecurityScore: number;
+  vulnerabilityBreakdown: Array<{
+    type: string;
+    count: number;
+  }>;
+  recommendation: string;
+}
+
 // Generate a summary report
-const generateSummaryReport = (scanReports: ScanReport[]) => {
+const generateSummaryReport = (scanReports: ScanReport[]): SummaryReport => {
   const totalVulnerabilities = scanReports.reduce(
     (sum, report) => sum + report.summary.vulnerabilitiesDetected,
     0
@@ -70,7 +102,7 @@ const generateSummaryReport = (scanReports: ScanReport[]) => {
     0
   ) / scanReports.length;
   
-  const vulnerabilityTypes = new Map();
+  const vulnerabilityTypes = new Map<string, number>();
   
   scanReports.forEach(report => {
     report.vulnerabilities.forEach(vuln => {
@@ -98,7 +130,7 @@ const generateSummaryReport = (scanReports: ScanReport[]) => {
 };
 
 // Main function to download scan reports
-export const downloadScanReport = async () => {
+export const downloadScanReport = async (): Promise<void> => {
   const zip = new JSZip();
   
   // Get data - in real app, this would be API calls
