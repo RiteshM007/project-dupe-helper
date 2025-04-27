@@ -4,25 +4,53 @@ import { LucideIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { motion } from 'framer-motion';
 
-interface ResourceUsageProps {
+export interface ResourceItem {
   label: string;
   value: number;
-  max: number;
-  unit: string;
   icon: LucideIcon;
   color: string;
 }
 
-export const ResourceUsage: React.FC<ResourceUsageProps> = ({ 
+export interface ResourceUsageProps {
+  label: string;
+  items: ResourceItem[];
+}
+
+export const ResourceUsage: React.FC<ResourceUsageProps> = ({ label, items }) => {
+  return (
+    <div className="space-y-4 w-full backdrop-blur-sm bg-black/30 p-4 rounded-xl border border-white/10 shadow-lg">
+      <h3 className="text-xl font-semibold text-white/90">{label}</h3>
+      <div className="space-y-4">
+        {items.map((item, index) => (
+          <ResourceItem 
+            key={index}
+            label={item.label}
+            value={item.value}
+            icon={item.icon}
+            color={item.color}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+interface ResourceItemProps {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  color: string;
+}
+
+const ResourceItem: React.FC<ResourceItemProps> = ({ 
   label, 
   value, 
-  max, 
-  unit, 
   icon: Icon,
   color
 }) => {
-  // Calculate percentage
-  const percentage = (value / max) * 100;
+  // Calculate percentage (assuming a percentage between 0-100)
+  const percentage = value; // The value itself is the percentage
+  const max = 100; // Maximum value is 100%
   
   // Determine status color based on percentage
   const getStatusColor = () => {
@@ -33,7 +61,7 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
   };
   
   return (
-    <div className="space-y-2 w-full mb-4 backdrop-blur-sm bg-black/30 p-4 rounded-xl border border-white/10 shadow-lg transform transition-all duration-300 hover:scale-[1.02] hover:border-white/20">
+    <div className="space-y-2 w-full mb-4 transform transition-all duration-300 hover:scale-[1.02] hover:border-white/20">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <motion.div 
@@ -54,7 +82,7 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          {value.toFixed(1)}{unit}
+          {value.toFixed(1)}%
         </motion.span>
       </div>
       
@@ -98,7 +126,7 @@ export const ResourceUsage: React.FC<ResourceUsageProps> = ({
           </TooltipTrigger>
           <TooltipContent className="bg-black/90 border-gray-700 backdrop-blur-xl">
             <div className="font-mono text-xs">
-              {value.toFixed(1)}{unit} of {max}{unit} ({percentage.toFixed(1)}%)
+              {value.toFixed(1)}% ({percentage.toFixed(1)}%)
             </div>
           </TooltipContent>
         </Tooltip>
