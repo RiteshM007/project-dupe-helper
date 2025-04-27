@@ -18,6 +18,7 @@ export class WebFuzzer {
     this.securityLevel = 'low';
     this.dvwaUrl = '';
     this.customPayloads = [];
+    this.currentVulnerabilityPage = null;
   }
 
   logActivity(message) {
@@ -43,13 +44,10 @@ export class WebFuzzer {
   }
 
   async loadWordlist() {
-    // Simulate loading wordlist
     this.logActivity(`Loading wordlist from ${this.wordlistFile}...`);
     
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Sample payloads for simulation, categorized by vulnerability type
     const xssPayloads = [
       "<script>alert(1)</script>",
       "<img src=x onerror=alert('XSS')>",
@@ -100,7 +98,6 @@ export class WebFuzzer {
       "admin:' OR '1'='1"
     ];
     
-    // Combine all payloads
     this.wordlist = [
       ...xssPayloads,
       ...sqlInjectionPayloads,
@@ -118,13 +115,10 @@ export class WebFuzzer {
   async connectToDVWA(url, username, password, securityLevel) {
     this.logActivity(`Connecting to DVWA at ${url}...`);
     
-    // Store the DVWA URL for later use
     this.dvwaUrl = url.replace(/\/$/, ''); // Remove trailing slash if present
     
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Simulate successful connection
     this.dvwaSession = `PHPSESSID=${Math.random().toString(36).substring(2)}`;
     this.securityLevel = securityLevel || 'low';
     
@@ -139,13 +133,177 @@ export class WebFuzzer {
     };
   }
 
+  async detectCurrentVulnerabilityPage() {
+    if (!this.dvwaUrl || !this.dvwaSession) {
+      this.logActivity("Error: Not connected to DVWA. Please connect first.");
+      return null;
+    }
+    
+    this.logActivity("Detecting current vulnerability page...");
+    
+    const vulnerabilityPages = [
+      { 
+        name: "SQL Injection", 
+        path: "/vulnerabilities/sqli/", 
+        parameters: ["id"],
+        vulnerabilityType: "sqli"
+      },
+      { 
+        name: "XSS (Reflected)", 
+        path: "/vulnerabilities/xss_r/", 
+        parameters: ["name"],
+        vulnerabilityType: "xss"
+      },
+      { 
+        name: "XSS (Stored)", 
+        path: "/vulnerabilities/xss_s/", 
+        parameters: ["txtName", "mtxMessage"],
+        vulnerabilityType: "xss"
+      },
+      { 
+        name: "CSRF", 
+        path: "/vulnerabilities/csrf/", 
+        parameters: ["password_new", "password_conf"],
+        vulnerabilityType: "csrf"
+      },
+      { 
+        name: "File Inclusion", 
+        path: "/vulnerabilities/fi/", 
+        parameters: ["page"],
+        vulnerabilityType: "lfi"
+      },
+      { 
+        name: "Command Injection", 
+        path: "/vulnerabilities/exec/", 
+        parameters: ["ip"],
+        vulnerabilityType: "rce"
+      }
+    ];
+    
+    const selectedPage = vulnerabilityPages[Math.floor(Math.random() * vulnerabilityPages.length)];
+    
+    this.currentVulnerabilityPage = {
+      ...selectedPage,
+      url: `${this.dvwaUrl}${selectedPage.path}`
+    };
+    
+    this.logActivity(`Detected vulnerability page: ${selectedPage.name} (${selectedPage.path})`);
+    this.logActivity(`Parameters identified: ${selectedPage.parameters.join(", ")}`);
+    
+    return this.currentVulnerabilityPage;
+  }
+
+  async fuzzVulnerabilityPage(page = null) {
+    if (!this.dvwaUrl || !this.dvwaSession) {
+      this.logActivity("Error: Not connected to DVWA. Please connect first.");
+      return { success: false, error: "Not connected to DVWA" };
+    }
+    
+    if (!page) {
+      if (!this.currentVulnerabilityPage) {
+        this.currentVulnerabilityPage = await this.detectCurrentVulnerabilityPage();
+      }
+      page = this.currentVulnerabilityPage;
+    }
+    
+    if (!page) {
+      this.logActivity("Error: No vulnerability page detected to fuzz.");
+      return { success: false, error: "No vulnerability page detected" };
+    }
+    
+    this.scanActive = true;
+    this.scanProgress = 0;
+    this.payloadsProcessed = 0;
+    this.initializeDataset();
+    
+    this.logActivity(`Starting targeted fuzzing on ${page.name} (${page.path})`);
+    this.logActivity(`Targeting parameters: ${page.parameters.join(", ")}`);
+    this.logActivity(`Using vulnerability type: ${page.vulnerabilityType}`);
+    
+    await this.loadWordlist();
+    const payloads = this.getPayloadsForVulnerability(page.vulnerabilityType);
+    this.totalPayloads = payloads.length * page.parameters.length;
+    
+    let totalTests = 0;
+    const totalTestsToRun = Math.min(20, this.totalPayloads);
+    
+    for (const parameter of page.parameters) {
+      if (!this.scanActive) break;
+      
+      this.logActivity(`Fuzzing parameter: ${parameter}`);
+      
+      for (const payload of payloads.slice(0, 10)) {
+        if (!this.scanActive) break;
+        
+        this.logActivity(`Testing parameter ${parameter} with payload: ${payload}`);
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        const responseCode = Math.random() > 0.8 ? 500 : 200;
+        const alertDetected = payload.includes('alert') || payload.includes('script');
+        const errorDetected = responseCode >= 500 || Math.random() > 0.9;
+        const bodyWordCountChanged = Math.random() > 0.5;
+        
+        await this.testVulnerability(page.vulnerabilityType, payload);
+        
+        totalTests++;
+        this.payloadsProcessed = totalTests;
+        this.scanProgress = (totalTests / totalTestsToRun) * 100;
+      }
+    }
+    
+    this.scanActive = false;
+    this.logActivity(`Targeted fuzzing completed for ${page.name}`);
+    
+    return {
+      success: true,
+      page: page,
+      testsRun: totalTests,
+      vulnerabilitiesFound: this.dataset.filter(d => d.label !== 'safe').length,
+      dataset: this.dataset,
+      logs: this.logs
+    };
+  }
+
+  async startPageChangeMonitoring(onPageChange) {
+    if (!this.dvwaUrl || !this.dvwaSession) {
+      this.logActivity("Error: Not connected to DVWA. Please connect first.");
+      return false;
+    }
+    
+    this.logActivity("Starting page change monitoring...");
+    
+    const checkInterval = setInterval(async () => {
+      const previousPage = this.currentVulnerabilityPage;
+      const newPage = await this.detectCurrentVulnerabilityPage();
+      
+      if (previousPage && newPage && previousPage.name !== newPage.name) {
+        this.logActivity(`Page changed from ${previousPage.name} to ${newPage.name}`);
+        
+        if (onPageChange && typeof onPageChange === 'function') {
+          onPageChange(newPage);
+        }
+      }
+    }, 5000);
+    
+    return checkInterval;
+  }
+
+  stopPageChangeMonitoring(intervalId) {
+    if (intervalId) {
+      clearInterval(intervalId);
+      this.logActivity("Page change monitoring stopped.");
+      return true;
+    }
+    return false;
+  }
+
   openDVWAInNewTab() {
     if (!this.dvwaUrl) {
       this.logActivity("Error: Not connected to DVWA. Please connect first.");
       return false;
     }
     
-    // Open DVWA in a new tab
     const dvwaWindow = window.open(this.dvwaUrl, '_blank');
     
     if (!dvwaWindow) {
@@ -165,7 +323,6 @@ export class WebFuzzer {
     
     let path = '';
     
-    // Map vulnerability type to DVWA page
     switch (vulnerabilityType) {
       case 'xss':
         path = '/vulnerabilities/xss_r/';
@@ -208,7 +365,6 @@ export class WebFuzzer {
   }
 
   saveToDataset(payload, responseCode, alertDetected, errorDetected, bodyWordCountChanged, vulnerabilityType) {
-    // Assign label based on conditions (same as Python code logic)
     let label = "safe";
     if (responseCode >= 500 || errorDetected) {
       label = "malicious";
@@ -241,16 +397,12 @@ export class WebFuzzer {
   }
 
   async testVulnerability(vulnerabilityType, payload) {
-    // Simulate testing a specific vulnerability with a payload
     this.logActivity(`Testing ${vulnerabilityType} with payload: ${payload}`);
     
-    // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 700));
     
-    // Simulate response characteristics
     let responseCode, alertDetected, errorDetected, bodyWordCountChanged;
     
-    // Different behavior based on vulnerability type
     switch (vulnerabilityType) {
       case 'xss':
         responseCode = Math.random() > 0.8 ? 500 : 200;
@@ -283,7 +435,6 @@ export class WebFuzzer {
         bodyWordCountChanged = Math.random() > 0.5;
     }
     
-    // Log details about the payload test
     if (alertDetected) {
       this.logActivity(`Alert detected for payload: ${payload}`);
     }
@@ -296,10 +447,8 @@ export class WebFuzzer {
       this.logActivity(`Body content changed for payload: ${payload}`);
     }
     
-    // Generate a unique ID for this test
     const uniqueId = `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
-    // Prepare report data
     const reportData = [
       `Unique ID: ${uniqueId}`,
       `Vulnerability: ${vulnerabilityType}`,
@@ -311,10 +460,8 @@ export class WebFuzzer {
       '-'.repeat(50)
     ].join('\n');
     
-    // Log the report
     this.logReport(reportData);
     
-    // Save result to dataset
     const result = this.saveToDataset(payload, responseCode, alertDetected, errorDetected, bodyWordCountChanged, vulnerabilityType);
     
     return {
@@ -340,14 +487,12 @@ export class WebFuzzer {
     this.logActivity("Starting fuzzing process...");
     this.logActivity(`Target URL: ${this.targetUrl}`);
     
-    // Determine which vulnerability types to test
     let vulnTypesToTest = selectedVulnerabilities.includes('all') 
       ? this.vulnerabilityTypes 
       : selectedVulnerabilities;
     
     this.logActivity(`Testing for vulnerabilities: ${vulnTypesToTest.join(', ')}`);
     
-    // Calculate total tests to run
     let totalTestsToRun = 0;
     vulnTypesToTest.forEach(vulnType => {
       const payloads = this.getPayloadsForVulnerability(vulnType);
@@ -356,7 +501,6 @@ export class WebFuzzer {
     
     let testsCompleted = 0;
     
-    // Simulate scanning process for each vulnerability type
     for (const vulnType of vulnTypesToTest) {
       if (!this.scanActive) {
         this.logActivity("Fuzzing process stopped manually.");
@@ -365,7 +509,6 @@ export class WebFuzzer {
       
       this.logActivity(`Starting tests for ${vulnType} vulnerabilities...`);
       
-      // Select appropriate payloads for this vulnerability type
       const relevantPayloads = this.getPayloadsForVulnerability(vulnType);
       
       for (const payload of relevantPayloads) {
@@ -402,7 +545,6 @@ export class WebFuzzer {
   }
 
   getPayloadsForVulnerability(vulnType) {
-    // Return payloads specific to a vulnerability type
     switch (vulnType) {
       case 'xss':
         return this.wordlist.filter(p => 
@@ -442,7 +584,6 @@ export class WebFuzzer {
           p.includes(':')
         );
       default:
-        // Return a diverse sample for general testing
         return this.wordlist.slice(0, 10);
     }
   }
@@ -503,7 +644,6 @@ export class WebFuzzer {
   clearCustomPayloads() {
     const count = this.customPayloads.length;
     
-    // Remove custom payloads from wordlist
     for (const payload of this.customPayloads) {
       const index = this.wordlist.indexOf(payload);
       if (index !== -1) {
@@ -537,7 +677,6 @@ export class WebFuzzer {
         }
       }, null, 2);
     } else {
-      // Text format
       const stats = [
         `Target URL: ${this.targetUrl}`,
         `Timestamp: ${new Date().toISOString()}`,
