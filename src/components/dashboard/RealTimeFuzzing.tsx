@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,11 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { PayloadUploader } from '@/components/fuzzer/PayloadUploader';
 import { LiveLogs } from '@/components/fuzzer/LiveLogs';
+import { checkDVWAConnection, loginToDVWA, fuzzerRequest } from '@/utils/dvwaFuzzer';
+import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 
 export const RealTimeFuzzing: React.FC = () => {
-  const [url, setUrl] = useState("");
-  const [payloadSet, setPayloadSet] = useState("default");
-  const [fuzzingMode, setFuzzingMode] = useState("stealth");
+  const { isConnected, setIsConnected, dvwaUrl, setDvwaUrl, sessionCookie, setSessionCookie } = useDVWAConnection();
+  const [url, setUrl] = useState(dvwaUrl || "http://localhost:8080/DVWA");
+  const [module, setModule] = useState("exec");
   const [isFuzzing, setIsFuzzing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
@@ -26,28 +27,60 @@ export const RealTimeFuzzing: React.FC = () => {
   });
   const [payloadsReady, setPayloadsReady] = useState(false);
 
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
+
   const handlePayloadsUploaded = (payloads: string[]) => {
     setCustomPayloads(payloads);
     setPayloadsReady(true);
     addLog(`Loaded ${payloads.length} custom payloads`);
   };
 
-  const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
-  };
-
-  const handleStartFuzzing = async () => {
-    if (!url) {
+  const handleConnect = async () => {
+    addLog(`Attempting to connect to DVWA at ${url}`);
+    
+    const isReachable = await checkDVWAConnection(url);
+    if (!isReachable) {
       toast({
-        title: "Missing URL",
-        description: "Please enter a URL to fuzz",
+        title: "Connection Failed",
+        description: "DVWA server not reachable. Please start DVWA and try again.",
         variant: "destructive",
       });
       return;
     }
 
-    if (customPayloads.length === 0) {
+    const loginResult = await loginToDVWA(url, 'admin', 'password');
+    if (loginResult.success && loginResult.cookie) {
+      setIsConnected(true);
+      setDvwaUrl(url);
+      setSessionCookie(loginResult.cookie);
+      addLog('Successfully connected to DVWA');
+      toast({
+        title: "Connected",
+        description: "Successfully connected to DVWA",
+      });
+    } else {
+      toast({
+        title: "Login Failed",
+        description: "Could not authenticate with DVWA",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStartFuzzing = async () => {
+    if (!isConnected) {
+      toast({
+        title: "Not Connected",
+        description: "Please connect to DVWA first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!payloadsReady || customPayloads.length === 0) {
       toast({
         title: "No Payloads",
         description: "Please upload custom payloads first",
@@ -56,12 +89,7 @@ export const RealTimeFuzzing: React.FC = () => {
       return;
     }
 
-    const scanId = Math.random().toString(36).substr(2, 9);
-    window.dispatchEvent(new CustomEvent('scanUpdate', {
-      detail: { scanId, status: 'in-progress' }
-    }));
-
-    setLogs([]);
+    setIsFuzzing(true);
     setProgress(0);
     setScanStats({
       payloadsSent: 0,
@@ -69,116 +97,67 @@ export const RealTimeFuzzing: React.FC = () => {
       threatsDetected: 0,
     });
 
-    setIsFuzzing(true);
-    addLog(`Starting ${fuzzingMode} fuzzing on ${url}`);
-    addLog(`Using custom payload set with ${customPayloads.length} payloads`);
+    const scanId = Math.random().toString(36).substr(2, 9);
+    window.dispatchEvent(new CustomEvent('scanUpdate', {
+      detail: { scanId, status: 'in-progress' }
+    }));
 
-    try {
-      addLog("Initializing fuzzer connection...");
-      addLog("Scanning target for entry points...");
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      addLog("Beginning payload injection...");
-      
-      const detectVulnerability = () => {
-        if (Math.random() > 0.7) {
-          const vulnTypes = ["XSS vulnerability", "SQL injection point", "CSRF vulnerability", "Remote file inclusion", "Authentication bypass"];
-          const detectedVuln = vulnTypes[Math.floor(Math.random() * vulnTypes.length)];
-          addLog(`⚠️ ALERT: Potential ${detectedVuln} detected!`);
-          
-          setScanStats(prev => ({
-            ...prev,
-            threatsDetected: prev.threatsDetected + 1
-          }));
-          
+    for (let i = 0; i < customPayloads.length; i++) {
+      if (!isFuzzing) break;
+
+      const payload = customPayloads[i];
+      addLog(`Testing payload: ${payload}`);
+
+      try {
+        const result = await fuzzerRequest(dvwaUrl, payload, sessionCookie, module);
+        
+        setScanStats(prev => ({
+          payloadsSent: prev.payloadsSent + 1,
+          responsesReceived: prev.responsesReceived + 1,
+          threatsDetected: prev.threatsDetected + (result.vulnerabilityDetected ? 1 : 0)
+        }));
+
+        if (result.vulnerabilityDetected) {
+          addLog(`⚠️ ALERT: Potential vulnerability detected with payload: ${payload}`);
           toast({
-            title: "Vulnerability Detected!",
-            description: `A potential ${detectedVuln} was found`,
+            title: "Vulnerability Detected",
+            description: `A potential vulnerability was found using payload: ${payload}`,
             variant: "destructive",
           });
         }
-      };
-      
-      let interval = setInterval(() => {
-        if (!isFuzzing) {
-          clearInterval(interval);
-          return;
-        }
-        
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setIsFuzzing(false);
-            addLog("Fuzzing process completed!");
-            
-            // Update scan status to completed
-            window.dispatchEvent(new CustomEvent('scanUpdate', {
-              detail: {
-                scanId,
-                status: 'completed',
-                vulnerabilities: scanStats.threatsDetected
-              }
-            }));
-            
-            return 100;
-          }
-          
-          setScanStats(prev => ({
-            payloadsSent: prev.payloadsSent + Math.floor(Math.random() * 3) + 1,
-            responsesReceived: prev.responsesReceived + Math.floor(Math.random() * 3),
-            threatsDetected: prev.threatsDetected
-          }));
-          
-          // Simulate processing payloads
-          const payloadIndex = Math.floor(Math.random() * customPayloads.length);
-          if (payloadIndex < customPayloads.length) {
-            addLog(`Testing payload: ${customPayloads[payloadIndex]}`);
-          }
-          
-          const increment = Math.random() * 5 + 1;
-          return Math.min(100, prev + increment);
-        });
-        
-        // Random chance to detect vulnerability
-        if (Math.random() > 0.9) {
-          detectVulnerability();
-        }
-      }, 1000);
-      
-      // Handle vulnerability detection at intervals
-      const vulnDetectionInterval = setInterval(detectVulnerability, 3000);
-      
-      setTimeout(() => {
-        clearInterval(vulnDetectionInterval);
-      }, 30000);
-      
-    } catch (error: any) {
-      setIsFuzzing(false);
-      toast({
-        title: "Fuzzing Error",
-        description: error.message || "An error occurred while fuzzing",
-        variant: "destructive",
-      });
+
+        setProgress((i + 1) / customPayloads.length * 100);
+      } catch (error) {
+        addLog(`Error testing payload: ${payload}`);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting
     }
+
+    setIsFuzzing(false);
+    window.dispatchEvent(new CustomEvent('scanUpdate', {
+      detail: {
+        scanId,
+        status: 'completed',
+        vulnerabilities: scanStats.threatsDetected
+      }
+    }));
+
+    addLog("Fuzzing process completed!");
   };
 
   const handleStopFuzzing = () => {
     setIsFuzzing(false);
     addLog("Fuzzing process stopped by user.");
-    
     toast({
       title: "Fuzzing Stopped",
       description: "The fuzzing process has been stopped",
     });
   };
-  
-  // Clean up on unmount
+
   useEffect(() => {
     return () => {
-      if (isFuzzing) {
-        setIsFuzzing(false);
-      }
+      setCustomPayloads([]);
     };
   }, []);
 
