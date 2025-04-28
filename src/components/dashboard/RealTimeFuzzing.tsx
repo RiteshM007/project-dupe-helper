@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,8 @@ export const RealTimeFuzzing: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
   const [customPayloads, setCustomPayloads] = useState<string[]>([]);
+  const [payloadSet, setPayloadSet] = useState("custom");
+  const [fuzzingMode, setFuzzingMode] = useState("thorough");
   const [scanStats, setScanStats] = useState({
     payloadsSent: 0,
     responsesReceived: 0,
@@ -297,3 +300,4 @@ export const RealTimeFuzzing: React.FC = () => {
     </div>
   );
 };
+
