@@ -226,13 +226,50 @@ export const RealTimeFuzzing: React.FC = () => {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="module-select">DVWA Module</Label>
+            <Select 
+              value={module} 
+              onValueChange={setModule}
+              disabled={isFuzzing}
+            >
+              <SelectTrigger id="module-select">
+                <SelectValue placeholder="Select DVWA module" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="exec">Command Injection</SelectItem>
+                <SelectItem value="sqli">SQL Injection</SelectItem>
+                <SelectItem value="xss_r">XSS Reflected</SelectItem>
+                <SelectItem value="xss_s">XSS Stored</SelectItem>
+                <SelectItem value="upload">File Upload</SelectItem>
+                <SelectItem value="csrf">CSRF</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex justify-between items-center gap-4">
+            {!isConnected ? (
+              <Button 
+                onClick={handleConnect} 
+                variant="outline"
+                disabled={isFuzzing}
+                className="w-full"
+              >
+                Connect to DVWA
+              </Button>
+            ) : (
+              <div className="flex items-center space-x-2 px-4 py-2 rounded-md bg-green-500/10 text-green-500 w-full">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span className="text-sm font-medium">Connected to DVWA</span>
+              </div>
+            )}
+            
             <PayloadUploader onPayloadsUploaded={handlePayloadsUploaded} />
             
             <Button
               onClick={isFuzzing ? handleStopFuzzing : handleStartFuzzing}
               variant={isFuzzing ? "destructive" : "default"}
-              disabled={!payloadsReady || customPayloads.length === 0}
+              disabled={!isConnected || !payloadsReady || customPayloads.length === 0}
               className="w-full"
             >
               {isFuzzing ? (
@@ -300,4 +337,3 @@ export const RealTimeFuzzing: React.FC = () => {
     </div>
   );
 };
-
