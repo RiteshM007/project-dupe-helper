@@ -1,6 +1,7 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Upload } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -10,6 +11,8 @@ interface PayloadUploaderProps {
 }
 
 export const PayloadUploader: React.FC<PayloadUploaderProps> = ({ onPayloadsUploaded }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -40,6 +43,7 @@ export const PayloadUploader: React.FC<PayloadUploaderProps> = ({ onPayloadsUplo
       }
 
       onPayloadsUploaded(payloads);
+      setIsOpen(false);
       toast({
         title: "Payloads Uploaded",
         description: `${payloads.length} payloads loaded successfully`,
@@ -54,17 +58,30 @@ export const PayloadUploader: React.FC<PayloadUploaderProps> = ({ onPayloadsUplo
   };
 
   return (
-    <div className="flex items-center gap-4">
-      <Input
-        type="file"
-        accept=".txt"
-        onChange={handleFileUpload}
-        className="max-w-xs"
-      />
-      <Button variant="outline">
+    <>
+      <Button onClick={() => setIsOpen(true)} variant="outline">
         <Upload className="mr-2 h-4 w-4" />
-        Upload Payloads
+        Upload Custom Payloads
       </Button>
-    </div>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Payloads</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Upload a .txt file containing your custom payloads (one per line)
+            </p>
+            <Input
+              type="file"
+              accept=".txt"
+              onChange={handleFileUpload}
+              className="w-full"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

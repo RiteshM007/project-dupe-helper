@@ -8,35 +8,63 @@ interface ScanEntry {
   id: string;
   timestamp: Date;
   status: 'completed' | 'in-progress' | 'failed';
+  vulnerabilities?: number;
 }
 
 export const LiveScans = () => {
   const [scans, setScans] = useState<ScanEntry[]>([]);
 
   useEffect(() => {
-    // Simulate initial scans
-    setScans([
-      { id: '1', timestamp: new Date(), status: 'completed' },
-      { id: '2', timestamp: new Date(Date.now() - 1000 * 60 * 5), status: 'completed' },
-    ]);
+    // Initialize with existing scans from storage if available
+    const storedScans = localStorage.getItem('recent_scans');
+    if (storedScans) {
+      setScans(JSON.parse(storedScans).map((scan: any) => ({
+        ...scan,
+        timestamp: new Date(scan.timestamp)
+      })));
+    }
 
-    // Simulate new scans being added
-    const interval = setInterval(() => {
-      const newScan: ScanEntry = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date(),
-        status: 'completed'
-      };
-      setScans(prev => [newScan, ...prev].slice(0, 10)); // Keep last 10 scans
-    }, 45000);
+    // Handle scan updates
+    const handleScanUpdate = (event: CustomEvent) => {
+      const { scanId, status, vulnerabilities } = event.detail;
+      
+      setScans(prev => {
+        const scanExists = prev.find(s => s.id === scanId);
+        
+        if (scanExists) {
+          // Update existing scan
+          const updated = prev.map(scan => 
+            scan.id === scanId 
+              ? { ...scan, status, vulnerabilities }
+              : scan
+          );
+          localStorage.setItem('recent_scans', JSON.stringify(updated));
+          return updated;
+        } else if (status === 'in-progress') {
+          // Add new scan
+          const newScan = {
+            id: scanId,
+            timestamp: new Date(),
+            status,
+            vulnerabilities: 0
+          };
+          const updated = [newScan, ...prev].slice(0, 10);
+          localStorage.setItem('recent_scans', JSON.stringify(updated));
+          return updated;
+        }
+        
+        return prev;
+      });
+    };
 
-    return () => clearInterval(interval);
+    window.addEventListener('scanUpdate', handleScanUpdate as EventListener);
+    return () => window.removeEventListener('scanUpdate', handleScanUpdate as EventListener);
   }, []);
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-emerald-900/30 shadow-lg shadow-emerald-500/5">
       <CardHeader>
-        <CardTitle className="text-xl font-bold">Live Scans</CardTitle>
+        <CardTitle className="text-xl font-bold">Recent Scans</CardTitle>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[200px] w-full rounded-md">
@@ -55,9 +83,20 @@ export const LiveScans = () => {
                   </span>
                 </div>
               </div>
-              <span className="text-sm font-medium text-emerald-500">
-                {scan.status}
-              </span>
+              <div className="text-right">
+                <span className={`text-sm font-medium ${
+                  scan.status === 'completed' ? 'text-emerald-500' :
+                  scan.status === 'in-progress' ? 'text-blue-500' :
+                  'text-destructive'
+                }`}>
+                  {scan.status}
+                </span>
+                {scan.vulnerabilities !== undefined && scan.status === 'completed' && (
+                  <p className="text-xs text-muted-foreground">
+                    {scan.vulnerabilities} vulnerabilities found
+                  </p>
+                )}
+              </div>
             </div>
           ))}
         </ScrollArea>

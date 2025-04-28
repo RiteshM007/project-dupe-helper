@@ -44,7 +44,7 @@ export const RealTimeFuzzing: React.FC = () => {
       return;
     }
 
-    if (payloadSet === "custom" && customPayloads.length === 0) {
+    if (customPayloads.length === 0) {
       toast({
         title: "No Payloads",
         description: "Please upload custom payloads first",
@@ -52,6 +52,11 @@ export const RealTimeFuzzing: React.FC = () => {
       });
       return;
     }
+
+    const scanId = Math.random().toString(36).substr(2, 9);
+    window.dispatchEvent(new CustomEvent('scanUpdate', {
+      detail: { scanId, status: 'in-progress' }
+    }));
 
     setLogs([]);
     setProgress(0);
@@ -63,20 +68,16 @@ export const RealTimeFuzzing: React.FC = () => {
 
     setIsFuzzing(true);
     addLog(`Starting ${fuzzingMode} fuzzing on ${url}`);
-    addLog(`Using ${payloadSet} payload set with ${customPayloads.length} payloads`);
+    addLog(`Using custom payload set with ${customPayloads.length} payloads`);
 
-    // Simulate API call
     try {
-      // Simulate API call
       addLog("Initializing fuzzer connection...");
       addLog("Scanning target for entry points...");
       
-      // Wait 2 seconds to simulate setup
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       addLog("Beginning payload injection...");
       
-      // Detection simulation - every so often we'll detect something
       const detectVulnerability = () => {
         if (Math.random() > 0.7) {
           const vulnTypes = ["XSS vulnerability", "SQL injection point", "CSRF vulnerability", "Remote file inclusion", "Authentication bypass"];
@@ -91,10 +92,8 @@ export const RealTimeFuzzing: React.FC = () => {
         }
       };
       
-      // Set up periodic vulnerability detection
       const vulnDetectionInterval = setInterval(detectVulnerability, 3000);
       
-      // Clean up when fuzzing is done
       setTimeout(() => {
         clearInterval(vulnDetectionInterval);
       }, 30000);
@@ -108,7 +107,6 @@ export const RealTimeFuzzing: React.FC = () => {
       });
     }
 
-    // Progress simulation
     let interval: ReturnType<typeof setInterval>;
     
     if (isFuzzing) {
@@ -121,7 +119,6 @@ export const RealTimeFuzzing: React.FC = () => {
             return 100;
           }
           
-          // Update scan stats
           setScanStats(prev => ({
             payloadsSent: prev.payloadsSent + Math.floor(Math.random() * 3) + 1,
             responsesReceived: prev.responsesReceived + Math.floor(Math.random() * 3),
@@ -135,13 +132,22 @@ export const RealTimeFuzzing: React.FC = () => {
         });
       }, 1000);
     }
+
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('scanUpdate', {
+        detail: {
+          scanId,
+          status: 'completed',
+          vulnerabilities: scanStats.threatsDetected
+        }
+      }));
+    }, 30000);
   };
 
   const handleStopFuzzing = () => {
     setIsFuzzing(false);
     addLog("Fuzzing process stopped by user.");
     
-    // Cleanup custom payloads after session ends
     setCustomPayloads([]);
     
     toast({
@@ -212,18 +218,23 @@ export const RealTimeFuzzing: React.FC = () => {
             </div>
           </div>
 
-          {payloadSet === 'custom' && !isFuzzing && (
+          <div className="flex justify-between items-center gap-4">
             <PayloadUploader onPayloadsUploaded={handlePayloadsUploaded} />
-          )}
-
-          <div className="flex justify-between">
+            
             <Button
               onClick={isFuzzing ? handleStopFuzzing : handleStartFuzzing}
               variant={isFuzzing ? "destructive" : "default"}
+              disabled={customPayloads.length === 0}
               className="w-full"
-              disabled={payloadSet === 'custom' && customPayloads.length === 0}
             >
-              {isFuzzing ? "Stop Fuzzing" : "Start Fuzzing"}
+              {isFuzzing ? (
+                <>
+                  Stop Fuzzing
+                  <Loader className="ml-2 h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                "Start Fuzzing"
+              )}
             </Button>
           </div>
 
