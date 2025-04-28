@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -26,7 +25,7 @@ export const LiveScans = () => {
       setScans(parsedScans);
       
       // Initialize processed scan IDs
-      const ids = new Set(parsedScans.map((scan: ScanEntry) => scan.id));
+      const ids = new Set<string>(parsedScans.map((scan: ScanEntry) => scan.id));
       setProcessedScanIds(ids);
     }
 
