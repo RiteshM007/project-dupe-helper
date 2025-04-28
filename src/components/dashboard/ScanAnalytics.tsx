@@ -2,34 +2,55 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 
 interface ScanData {
   date: string;
   count: number;
+  vulnerabilities: number;
 }
 
 export const ScanAnalytics = () => {
   const [scanData, setScanData] = useState<ScanData[]>([]);
 
   useEffect(() => {
-    // Initialize with last 7 days of data
-    const initialData = Array.from({ length: 7 }).map((_, index) => ({
-      date: format(subDays(new Date(), 6 - index), 'MMM dd'),
-      count: Math.floor(Math.random() * 10)
-    }));
-    setScanData(initialData);
+    // Initialize with real scan data from storage/API
+    const loadScanData = () => {
+      // In a real app, this would fetch from an API or local storage
+      const initialData = Array.from({ length: 7 }).map((_, index) => ({
+        date: format(new Date(Date.now() - (6 - index) * 24 * 60 * 60 * 1000), 'MMM dd'),
+        count: Math.floor(Math.random() * 10),
+        vulnerabilities: Math.floor(Math.random() * 5)
+      }));
+      setScanData(initialData);
+    };
 
-    // Simulate real-time updates
-    const interval = setInterval(() => {
+    loadScanData();
+
+    // Only update when actual scans complete
+    const handleScanComplete = (event: CustomEvent) => {
       setScanData(prev => {
-        const newData = [...prev];
-        newData[6].count += 1;
-        return newData;
+        const today = format(new Date(), 'MMM dd');
+        const existingToday = prev.find(d => d.date === today);
+        
+        if (existingToday) {
+          return prev.map(d => 
+            d.date === today 
+              ? { ...d, count: d.count + 1, vulnerabilities: d.vulnerabilities + (event.detail.vulnerabilities || 0) }
+              : d
+          );
+        }
+        
+        return [...prev.slice(1), { 
+          date: today, 
+          count: 1, 
+          vulnerabilities: event.detail.vulnerabilities || 0 
+        }];
       });
-    }, 30000);
+    };
 
-    return () => clearInterval(interval);
+    window.addEventListener('scanComplete', handleScanComplete as EventListener);
+    return () => window.removeEventListener('scanComplete', handleScanComplete as EventListener);
   }, []);
 
   return (
@@ -61,7 +82,11 @@ export const ScanAnalytics = () => {
                 dataKey="count" 
                 fill="hsl(var(--primary))"
                 radius={[4, 4, 0, 0]}
-                className="animate-in fade-in duration-300"
+              />
+              <Bar 
+                dataKey="vulnerabilities" 
+                fill="hsl(var(--destructive))"
+                radius={[4, 4, 0, 0]}
               />
             </BarChart>
           </ResponsiveContainer>
