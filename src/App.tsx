@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import React from "react"; // Added React import
 import Index from "./pages/Index";
 import Fuzzer from "./pages/Fuzzer";
@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import Terminal from "./pages/Terminal";
 import NotFound from "./pages/NotFound";
 import MLAnalysis from "./pages/MLAnalysis";
+import { DVWAConnectionProvider } from "./context/DVWAConnectionContext";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -30,19 +31,21 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/fuzzer" element={<Fuzzer />} />
-            <Route path="/machine-learning" element={<MachineLearning />} />
-            <Route path="/ml-analysis" element={<MLAnalysis />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/terminal" element={<Terminal />} />
-            {/* Catch-all route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <DVWAConnectionProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Navigate to="/fuzzer" replace />} />
+              <Route path="/fuzzer" element={<Fuzzer />} />
+              <Route path="/machine-learning" element={<MachineLearning />} />
+              <Route path="/ml-analysis" element={<MLAnalysis />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/terminal" element={<Terminal />} />
+              {/* Catch-all route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </DVWAConnectionProvider>
       </TooltipProvider>
     </QueryClientProvider>
   </React.StrictMode>
