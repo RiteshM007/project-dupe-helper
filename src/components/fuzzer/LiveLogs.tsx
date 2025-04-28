@@ -2,6 +2,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle } from 'lucide-react';
 
 interface LiveLogsProps {
   logs: string[];
@@ -18,9 +20,16 @@ export const LiveLogs: React.FC<LiveLogsProps> = ({ logs, isActive }) => {
   }, [logs]);
 
   return (
-    <Card>
+    <Card className="bg-card/60 backdrop-blur-sm border-emerald-900/20">
       <CardHeader>
-        <CardTitle className="text-lg">Live Fuzzing Logs</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Live Fuzzing Logs</CardTitle>
+          {isActive && (
+            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 animate-pulse">
+              Live
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <ScrollArea 
@@ -36,8 +45,15 @@ export const LiveLogs: React.FC<LiveLogsProps> = ({ logs, isActive }) => {
               {logs.map((log, index) => (
                 <div 
                   key={index}
-                  className="font-mono text-sm border-b border-border/20 py-1 last:border-0"
+                  className={`font-mono text-sm border-b border-border/20 py-1.5 last:border-0 ${
+                    log.includes('ALERT') ? 'text-destructive' : 
+                    log.includes('vulnerability') ? 'text-amber-500' : 
+                    log.includes('completed') ? 'text-emerald-500' : ''
+                  }`}
                 >
+                  {log.includes('ALERT') && (
+                    <AlertTriangle className="inline-block h-3.5 w-3.5 mr-1" />
+                  )}
                   {log}
                 </div>
               ))}

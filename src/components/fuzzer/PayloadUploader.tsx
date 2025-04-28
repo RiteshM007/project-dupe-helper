@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Upload } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 interface PayloadUploaderProps {
   onPayloadsUploaded: (payloads: string[]) => void;
@@ -12,22 +13,28 @@ interface PayloadUploaderProps {
 
 export const PayloadUploader: React.FC<PayloadUploaderProps> = ({ onPayloadsUploaded }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-    
-    if (!file.name.endsWith('.txt')) {
-      toast({
-        title: "Invalid File",
-        description: "Please upload a .txt file",
-        variant: "destructive",
-      });
-      return;
+    if (file) {
+      if (!file.name.endsWith('.txt')) {
+        toast({
+          title: "Invalid File",
+          description: "Please upload a .txt file",
+          variant: "destructive",
+        });
+        return;
+      }
+      setSelectedFile(file);
     }
+  };
 
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+    
     try {
-      const text = await file.text();
+      const text = await selectedFile.text();
       const payloads = text
         .split('\n')
         .map(line => line.trim())
@@ -44,6 +51,7 @@ export const PayloadUploader: React.FC<PayloadUploaderProps> = ({ onPayloadsUplo
 
       onPayloadsUploaded(payloads);
       setIsOpen(false);
+      setSelectedFile(null);
       toast({
         title: "Payloads Uploaded",
         description: `${payloads.length} payloads loaded successfully`,
@@ -59,13 +67,13 @@ export const PayloadUploader: React.FC<PayloadUploaderProps> = ({ onPayloadsUplo
 
   return (
     <>
-      <Button onClick={() => setIsOpen(true)} variant="outline">
-        <Upload className="mr-2 h-4 w-4" />
+      <Button onClick={() => setIsOpen(true)} variant="outline" className="group">
+        <Upload className="mr-2 h-4 w-4 transition-all group-hover:scale-110" />
         Upload Custom Payloads
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Upload Payloads</DialogTitle>
           </DialogHeader>
@@ -73,12 +81,35 @@ export const PayloadUploader: React.FC<PayloadUploaderProps> = ({ onPayloadsUplo
             <p className="text-sm text-muted-foreground">
               Upload a .txt file containing your custom payloads (one per line)
             </p>
-            <Input
-              type="file"
-              accept=".txt"
-              onChange={handleFileUpload}
-              className="w-full"
-            />
+            
+            <div className="flex flex-col gap-4">
+              <Input
+                type="file"
+                accept=".txt"
+                onChange={handleFileSelect}
+                className="w-full"
+              />
+              
+              {selectedFile && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    {selectedFile.name}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {(selectedFile.size / 1024).toFixed(2)} KB
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end">
+              <Button 
+                onClick={handleFileUpload}
+                disabled={!selectedFile}
+              >
+                Upload Payloads
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

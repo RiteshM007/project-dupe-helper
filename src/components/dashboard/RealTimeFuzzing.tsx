@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,9 +24,11 @@ export const RealTimeFuzzing: React.FC = () => {
     responsesReceived: 0,
     threatsDetected: 0,
   });
+  const [payloadsReady, setPayloadsReady] = useState(false);
 
   const handlePayloadsUploaded = (payloads: string[]) => {
     setCustomPayloads(payloads);
+    setPayloadsReady(true);
     addLog(`Loaded ${payloads.length} custom payloads`);
   };
 
@@ -84,6 +87,11 @@ export const RealTimeFuzzing: React.FC = () => {
           const detectedVuln = vulnTypes[Math.floor(Math.random() * vulnTypes.length)];
           addLog(`⚠️ ALERT: Potential ${detectedVuln} detected!`);
           
+          setScanStats(prev => ({
+            ...prev,
+            threatsDetected: prev.threatsDetected + 1
+          }));
+          
           toast({
             title: "Vulnerability Detected!",
             description: `A potential ${detectedVuln} was found`,
@@ -92,6 +100,53 @@ export const RealTimeFuzzing: React.FC = () => {
         }
       };
       
+      let interval = setInterval(() => {
+        if (!isFuzzing) {
+          clearInterval(interval);
+          return;
+        }
+        
+        setProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            setIsFuzzing(false);
+            addLog("Fuzzing process completed!");
+            
+            // Update scan status to completed
+            window.dispatchEvent(new CustomEvent('scanUpdate', {
+              detail: {
+                scanId,
+                status: 'completed',
+                vulnerabilities: scanStats.threatsDetected
+              }
+            }));
+            
+            return 100;
+          }
+          
+          setScanStats(prev => ({
+            payloadsSent: prev.payloadsSent + Math.floor(Math.random() * 3) + 1,
+            responsesReceived: prev.responsesReceived + Math.floor(Math.random() * 3),
+            threatsDetected: prev.threatsDetected
+          }));
+          
+          // Simulate processing payloads
+          const payloadIndex = Math.floor(Math.random() * customPayloads.length);
+          if (payloadIndex < customPayloads.length) {
+            addLog(`Testing payload: ${customPayloads[payloadIndex]}`);
+          }
+          
+          const increment = Math.random() * 5 + 1;
+          return Math.min(100, prev + increment);
+        });
+        
+        // Random chance to detect vulnerability
+        if (Math.random() > 0.9) {
+          detectVulnerability();
+        }
+      }, 1000);
+      
+      // Handle vulnerability detection at intervals
       const vulnDetectionInterval = setInterval(detectVulnerability, 3000);
       
       setTimeout(() => {
@@ -106,59 +161,30 @@ export const RealTimeFuzzing: React.FC = () => {
         variant: "destructive",
       });
     }
-
-    let interval: ReturnType<typeof setInterval>;
-    
-    if (isFuzzing) {
-      interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setIsFuzzing(false);
-            addLog("Fuzzing process completed!");
-            return 100;
-          }
-          
-          setScanStats(prev => ({
-            payloadsSent: prev.payloadsSent + Math.floor(Math.random() * 3) + 1,
-            responsesReceived: prev.responsesReceived + Math.floor(Math.random() * 3),
-            threatsDetected: Math.random() > 0.9 
-              ? prev.threatsDetected + 1 
-              : prev.threatsDetected,
-          }));
-          
-          const increment = Math.random() * 5 + 1;
-          return Math.min(100, prev + increment);
-        });
-      }, 1000);
-    }
-
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('scanUpdate', {
-        detail: {
-          scanId,
-          status: 'completed',
-          vulnerabilities: scanStats.threatsDetected
-        }
-      }));
-    }, 30000);
   };
 
   const handleStopFuzzing = () => {
     setIsFuzzing(false);
     addLog("Fuzzing process stopped by user.");
     
-    setCustomPayloads([]);
-    
     toast({
       title: "Fuzzing Stopped",
       description: "The fuzzing process has been stopped",
     });
   };
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (isFuzzing) {
+        setIsFuzzing(false);
+      }
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="overflow-hidden border-emerald-900/20 bg-card/60 backdrop-blur-sm">
         <CardHeader>
           <CardTitle>Web Application Fuzzer</CardTitle>
           <CardDescription>Configure and test fuzzing on web applications</CardDescription>
@@ -224,7 +250,7 @@ export const RealTimeFuzzing: React.FC = () => {
             <Button
               onClick={isFuzzing ? handleStopFuzzing : handleStartFuzzing}
               variant={isFuzzing ? "destructive" : "default"}
-              disabled={customPayloads.length === 0}
+              disabled={!payloadsReady || customPayloads.length === 0}
               className="w-full"
             >
               {isFuzzing ? (
@@ -244,14 +270,14 @@ export const RealTimeFuzzing: React.FC = () => {
                 <span>Fuzzing Progress</span>
                 <span>{Math.round(progress)}%</span>
               </div>
-              <Progress value={progress} />
+              <Progress value={progress} className="h-2" />
             </div>
           )}
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="col-span-1">
+        <Card className="col-span-1 bg-card/60 backdrop-blur-sm border-emerald-900/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center">
               <Zap className="h-4 w-4 mr-2" />
@@ -263,7 +289,7 @@ export const RealTimeFuzzing: React.FC = () => {
           </CardContent>
         </Card>
         
-        <Card className="col-span-1">
+        <Card className="col-span-1 bg-card/60 backdrop-blur-sm border-emerald-900/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center">
               <Shield className="h-4 w-4 mr-2" />
@@ -275,7 +301,7 @@ export const RealTimeFuzzing: React.FC = () => {
           </CardContent>
         </Card>
         
-        <Card className="col-span-1">
+        <Card className="col-span-1 bg-card/60 backdrop-blur-sm border-emerald-900/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center">
               <Bug className="h-4 w-4 mr-2" />
