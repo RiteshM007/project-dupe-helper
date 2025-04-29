@@ -20,6 +20,7 @@ const severityColors = {
 
 export const LiveThreats = () => {
   const [threats, setThreats] = useState<Threat[]>([]);
+  const [processedEvents, setProcessedEvents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Simulate initial threats
@@ -39,8 +40,32 @@ export const LiveThreats = () => {
     ];
     setThreats(initialThreats);
 
-    // Simulate new threats being detected
-    const interval = setInterval(() => {
+    // Handle real-time threat detection from fuzzing operations
+    const handleThreatDetected = (event: CustomEvent) => {
+      const { threatId, title, severity } = event.detail;
+      
+      // Avoid duplicate threats by checking if we've processed this threat ID already
+      if (processedEvents.has(threatId)) return;
+      
+      const newThreat: Threat = {
+        id: threatId || Math.random().toString(36).substr(2, 9),
+        title: title || 'Unknown Vulnerability',
+        severity: severity || 'medium',
+        detectedAt: new Date(),
+      };
+      
+      setThreats(prev => [newThreat, ...prev].slice(0, 10)); // Keep last 10 threats
+      
+      // Mark this threat as processed
+      setProcessedEvents(prev => {
+        const newSet = new Set(prev);
+        newSet.add(threatId);
+        return newSet;
+      });
+    };
+
+    // Add minimal simulated threats for demo purposes at a slower rate
+    const simulationInterval = setInterval(() => {
       const severities: ('low' | 'medium' | 'high' | 'critical')[] = ['low', 'medium', 'high', 'critical'];
       const threatTitles = [
         'SQL Injection Attempt',
@@ -58,10 +83,15 @@ export const LiveThreats = () => {
       };
       
       setThreats(prev => [newThreat, ...prev].slice(0, 10)); // Keep last 10 threats
-    }, 20000);
+    }, 30000); // Much slower rate - once every 30 seconds
 
-    return () => clearInterval(interval);
-  }, []);
+    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+
+    return () => {
+      clearInterval(simulationInterval);
+      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+    };
+  }, [processedEvents]);
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-blue-900/30 shadow-lg shadow-blue-500/5">
@@ -70,22 +100,28 @@ export const LiveThreats = () => {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[300px] w-full rounded-md">
-          {threats.map((threat) => (
-            <div
-              key={threat.id}
-              className="flex items-center justify-between p-4 border-b border-border/50 animate-in slide-in-from-right duration-300"
-            >
-              <div className="flex flex-col space-y-1">
-                <span className="font-medium">{threat.title}</span>
-                <span className="text-sm text-muted-foreground">
-                  {threat.detectedAt.toLocaleString()}
-                </span>
-              </div>
-              <Badge variant="outline" className={severityColors[threat.severity]}>
-                {threat.severity}
-              </Badge>
+          {threats.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              No threats detected
             </div>
-          ))}
+          ) : (
+            threats.map((threat) => (
+              <div
+                key={threat.id}
+                className="flex items-center justify-between p-4 border-b border-border/50 animate-in slide-in-from-right duration-300"
+              >
+                <div className="flex flex-col space-y-1">
+                  <span className="font-medium">{threat.title}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {threat.detectedAt.toLocaleString()}
+                  </span>
+                </div>
+                <Badge variant="outline" className={severityColors[threat.severity]}>
+                  {threat.severity}
+                </Badge>
+              </div>
+            ))
+          )}
         </ScrollArea>
       </CardContent>
     </Card>
