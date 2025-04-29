@@ -25,6 +25,39 @@ const Dashboard = () => {
       setMemoryUsage(Math.min(95, Math.max(30, memoryUsage + (Math.random() * 8 - 4))));
     }, 2000);
     
+    // Trigger initial events to populate dashboard data
+    setTimeout(() => {
+      // Trigger threat detection
+      const threatEvent = new CustomEvent('threatDetected', {
+        detail: {
+          vulnerabilityType: 'xss',
+          payload: "<script>alert(1)</script>",
+          severity: 'medium'
+        }
+      });
+      window.dispatchEvent(threatEvent);
+      
+      // Trigger scan update
+      const scanId = Math.random().toString(36).substr(2, 9);
+      const scanEvent = new CustomEvent('scanUpdate', {
+        detail: {
+          scanId,
+          status: 'completed',
+          vulnerabilities: 3
+        }
+      });
+      window.dispatchEvent(scanEvent);
+      
+      // Trigger scan complete for analytics
+      const scanCompleteEvent = new CustomEvent('scanComplete', {
+        detail: {
+          scanId,
+          vulnerabilities: 3
+        }
+      });
+      window.dispatchEvent(scanCompleteEvent);
+    }, 500);
+    
     return () => clearInterval(interval);
   }, [cpuUsage, memoryUsage]);
 

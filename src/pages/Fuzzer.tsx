@@ -6,6 +6,7 @@ import { Grid, GridItem } from '@/components/ui/grid';
 import { LiveThreats } from '@/components/dashboard/LiveThreats';
 import { ScanningStatus } from '@/components/fuzzer/ScanningStatus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from '@/hooks/use-toast';
 
 const Fuzzer = () => {
   const [isScanning, setIsScanning] = React.useState(false);
@@ -16,6 +17,20 @@ const Fuzzer = () => {
     const handleScanStart = () => {
       setIsScanning(true);
       setScanProgress(0);
+      
+      // Dispatch event to update Recent Scans in real-time
+      const scanStartEvent = new CustomEvent('scanUpdate', {
+        detail: {
+          scanId: Math.random().toString(36).substr(2, 9),
+          status: 'in-progress',
+        }
+      });
+      window.dispatchEvent(scanStartEvent);
+      
+      toast({
+        title: "Scan Started",
+        description: "Fuzzing scan has been initiated",
+      });
     };
     
     const handleScanUpdate = (e: Event) => {
@@ -25,9 +40,28 @@ const Fuzzer = () => {
       }
     };
     
-    const handleScanComplete = () => {
+    const handleScanComplete = (e: Event) => {
       setIsScanning(false);
       setScanProgress(100);
+      
+      // Get vulnerabilities count from event or default to random count
+      const event = e as CustomEvent;
+      const vulnerabilitiesFound = event.detail?.vulnerabilities || Math.floor(Math.random() * 5);
+      
+      // Dispatch complete event with final vulnerabilities count
+      const scanCompleteEvent = new CustomEvent('scanUpdate', {
+        detail: {
+          scanId: event.detail?.scanId || Math.random().toString(36).substr(2, 9),
+          status: 'completed',
+          vulnerabilities: vulnerabilitiesFound
+        }
+      });
+      window.dispatchEvent(scanCompleteEvent);
+      
+      toast({
+        title: "Scan Complete",
+        description: `Found ${vulnerabilitiesFound} potential vulnerabilities`,
+      });
       
       // Reset progress after a few seconds
       setTimeout(() => {
@@ -37,6 +71,21 @@ const Fuzzer = () => {
     
     const handleScanStop = () => {
       setIsScanning(false);
+      
+      // Dispatch stopped event
+      const scanStopEvent = new CustomEvent('scanUpdate', {
+        detail: {
+          scanId: Math.random().toString(36).substr(2, 9),
+          status: 'failed',
+        }
+      });
+      window.dispatchEvent(scanStopEvent);
+      
+      toast({
+        title: "Scan Stopped",
+        description: "Fuzzing scan was interrupted",
+        variant: "destructive",
+      });
     };
 
     // Add event listeners
