@@ -17,17 +17,18 @@ import {
   FormMessage, 
   Input, 
   Switch 
-} from '@/components/ui'; // Fixed import path by removing 'ui' shorthand
-import { Circle } from 'lucide-react'; // Changed CirclePulse to Circle
+} from '@/components/ui'; 
+import { Circle } from 'lucide-react';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
+import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 
 // Define the props interface
 export interface DVWAConnectionProps {
-  isConnected: boolean;
-  onConnect: (config: DVWAConfig) => void;
-  onDisconnect: () => void;
+  isConnected?: boolean; // Made optional since we'll use context
+  onConnect?: (config: DVWAConfig) => void; // Made optional since we'll use context
+  onDisconnect?: () => void; // Made optional since we'll use context
 }
 
 // Define the configuration type
@@ -47,10 +48,11 @@ const dvwaFormSchema = z.object({
 });
 
 export const DVWAConnection: React.FC<DVWAConnectionProps> = ({ 
-  isConnected, 
-  onConnect, 
-  onDisconnect 
+  isConnected: propsIsConnected, 
+  onConnect: propsOnConnect, 
+  onDisconnect: propsOnDisconnect 
 }) => {
+  const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
   const [isConnecting, setIsConnecting] = useState(false);
   
   // Setup form with react-hook-form
@@ -76,24 +78,46 @@ export const DVWAConnection: React.FC<DVWAConnectionProps> = ({
       autoLogin: data.autoLogin
     };
     
+    // Use props callback if provided, otherwise use context
+    if (propsOnConnect) {
+      propsOnConnect(config);
+    } else {
+      // In a real implementation, we would connect to DVWA here
+      // For now, simulate connection success
+      setTimeout(() => {
+        setIsConnected(true);
+        setDvwaUrl(config.url);
+        // In a real implementation, we would get a session cookie from DVWA
+        setSessionCookie('PHPSESSID=mock_session_cookie');
+      }, 1500);
+    }
+    
     // Simulate connection delay
     setTimeout(() => {
-      onConnect(config);
       setIsConnecting(false);
     }, 1500);
   };
   
   // Handle disconnect
   const handleDisconnect = () => {
-    onDisconnect();
+    if (propsOnDisconnect) {
+      propsOnDisconnect();
+    } else {
+      setIsConnected(false);
+      setDvwaUrl('');
+      setSessionCookie('');
+    }
   };
+  
+  // Use either props or context for isConnected state
+  const connectionStatus = propsIsConnected !== undefined ? propsIsConnected : isConnected;
   
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-indigo-900/30 shadow-lg shadow-indigo-500/5">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold">DVWA Connection</CardTitle>
-          {isConnected && (
+          {connectionStatus && (
             <Badge className="bg-green-500/80 text-white px-2 py-1 flex items-center gap-1">
               <div className="h-3 w-3 rounded-full bg-green-200 animate-pulse"></div>
               Connected
@@ -102,7 +126,7 @@ export const DVWAConnection: React.FC<DVWAConnectionProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        {isConnected ? (
+        {connectionStatus ? (
           <div className="space-y-4">
             <div className="rounded-md bg-muted p-4">
               <h4 className="font-medium mb-2">Connection Information</h4>
@@ -198,7 +222,7 @@ export const DVWAConnection: React.FC<DVWAConnectionProps> = ({
         )}
       </CardContent>
       <CardFooter>
-        {isConnected ? (
+        {connectionStatus ? (
           <Button 
             variant="destructive" 
             onClick={handleDisconnect}
