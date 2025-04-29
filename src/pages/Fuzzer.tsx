@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
 import { DVWAConnection } from '@/components/dashboard/DVWAConnection';
@@ -8,6 +8,37 @@ import { Grid, GridItem } from '@/components/ui/grid';
 import { LiveThreats } from '@/components/dashboard/LiveThreats';
 
 const Fuzzer = () => {
+  const [activeScans, setActiveScans] = useState<{id: string, status: string}[]>([]);
+  
+  // Handler for scan status updates
+  const handleScanUpdate = (scanId: string, status: string) => {
+    setActiveScans(prev => {
+      const existing = prev.findIndex(scan => scan.id === scanId);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = { ...updated[existing], status };
+        return updated;
+      } else if (status === 'in-progress') {
+        return [...prev, { id: scanId, status }];
+      }
+      return prev;
+    });
+  };
+
+  // Listen for scan updates
+  React.useEffect(() => {
+    const handleScanEvent = (event: CustomEvent) => {
+      const { scanId, status } = event.detail;
+      handleScanUpdate(scanId, status);
+    };
+
+    window.addEventListener('scanUpdate', handleScanEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('scanUpdate', handleScanEvent as EventListener);
+    };
+  }, []);
+  
   return (
     <DashboardLayout>
       <div className="container mx-auto p-4 space-y-6">
@@ -42,9 +73,28 @@ const Fuzzer = () => {
                 <CardTitle className="text-xl font-bold">Scan Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-muted-foreground">
-                  No active scans in progress.
-                </div>
+                {activeScans.length > 0 ? (
+                  <div className="space-y-3">
+                    {activeScans.map(scan => (
+                      <div key={scan.id} className="flex items-center justify-between p-2 bg-background/50 rounded-md">
+                        <div>Scan #{scan.id}</div>
+                        <div className={`text-sm px-2 py-1 rounded ${
+                          scan.status === 'in-progress' 
+                            ? 'bg-blue-500/20 text-blue-500' 
+                            : scan.status === 'completed'
+                            ? 'bg-green-500/20 text-green-500'
+                            : 'bg-red-500/20 text-red-500'
+                        }`}>
+                          {scan.status}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    No active scans in progress.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </GridItem>
