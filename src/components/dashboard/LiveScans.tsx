@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,53 +13,43 @@ interface ScanEntry {
 
 export const LiveScans = () => {
   const [scans, setScans] = useState<ScanEntry[]>([]);
-  const [processedScanIds, setProcessedScanIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Initialize with existing scans from storage if available
     const storedScans = localStorage.getItem('recent_scans');
     if (storedScans) {
-      const parsedScans = JSON.parse(storedScans).map((scan: any) => ({
-        ...scan,
-        timestamp: new Date(scan.timestamp)
-      }));
-      setScans(parsedScans);
-      
-      // Initialize processed scan IDs
-      const ids = new Set<string>(parsedScans.map((scan: ScanEntry) => scan.id));
-      setProcessedScanIds(ids);
+      try {
+        const parsedScans = JSON.parse(storedScans).map((scan: any) => ({
+          ...scan,
+          timestamp: new Date(scan.timestamp)
+        }));
+        setScans(parsedScans);
+      } catch (error) {
+        console.error("Error parsing stored scans:", error);
+      }
     }
 
-    // Handle scan updates
+    // Handle scan updates - but only trigger UI updates on status changes
     const handleScanUpdate = (event: CustomEvent) => {
       const { scanId, status, vulnerabilities } = event.detail;
       
       setScans(prev => {
-        // Check if we've already processed this update for this scan ID
-        if (status === 'completed' && processedScanIds.has(`${scanId}-${status}`)) {
-          return prev;
-        }
+        // Check if there is already a scan with this ID
+        const existingScanIndex = prev.findIndex(s => s.id === scanId);
         
-        const scanExists = prev.find(s => s.id === scanId);
-        
-        if (scanExists) {
-          // Only update if the status has changed
-          if (scanExists.status !== status) {
-            const updated = prev.map(scan => 
-              scan.id === scanId 
-                ? { ...scan, status, vulnerabilities }
-                : scan
-            );
-            localStorage.setItem('recent_scans', JSON.stringify(updated));
+        if (existingScanIndex >= 0) {
+          // Only update if status has changed
+          if (prev[existingScanIndex].status !== status) {
+            const updatedScans = [...prev];
+            updatedScans[existingScanIndex] = { 
+              ...updatedScans[existingScanIndex], 
+              status, 
+              vulnerabilities: status === 'completed' ? vulnerabilities : prev[existingScanIndex].vulnerabilities 
+            };
             
-            // Mark this scan-status combination as processed
-            setProcessedScanIds(prevIds => {
-              const newIds = new Set(prevIds);
-              newIds.add(`${scanId}-${status}`);
-              return newIds;
-            });
-            
-            return updated;
+            // Store in localStorage
+            localStorage.setItem('recent_scans', JSON.stringify(updatedScans));
+            return updatedScans;
           }
           return prev;
         } else if (status === 'in-progress') {
@@ -71,14 +62,6 @@ export const LiveScans = () => {
           };
           const updated = [newScan, ...prev].slice(0, 10);
           localStorage.setItem('recent_scans', JSON.stringify(updated));
-          
-          // Mark this scan-status combination as processed
-          setProcessedScanIds(prevIds => {
-            const newIds = new Set(prevIds);
-            newIds.add(`${scanId}-${status}`);
-            return newIds;
-          });
-          
           return updated;
         }
         
@@ -88,7 +71,7 @@ export const LiveScans = () => {
 
     window.addEventListener('scanUpdate', handleScanUpdate as EventListener);
     return () => window.removeEventListener('scanUpdate', handleScanUpdate as EventListener);
-  }, [processedScanIds]);
+  }, []);
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-emerald-900/30 shadow-lg shadow-emerald-500/5">

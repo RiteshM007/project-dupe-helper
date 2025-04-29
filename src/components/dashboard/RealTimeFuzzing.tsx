@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,6 +28,7 @@ export const RealTimeFuzzing: React.FC = () => {
     threatsDetected: 0,
   });
   const [payloadsReady, setPayloadsReady] = useState(false);
+  const [currentScanId, setCurrentScanId] = useState<string | null>(null);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -100,27 +100,66 @@ export const RealTimeFuzzing: React.FC = () => {
       threatsDetected: 0,
     });
 
-    const scanId = Math.random().toString(36).substr(2, 9);
+    // Generate a unique scan ID
+    const scanId = Math.random().toString(36).substring(2, 11);
+    setCurrentScanId(scanId);
+    
+    // Dispatch scan start event
     window.dispatchEvent(new CustomEvent('scanUpdate', {
-      detail: { scanId, status: 'in-progress' }
+      detail: { 
+        scanId, 
+        status: 'in-progress'
+      }
     }));
+    
+    addLog(`Started scan #${scanId}`);
 
+    // Process each payload
     for (let i = 0; i < customPayloads.length; i++) {
-      if (!isFuzzing) break;
+      if (!isFuzzing) {
+        // If stopped early, mark as failed
+        window.dispatchEvent(new CustomEvent('scanUpdate', {
+          detail: { 
+            scanId,
+            status: 'failed'
+          }
+        }));
+        addLog(`Scan #${scanId} stopped prematurely`);
+        setCurrentScanId(null);
+        break;
+      }
 
       const payload = customPayloads[i];
       addLog(`Testing payload: ${payload}`);
 
       try {
+        setScanStats(prev => ({
+          ...prev,
+          payloadsSent: prev.payloadsSent + 1
+        }));
+
         const result = await fuzzerRequest(dvwaUrl, payload, sessionCookie, module);
         
         setScanStats(prev => ({
-          payloadsSent: prev.payloadsSent + 1,
-          responsesReceived: prev.responsesReceived + 1,
-          threatsDetected: prev.threatsDetected + (result.vulnerabilityDetected ? 1 : 0)
+          ...prev, 
+          responsesReceived: prev.responsesReceived + 1
         }));
 
         if (result.vulnerabilityDetected) {
+          setScanStats(prev => ({
+            ...prev,
+            threatsDetected: prev.threatsDetected + 1
+          }));
+          
+          // Dispatch threat detected event
+          window.dispatchEvent(new CustomEvent('threatDetected', {
+            detail: { 
+              payload,
+              vulnerabilityType: moduleToVulnerabilityType(module),
+              severity: determineSeverity(payload, module)
+            }
+          }));
+          
           addLog(`⚠️ ALERT: Potential vulnerability detected with payload: ${payload}`);
           toast({
             title: "Vulnerability Detected",
@@ -129,24 +168,84 @@ export const RealTimeFuzzing: React.FC = () => {
           });
         }
 
-        setProgress((i + 1) / customPayloads.length * 100);
+        // Update progress
+        const newProgress = ((i + 1) / customPayloads.length) * 100;
+        setProgress(newProgress);
       } catch (error) {
         addLog(`Error testing payload: ${payload}`);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    setIsFuzzing(false);
-    window.dispatchEvent(new CustomEvent('scanUpdate', {
-      detail: {
-        scanId,
-        status: 'completed',
-        vulnerabilities: scanStats.threatsDetected
-      }
-    }));
+    // Mark scan as completed only if it wasn't stopped early
+    if (isFuzzing) {
+      setIsFuzzing(false);
+      
+      // Dispatch scan complete event with final stats
+      window.dispatchEvent(new CustomEvent('scanUpdate', {
+        detail: {
+          scanId,
+          status: 'completed',
+          vulnerabilities: scanStats.threatsDetected
+        }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('scanComplete', {
+        detail: {
+          scanId,
+          vulnerabilities: scanStats.threatsDetected,
+          payloadsTested: scanStats.payloadsSent
+        }
+      }));
+      
+      addLog(`Scan #${scanId} completed successfully`);
+      setCurrentScanId(null);
+      toast({
+        title: "Fuzzing Completed",
+        description: `Scan complete with ${scanStats.threatsDetected} vulnerabilities detected`,
+      });
+    }
+  };
 
-    addLog("Fuzzing process completed!");
+  // Map DVWA modules to vulnerability types
+  const moduleToVulnerabilityType = (module: string): string => {
+    const mappings: Record<string, string> = {
+      'exec': 'rce',
+      'sqli': 'sqli',
+      'xss_r': 'xss',
+      'xss_s': 'xss',
+      'upload': 'upload',
+      'csrf': 'csrf'
+    };
+    return mappings[module] || 'unknown';
+  };
+  
+  // Determine severity based on payload and vulnerability type
+  const determineSeverity = (payload: string, module: string): string => {
+    // Simplistic severity determination logic
+    if (module === 'sqli' && payload.includes('DROP TABLE')) {
+      return 'critical';
+    }
+    if ((module === 'xss_r' || module === 'xss_s') && payload.includes('<script>')) {
+      return 'high';
+    }
+    if (module === 'exec' && (payload.includes('rm -rf') || payload.includes('format'))) {
+      return 'critical';
+    }
+    
+    // Default severity based on module
+    const defaultSeverities: Record<string, string> = {
+      'exec': 'high',
+      'sqli': 'medium',
+      'xss_r': 'medium',
+      'xss_s': 'high',
+      'upload': 'medium',
+      'csrf': 'low'
+    };
+    
+    return defaultSeverities[module] || 'medium';
   };
 
   const handleStopFuzzing = () => {
@@ -156,6 +255,18 @@ export const RealTimeFuzzing: React.FC = () => {
       title: "Fuzzing Stopped",
       description: "The fuzzing process has been stopped",
     });
+    
+    // If there's an active scan, mark it as failed
+    if (currentScanId) {
+      window.dispatchEvent(new CustomEvent('scanUpdate', {
+        detail: { 
+          scanId: currentScanId,
+          status: 'failed'
+        }
+      }));
+      addLog(`Scan #${currentScanId} marked as failed`);
+      setCurrentScanId(null);
+    }
   };
 
   useEffect(() => {

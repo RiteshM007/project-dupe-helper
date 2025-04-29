@@ -14,38 +14,67 @@ export const ScanAnalytics = () => {
   const [scanData, setScanData] = useState<ScanData[]>([]);
 
   useEffect(() => {
-    // Initialize with real scan data from storage/API
+    // Initialize with scan data from storage/API
     const loadScanData = () => {
-      // In a real app, this would fetch from an API or local storage
+      // Try to load from localStorage first
+      const storedData = localStorage.getItem('scan_analytics');
+      
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          setScanData(parsedData);
+          return;
+        } catch (error) {
+          console.error("Error parsing stored scan analytics:", error);
+        }
+      }
+      
+      // Fallback to initialization data if nothing in storage
       const initialData = Array.from({ length: 7 }).map((_, index) => ({
         date: format(new Date(Date.now() - (6 - index) * 24 * 60 * 60 * 1000), 'MMM dd'),
         count: Math.floor(Math.random() * 10),
         vulnerabilities: Math.floor(Math.random() * 5)
       }));
       setScanData(initialData);
+      
+      // Store the initial data
+      localStorage.setItem('scan_analytics', JSON.stringify(initialData));
     };
 
     loadScanData();
 
-    // Only update when actual scans complete
+    // Only update when a scan is fully completed
     const handleScanComplete = (event: CustomEvent) => {
+      const { vulnerabilities = 0 } = event.detail;
+      
       setScanData(prev => {
         const today = format(new Date(), 'MMM dd');
         const existingToday = prev.find(d => d.date === today);
         
+        let updatedData;
         if (existingToday) {
-          return prev.map(d => 
+          // Update existing entry for today
+          updatedData = prev.map(d => 
             d.date === today 
-              ? { ...d, count: d.count + 1, vulnerabilities: d.vulnerabilities + (event.detail.vulnerabilities || 0) }
+              ? { 
+                  ...d, 
+                  count: d.count + 1, 
+                  vulnerabilities: d.vulnerabilities + (vulnerabilities || 0) 
+                }
               : d
           );
+        } else {
+          // Create new entry for today
+          updatedData = [...prev.slice(1), { 
+            date: today, 
+            count: 1, 
+            vulnerabilities: vulnerabilities || 0 
+          }];
         }
         
-        return [...prev.slice(1), { 
-          date: today, 
-          count: 1, 
-          vulnerabilities: event.detail.vulnerabilities || 0 
-        }];
+        // Store updated data
+        localStorage.setItem('scan_analytics', JSON.stringify(updatedData));
+        return updatedData;
       });
     };
 

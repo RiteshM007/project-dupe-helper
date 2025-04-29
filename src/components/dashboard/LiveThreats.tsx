@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,6 +19,7 @@ const severityColors = {
 
 export const LiveThreats = () => {
   const [threats, setThreats] = useState<Threat[]>([]);
+  const threatsRef = useRef<Threat[]>([]);
 
   useEffect(() => {
     // Simulate initial threats
@@ -38,29 +38,58 @@ export const LiveThreats = () => {
       },
     ];
     setThreats(initialThreats);
+    threatsRef.current = initialThreats;
 
-    // Simulate new threats being detected
-    const interval = setInterval(() => {
-      const severities: ('low' | 'medium' | 'high' | 'critical')[] = ['low', 'medium', 'high', 'critical'];
-      const threatTitles = [
-        'SQL Injection Attempt',
-        'XSS Vulnerability',
-        'CSRF Attack',
-        'File Inclusion Attempt',
-        'Authentication Bypass'
-      ];
+    // Listen for threat detection events from the fuzzer
+    const handleThreatDetected = (event: CustomEvent) => {
+      const { 
+        payload, 
+        vulnerabilityType, 
+        severity = 'medium'  // Default severity if not provided
+      } = event.detail;
       
+      // Map vulnerability type to a threat title
+      const threatTitles: Record<string, string> = {
+        'xss': 'XSS Vulnerability',
+        'sqli': 'SQL Injection Attempt',
+        'csrf': 'CSRF Attack',
+        'lfi': 'File Inclusion Attempt',
+        'rce': 'Command Injection',
+        'upload': 'File Upload Vulnerability',
+      };
+      
+      // Get threat title based on vulnerability type or use a generic one
+      const title = threatTitles[vulnerabilityType?.toLowerCase()] || 
+                   `${vulnerabilityType || 'Unknown'} Vulnerability`;
+      
+      // Map severity string to our threat severity levels
+      let threatSeverity: 'low' | 'medium' | 'high' | 'critical' = 'medium';
+      if (typeof severity === 'string') {
+        if (severity.toLowerCase().includes('low')) threatSeverity = 'low';
+        if (severity.toLowerCase().includes('medium')) threatSeverity = 'medium';
+        if (severity.toLowerCase().includes('high')) threatSeverity = 'high';
+        if (severity.toLowerCase().includes('critical')) threatSeverity = 'critical';
+      }
+      
+      // Create new threat
       const newThreat: Threat = {
         id: Math.random().toString(36).substr(2, 9),
-        title: threatTitles[Math.floor(Math.random() * threatTitles.length)],
-        severity: severities[Math.floor(Math.random() * severities.length)],
+        title: payload ? `${title}: ${payload.substring(0, 30)}` : title,
+        severity: threatSeverity,
         detectedAt: new Date(),
       };
       
-      setThreats(prev => [newThreat, ...prev].slice(0, 10)); // Keep last 10 threats
-    }, 20000);
+      // Update threats (keep last 10)
+      const updatedThreats = [newThreat, ...threatsRef.current].slice(0, 10);
+      setThreats(updatedThreats);
+      threatsRef.current = updatedThreats;
+    };
 
-    return () => clearInterval(interval);
+    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+    
+    return () => {
+      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+    };
   }, []);
 
   return (
