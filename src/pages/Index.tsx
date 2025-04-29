@@ -58,10 +58,10 @@ const Dashboard = () => {
           
           <TabsContent value="dashboard" className="space-y-6">
             <Grid cols={1} colsMd={2} gap={6} className="w-full">
-              <GridItem span={1} className="w-full">
+              <GridItem className="w-full">
                 <ScanAnalytics />
               </GridItem>
-              <GridItem span={1} className="w-full">
+              <GridItem className="w-full">
                 <LiveThreats />
               </GridItem>
             </Grid>
@@ -89,10 +89,10 @@ const Dashboard = () => {
             </Card>
 
             <Grid cols={1} colsMd={2} gap={6} className="w-full">
-              <GridItem span={1} className="w-full">
+              <GridItem className="w-full">
                 <LiveScans />
               </GridItem>
-              <GridItem span={1} className="w-full">
+              <GridItem className="w-full">
                 <ResourceUsage 
                   label="System Resources" 
                   items={[

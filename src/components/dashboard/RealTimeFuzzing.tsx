@@ -29,7 +29,6 @@ export const RealTimeFuzzing: React.FC = () => {
     threatsDetected: 0,
   });
   const [payloadsReady, setPayloadsReady] = useState(false);
-  const [currentScanId, setCurrentScanId] = useState<string>("");
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -101,16 +100,10 @@ export const RealTimeFuzzing: React.FC = () => {
       threatsDetected: 0,
     });
 
-    // Generate a unique scan ID
     const scanId = Math.random().toString(36).substr(2, 9);
-    setCurrentScanId(scanId);
-    
-    // Dispatch event that scan has started
     window.dispatchEvent(new CustomEvent('scanUpdate', {
       detail: { scanId, status: 'in-progress' }
     }));
-
-    addLog(`Starting fuzzing session with ID: ${scanId}`);
 
     for (let i = 0; i < customPayloads.length; i++) {
       if (!isFuzzing) break;
@@ -134,16 +127,6 @@ export const RealTimeFuzzing: React.FC = () => {
             description: `A potential vulnerability was found using payload: ${payload}`,
             variant: "destructive",
           });
-          
-          // Dispatch threat detection event
-          window.dispatchEvent(new CustomEvent('threatDetected', {
-            detail: {
-              threatId: `${scanId}-${i}`,
-              title: `${module.toUpperCase()} Vulnerability`,
-              severity: Math.random() > 0.5 ? 'high' : 'medium',
-              payload
-            }
-          }));
         }
 
         setProgress((i + 1) / customPayloads.length * 100);
@@ -155,8 +138,6 @@ export const RealTimeFuzzing: React.FC = () => {
     }
 
     setIsFuzzing(false);
-    
-    // Dispatch event that scan has completed
     window.dispatchEvent(new CustomEvent('scanUpdate', {
       detail: {
         scanId,
@@ -166,31 +147,11 @@ export const RealTimeFuzzing: React.FC = () => {
     }));
 
     addLog("Fuzzing process completed!");
-    
-    // Also dispatch scanComplete event for analytics
-    window.dispatchEvent(new CustomEvent('scanComplete', {
-      detail: {
-        scanId,
-        vulnerabilities: scanStats.threatsDetected,
-        timestamp: new Date()
-      }
-    }));
   };
 
   const handleStopFuzzing = () => {
     setIsFuzzing(false);
     addLog("Fuzzing process stopped by user.");
-    
-    if (currentScanId) {
-      // Dispatch event that scan was stopped
-      window.dispatchEvent(new CustomEvent('scanUpdate', {
-        detail: {
-          scanId: currentScanId,
-          status: 'failed'
-        }
-      }));
-    }
-    
     toast({
       title: "Fuzzing Stopped",
       description: "The fuzzing process has been stopped",
