@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -105,7 +106,8 @@ export const FuzzerStats = ({ data }: FuzzerStatsProps) => {
           <TabsList className="mb-4">
             <TabsTrigger value="line">Line Chart</TabsTrigger>
             <TabsTrigger value="area">Area Chart</TabsTrigger>
-            <TabsTrigger value="bar">Bar Chart</TabsList>
+            <TabsTrigger value="bar">Bar Chart</TabsTrigger>
+          </TabsList>
           
           <TabsContent value="line">
             <div className="h-80 w-full">
