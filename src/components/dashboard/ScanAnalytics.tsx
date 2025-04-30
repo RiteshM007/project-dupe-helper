@@ -45,8 +45,6 @@ export const ScanAnalytics = () => {
 
     // Only update when a scan is fully completed
     const handleScanComplete = (event: CustomEvent) => {
-      console.log('Scan complete for analytics:', event.detail);
-      
       const { vulnerabilities = 0 } = event.detail;
       
       setScanData(prev => {
@@ -81,17 +79,6 @@ export const ScanAnalytics = () => {
     };
 
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
-    
-    // Manually trigger a scan complete event to update analytics
-    setTimeout(() => {
-      const analyticsEvent = new CustomEvent('scanComplete', {
-        detail: {
-          vulnerabilities: Math.floor(Math.random() * 3) + 1,
-          scanId: Math.random().toString(36).substr(2, 9)
-        }
-      });
-      window.dispatchEvent(analyticsEvent);
-    }, 2000);
     
     return () => window.removeEventListener('scanComplete', handleScanComplete as EventListener);
   }, []);

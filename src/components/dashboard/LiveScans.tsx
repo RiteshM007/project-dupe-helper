@@ -31,8 +31,6 @@ export const LiveScans = () => {
 
     // Handle scan updates - but only trigger UI updates on status changes
     const handleScanUpdate = (event: CustomEvent) => {
-      console.log('Scan update received:', event.detail);
-      
       const { scanId, status, vulnerabilities } = event.detail;
       
       setScans(prev => {
@@ -40,7 +38,7 @@ export const LiveScans = () => {
         const existingScanIndex = prev.findIndex(s => s.id === scanId);
         
         if (existingScanIndex >= 0) {
-          // Only update if status has changed
+          // Only update if status has changed to prevent unnecessary refreshes
           if (prev[existingScanIndex].status !== status) {
             const updatedScans = [...prev];
             updatedScans[existingScanIndex] = { 
@@ -72,32 +70,6 @@ export const LiveScans = () => {
     };
 
     window.addEventListener('scanUpdate', handleScanUpdate as EventListener);
-    
-    // Add a manual scan update event after component mounts
-    setTimeout(() => {
-      const scanId = Math.random().toString(36).substr(2, 9);
-      
-      // Start scan
-      const startEvent = new CustomEvent('scanUpdate', {
-        detail: {
-          scanId,
-          status: 'in-progress'
-        }
-      });
-      window.dispatchEvent(startEvent);
-      
-      // Complete scan after a delay
-      setTimeout(() => {
-        const completeEvent = new CustomEvent('scanUpdate', {
-          detail: {
-            scanId,
-            status: 'completed',
-            vulnerabilities: Math.floor(Math.random() * 5) + 1
-          }
-        });
-        window.dispatchEvent(completeEvent);
-      }, 3000);
-    }, 1000);
     
     return () => window.removeEventListener('scanUpdate', handleScanUpdate as EventListener);
   }, []);

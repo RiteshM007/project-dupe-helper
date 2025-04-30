@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -43,8 +42,6 @@ export const LiveThreats = () => {
 
     // Listen for threat detection events from the fuzzer
     const handleThreatDetected = (event: CustomEvent) => {
-      console.log('Threat detected event received:', event.detail);
-      
       const { 
         payload, 
         vulnerabilityType, 
@@ -89,18 +86,6 @@ export const LiveThreats = () => {
     };
 
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
-    
-    // Add a manual threat detection event after component mounts
-    setTimeout(() => {
-      const testEvent = new CustomEvent('threatDetected', {
-        detail: {
-          vulnerabilityType: 'sqli',
-          payload: "' OR 1=1 --",
-          severity: 'high'
-        }
-      });
-      window.dispatchEvent(testEvent);
-    }, 1500);
     
     return () => {
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);

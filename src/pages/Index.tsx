@@ -25,9 +25,19 @@ const Dashboard = () => {
       setMemoryUsage(Math.min(95, Math.max(30, memoryUsage + (Math.random() * 8 - 4))));
     }, 2000);
     
-    // Trigger initial events to populate dashboard data
-    setTimeout(() => {
-      // Trigger threat detection
+    // Initialize dashboard with data - this ensures initial data is displayed without depending on external events
+    const initDashboard = () => {
+      // Add initial scan data if needed
+      const scanEvent = new CustomEvent('scanUpdate', {
+        detail: {
+          scanId: Math.random().toString(36).substr(2, 9),
+          status: 'completed',
+          vulnerabilities: 3
+        }
+      });
+      window.dispatchEvent(scanEvent);
+      
+      // Add initial threat detection example
       const threatEvent = new CustomEvent('threatDetected', {
         detail: {
           vulnerabilityType: 'xss',
@@ -37,26 +47,21 @@ const Dashboard = () => {
       });
       window.dispatchEvent(threatEvent);
       
-      // Trigger scan update
-      const scanId = Math.random().toString(36).substr(2, 9);
-      const scanEvent = new CustomEvent('scanUpdate', {
+      // Update scan analytics
+      const analyticsEvent = new CustomEvent('scanComplete', {
         detail: {
-          scanId,
-          status: 'completed',
-          vulnerabilities: 3
+          scanId: Math.random().toString(36).substr(2, 9),
+          vulnerabilities: Math.floor(Math.random() * 3) + 1
         }
       });
-      window.dispatchEvent(scanEvent);
-      
-      // Trigger scan complete for analytics
-      const scanCompleteEvent = new CustomEvent('scanComplete', {
-        detail: {
-          scanId,
-          vulnerabilities: 3
-        }
-      });
-      window.dispatchEvent(scanCompleteEvent);
-    }, 500);
+      window.dispatchEvent(analyticsEvent);
+    };
+    
+    // Only initialize dashboard if there's no data already
+    if (!localStorage.getItem('recent_scans')) {
+      // Delay to ensure components are mounted
+      setTimeout(initDashboard, 1000);
+    }
     
     return () => clearInterval(interval);
   }, [cpuUsage, memoryUsage]);
