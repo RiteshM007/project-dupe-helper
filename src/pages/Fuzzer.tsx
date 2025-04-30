@@ -5,13 +5,74 @@ import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Grid, GridItem } from '@/components/ui/grid';
 import { FuzzerStats } from '@/components/fuzzer/FuzzerStats';
+import { useDVWAConnection } from '@/context/DVWAConnectionContext';
+import { checkDVWAConnection, loginToDVWA } from '@/utils/dvwaFuzzer';
+import { toast } from '@/hooks/use-toast';
 
 const Fuzzer = () => {
+  const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
   const [statsData, setStatsData] = useState({
     requestsSent: 0,
     vulnerabilitiesFound: 0,
     successRate: 100
   });
+  const [connecting, setConnecting] = useState(false);
+
+  // Auto-connect to DVWA when the page loads
+  useEffect(() => {
+    const connectToDVWA = async () => {
+      if (!isConnected && !connecting) {
+        setConnecting(true);
+        const dvwaServerUrl = 'http://localhost:8080/DVWA';
+        
+        try {
+          // Check if DVWA is reachable
+          const isReachable = await checkDVWAConnection(dvwaServerUrl);
+          
+          if (!isReachable) {
+            console.log('DVWA server not reachable');
+            toast({
+              title: "Connection Failed",
+              description: "DVWA server not reachable at http://localhost:8080. Please ensure DVWA is running.",
+              variant: "destructive",
+            });
+            setConnecting(false);
+            return;
+          }
+          
+          // Try to login with default credentials
+          const loginResult = await loginToDVWA(dvwaServerUrl, 'admin', 'password');
+          
+          if (loginResult.success && loginResult.cookie) {
+            setIsConnected(true);
+            setDvwaUrl(dvwaServerUrl);
+            setSessionCookie(loginResult.cookie);
+            toast({
+              title: "Connected to DVWA",
+              description: "Successfully connected to DVWA server at http://localhost:8080",
+            });
+          } else {
+            toast({
+              title: "Login Failed",
+              description: "Could not authenticate with DVWA using default credentials",
+              variant: "destructive",
+            });
+          }
+        } catch (error) {
+          console.error('Error connecting to DVWA:', error);
+          toast({
+            title: "Connection Error",
+            description: "An error occurred while connecting to DVWA",
+            variant: "destructive",
+          });
+        } finally {
+          setConnecting(false);
+        }
+      }
+    };
+    
+    connectToDVWA();
+  }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie]);
 
   useEffect(() => {
     // Define a polling interval to update stats
