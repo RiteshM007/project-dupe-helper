@@ -51,7 +51,7 @@ export const LiveScans = () => {
       if (pendingScan && pendingScan.id === scanId) {
         const completedScan = {
           ...pendingScan,
-          status: 'completed',
+          status: 'completed' as const,
           vulnerabilities
         };
         
@@ -64,10 +64,10 @@ export const LiveScans = () => {
         setPendingScan(null);
       } else if (scanId) {
         // Handle case where we don't have a pending scan but received a complete event
-        const newScan = {
+        const newScan: ScanEntry = {
           id: scanId,
           timestamp: new Date(),
-          status: 'completed' as const,
+          status: 'completed',
           vulnerabilities
         };
         
@@ -81,9 +81,9 @@ export const LiveScans = () => {
     
     const handleScanStop = () => {
       if (pendingScan) {
-        const failedScan = {
+        const failedScan: ScanEntry = {
           ...pendingScan,
-          status: 'failed' as const
+          status: 'failed'
         };
         
         setScans(prev => {
