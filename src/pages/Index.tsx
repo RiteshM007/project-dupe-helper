@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
 import { downloadScanReport } from '@/utils/reportGenerator';
 import { VulnerabilityHeatmap } from '@/components/dashboard/VulnerabilityHeatmap';
+import { LiveFuzzingAnalytics } from '@/components/dashboard/LiveFuzzingAnalytics';
 
 const Dashboard = () => {
   const [cpuUsage, setCpuUsage] = useState(35);
@@ -123,6 +124,12 @@ const Dashboard = () => {
               </GridItem>
               <GridItem className="w-full">
                 <LiveThreats />
+              </GridItem>
+            </Grid>
+            
+            <Grid cols={1} gap={6} className="w-full">
+              <GridItem className="w-full">
+                <LiveFuzzingAnalytics />
               </GridItem>
             </Grid>
 
