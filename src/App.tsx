@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import React from "react"; // Added React import
 import Index from "./pages/Index";
 import Fuzzer from "./pages/Fuzzer";
@@ -34,7 +34,7 @@ const App = () => (
         <DVWAConnectionProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Navigate to="/fuzzer" replace />} />
+              <Route path="/" element={<Index />} />
               <Route path="/fuzzer" element={<Fuzzer />} />
               <Route path="/machine-learning" element={<MachineLearning />} />
               <Route path="/ml-analysis" element={<MLAnalysis />} />
