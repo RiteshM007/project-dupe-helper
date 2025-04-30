@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ const severityColors = {
 export const LiveThreats = () => {
   const [threats, setThreats] = useState<Threat[]>([]);
   const threatsRef = useRef<Threat[]>([]);
+  const pendingThreatsRef = useRef<Threat[]>([]);
 
   useEffect(() => {
     // Simulate initial threats
@@ -40,7 +42,7 @@ export const LiveThreats = () => {
     setThreats(initialThreats);
     threatsRef.current = initialThreats;
 
-    // Listen for threat detection events from the fuzzer
+    // Listen for threat detection events during scanning
     const handleThreatDetected = (event: CustomEvent) => {
       const { 
         payload, 
@@ -79,16 +81,26 @@ export const LiveThreats = () => {
         detectedAt: new Date(),
       };
       
-      // Update threats (keep last 10)
-      const updatedThreats = [newThreat, ...threatsRef.current].slice(0, 10);
-      setThreats(updatedThreats);
-      threatsRef.current = updatedThreats;
+      // Instead of updating immediately, store in pending threats
+      pendingThreatsRef.current = [newThreat, ...pendingThreatsRef.current];
+    };
+
+    // Listen for scan completion to update the threats list
+    const handleScanComplete = () => {
+      if (pendingThreatsRef.current.length > 0) {
+        const updatedThreats = [...pendingThreatsRef.current, ...threatsRef.current].slice(0, 10);
+        setThreats(updatedThreats);
+        threatsRef.current = updatedThreats;
+        pendingThreatsRef.current = []; // Clear pending threats
+      }
     };
 
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+    window.addEventListener('scanComplete', handleScanComplete as EventListener);
     
     return () => {
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+      window.removeEventListener('scanComplete', handleScanComplete as EventListener);
     };
   }, []);
 

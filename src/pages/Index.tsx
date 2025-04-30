@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
 import { downloadScanReport } from '@/utils/reportGenerator';
+import { VulnerabilityHeatmap } from '@/components/dashboard/VulnerabilityHeatmap';
 
 const Dashboard = () => {
   const [cpuUsage, setCpuUsage] = useState(35);
@@ -88,6 +89,18 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="flex flex-col w-full gap-6 pb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+          <h1 className="text-2xl font-bold">Security Dashboard</h1>
+          <Button 
+            onClick={handleDownloadReport} 
+            disabled={isDownloading} 
+            className="mt-2 sm:mt-0"
+          >
+            {isDownloading ? 'Preparing Download...' : 'Download Report'}
+            <Download className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      
         <Tabs defaultValue="dashboard" className="w-full">
           <TabsList className="mb-4">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
@@ -100,36 +113,20 @@ const Dashboard = () => {
                 <ScanAnalytics />
               </GridItem>
               <GridItem className="w-full">
-                <LiveThreats />
+                <VulnerabilityHeatmap />
               </GridItem>
             </Grid>
-
-            <Card className="w-full bg-card/50 backdrop-blur-sm border-blue-900/30 shadow-lg shadow-blue-500/5">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl font-bold">Download Scan Report & Analysis</CardTitle>
-                  <CardDescription>Get a comprehensive report of all your scan data</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col space-y-4">
-                  <p>Download a complete package containing scan reports, vulnerability analysis, and machine learning datasets.</p>
-                  <Button 
-                    onClick={handleDownloadReport} 
-                    disabled={isDownloading} 
-                    className="w-full md:w-auto"
-                  >
-                    {isDownloading ? 'Preparing Download...' : 'Download Full Report'}
-                    <Download className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
 
             <Grid cols={1} colsMd={2} gap={6} className="w-full">
               <GridItem className="w-full">
                 <LiveScans />
               </GridItem>
+              <GridItem className="w-full">
+                <LiveThreats />
+              </GridItem>
+            </Grid>
+
+            <Grid cols={1} colsMd={2} gap={6} className="w-full">
               <GridItem className="w-full">
                 <ResourceUsage 
                   label="System Resources" 
