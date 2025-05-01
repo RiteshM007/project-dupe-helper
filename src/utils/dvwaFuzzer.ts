@@ -11,35 +11,30 @@ export interface DVWAResponse {
 
 export async function checkDVWAConnection(url: string): Promise<boolean> {
   try {
-    const response = await axios.get(`${url}/login.php`, { timeout: 5000 });
-    return response.status === 200;
+    // Use the new backend API endpoint for status check
+    const response = await axios.get(`http://localhost:5000/api/dvwa/status?url=${url}`, { timeout: 5000 });
+    return response.data.status === 'online';
   } catch (error) {
+    console.error('Error checking DVWA connection:', error);
     return false;
   }
 }
 
-export async function loginToDVWA(url: string, username: string, password: string): Promise<{ success: boolean; cookie?: string }> {
+export async function loginToDVWA(url: string, username: string = 'admin', password: string = 'password'): Promise<{ success: boolean; cookie?: string }> {
   try {
-    // First get the login page to extract any CSRF token
-    const loginPage = await axios.get(`${url}/login.php`);
-    const sessionCookie = loginPage.headers['set-cookie']?.[0];
-    
-    // Send login request
-    const response = await axios.post(`${url}/login.php`,
-      `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&Login=Login`,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Cookie: sessionCookie
-        }
-      }
+    // Use the new backend API endpoint for connecting with session handling
+    const response = await axios.get(
+      `http://localhost:5000/api/dvwa/connect?url=${url}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
+      { timeout: 10000 }
     );
-
-    if (response.data.includes('Welcome')) {
-      return { success: true, cookie: sessionCookie };
+    
+    if (response.data.status === 'success' && response.data.cookie) {
+      return { success: true, cookie: response.data.cookie };
     }
+    
     return { success: false };
   } catch (error) {
+    console.error('Error logging into DVWA:', error);
     return { success: false };
   }
 }

@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
@@ -8,6 +7,8 @@ import sys
 import logging
 import threading
 import traceback
+import requests
+from bs4 import BeautifulSoup
 from web_fuzzer import WebFuzzer
 from ml_models import (
     train_isolation_forest,
@@ -39,6 +40,38 @@ active_fuzzers = {}
 background_tasks = {}
 # Trained models storage
 trained_models = {}
+# Store DVWA session
+dvwa_sessions = {}
+
+def get_dvwa_session(base_url="http://localhost:8080", username="admin", password="password"):
+    """Get authenticated session for DVWA"""
+    session = requests.Session()
+
+    # Step 1: Fetch login page to get CSRF token
+    login_page = session.get(f"{base_url}/login.php")
+    soup = BeautifulSoup(login_page.text, "html.parser")
+    token_tag = soup.find("input", {"name": "user_token"})
+
+    if not token_tag:
+        raise Exception("[-] Failed to find CSRF token on login page.")
+
+    token = token_tag["value"]
+
+    # Step 2: Post login with credentials + token
+    login_data = {
+        "username": username,
+        "password": password,
+        "Login": "Login",
+        "user_token": token
+    }
+
+    response = session.post(f"{base_url}/login.php", data=login_data)
+
+    if "Welcome to Damn Vulnerable Web Application" in response.text:
+        logger.info("[+] Connected and logged in to DVWA.")
+        return session
+    else:
+        raise Exception("[-] Login to DVWA failed. Check credentials or DVWA security level.")
 
 def run_fuzzing_task(session_id, fuzzer):
     """Background task to run fuzzing process"""
@@ -78,6 +111,54 @@ def health_check():
         'api_version': '1.0.0',
         'timestamp': time.time()
     })
+
+@app.route('/api/dvwa/connect', methods=['GET'])
+def connect_dvwa():
+    """Connect to DVWA with proper session handling"""
+    try:
+        base_url = request.args.get('url', 'http://localhost:8080')
+        username = request.args.get('username', 'admin')
+        password = request.args.get('password', 'password')
+        
+        session = get_dvwa_session(base_url, username, password)
+        
+        # Store session cookies
+        cookies_dict = session.cookies.get_dict()
+        cookies_str = '; '.join([f"{k}={v}" for k, v in cookies_dict.items()])
+        
+        # Generate a session ID for this DVWA connection
+        session_id = f"dvwa_{int(time.time())}"
+        dvwa_sessions[session_id] = {
+            'session': session,
+            'url': base_url,
+            'cookies': cookies_str
+        }
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Connected and logged in to DVWA",
+            "session_id": session_id,
+            "cookie": cookies_str
+        }), 200
+    except Exception as e:
+        logger.error(f"Error connecting to DVWA: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error", 
+            "message": str(e)
+        }), 500
+
+@app.route('/api/dvwa/status', methods=['GET'])
+def check_dvwa_status():
+    """Check if DVWA is available"""
+    try:
+        base_url = request.args.get('url', 'http://localhost:8080')
+        response = requests.get(f"{base_url}/login.php", timeout=2)
+        if response.status_code == 200:
+            return jsonify({'status': 'online'}), 200
+        return jsonify({'status': 'offline'}), 503
+    except Exception:
+        logger.error(f"Error checking DVWA status: {traceback.format_exc()}")
+        return jsonify({'status': 'offline'}), 503
 
 @app.route('/api/fuzzer/create', methods=['POST'])
 def create_fuzzer():
