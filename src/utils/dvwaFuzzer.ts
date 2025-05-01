@@ -12,7 +12,10 @@ export interface DVWAResponse {
 export async function checkDVWAConnection(url: string): Promise<boolean> {
   try {
     // Use the new backend API endpoint for status check
-    const response = await axios.get(`http://localhost:5000/api/dvwa/status?url=${url}`, { timeout: 5000 });
+    const response = await axios.get(`http://localhost:5000/api/dvwa/status?url=${url}`, { 
+      timeout: 5000,
+      headers: {'Cache-Control': 'no-cache'} 
+    });
     return response.data.status === 'online';
   } catch (error) {
     console.error('Error checking DVWA connection:', error);
@@ -25,7 +28,10 @@ export async function loginToDVWA(url: string, username: string = 'admin', passw
     // Use the new backend API endpoint for connecting with session handling
     const response = await axios.get(
       `http://localhost:5000/api/dvwa/connect?url=${url}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
-      { timeout: 10000 }
+      { 
+        timeout: 10000,
+        headers: {'Cache-Control': 'no-cache'} 
+      }
     );
     
     if (response.data.status === 'success' && response.data.cookie) {
@@ -47,12 +53,20 @@ export async function fuzzerRequest(
 ): Promise<DVWAResponse> {
   try {
     const startTime = performance.now();
+    // Add a controller to allow for request cancellation
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
     const response = await axios.get(`${url}/vulnerabilities/${module}/`, {
       params: { ip: payload },
       headers: {
-        Cookie: sessionCookie
-      }
+        Cookie: sessionCookie,
+        'Cache-Control': 'no-cache'
+      },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
     const responseTime = performance.now() - startTime;
 
     const vulnerabilityDetected = detectVulnerability(response.data, module);
@@ -65,6 +79,14 @@ export async function fuzzerRequest(
       statusCode: response.status
     };
   } catch (error: any) {
+    if (error.name === 'AbortError' || axios.isCancel(error)) {
+      return {
+        success: false,
+        message: 'Request timed out or aborted',
+        statusCode: 408 // Request Timeout
+      };
+    }
+    
     return {
       success: false,
       message: error.message,

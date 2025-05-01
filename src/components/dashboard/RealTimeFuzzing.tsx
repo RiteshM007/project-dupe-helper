@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { PayloadUploader } from '@/components/fuzzer/PayloadUploader';
 import { LiveLogs } from '@/components/fuzzer/LiveLogs';
-import { checkDVWAConnection, loginToDVWA, fuzzerRequest } from '@/utils/dvwaFuzzer';
+import { checkDVWAConnection, loginToDVWA, fuzzerRequest, DVWAResponse } from '@/utils/dvwaFuzzer';
 import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 
 export const RealTimeFuzzing: React.FC = () => {
@@ -29,6 +30,11 @@ export const RealTimeFuzzing: React.FC = () => {
   });
   const [payloadsReady, setPayloadsReady] = useState(false);
   const [currentScanId, setCurrentScanId] = useState<string | null>(null);
+  
+  // Add a ref to track if the component is unmounted
+  const isMountedRef = useRef(true);
+  // Add a ref to track the active fuzzing state
+  const activeFuzzingRef = useRef(false);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -92,6 +98,9 @@ export const RealTimeFuzzing: React.FC = () => {
       return;
     }
 
+    // Set the active fuzzing ref to true
+    activeFuzzingRef.current = true;
+    
     setIsFuzzing(true);
     setProgress(0);
     setScanStats({
@@ -105,7 +114,7 @@ export const RealTimeFuzzing: React.FC = () => {
     setCurrentScanId(scanId);
     
     // Dispatch scan start event
-    window.dispatchEvent(new CustomEvent('scanUpdate', {
+    window.dispatchEvent(new CustomEvent('scanStart', {
       detail: { 
         scanId, 
         status: 'in-progress'
@@ -116,16 +125,19 @@ export const RealTimeFuzzing: React.FC = () => {
 
     // Process each payload
     for (let i = 0; i < customPayloads.length; i++) {
-      if (!isFuzzing) {
+      // Check if component is still mounted and fuzzing is still active
+      if (!isMountedRef.current || !activeFuzzingRef.current) {
         // If stopped early, mark as failed
-        window.dispatchEvent(new CustomEvent('scanUpdate', {
-          detail: { 
-            scanId,
-            status: 'failed'
-          }
-        }));
-        addLog(`Scan #${scanId} stopped prematurely`);
-        setCurrentScanId(null);
+        if (isMountedRef.current) {
+          window.dispatchEvent(new CustomEvent('scanUpdate', {
+            detail: { 
+              scanId,
+              status: 'failed'
+            }
+          }));
+          addLog(`Scan #${scanId} stopped prematurely`);
+          setCurrentScanId(null);
+        }
         break;
       }
 
@@ -139,6 +151,9 @@ export const RealTimeFuzzing: React.FC = () => {
         }));
 
         const result = await fuzzerRequest(dvwaUrl, payload, sessionCookie, module);
+        
+        // Check again if fuzzing is still active after the request
+        if (!isMountedRef.current || !activeFuzzingRef.current) break;
         
         setScanStats(prev => ({
           ...prev, 
@@ -173,15 +188,19 @@ export const RealTimeFuzzing: React.FC = () => {
         setProgress(newProgress);
       } catch (error) {
         addLog(`Error testing payload: ${payload}`);
+        console.error("Fuzzing error:", error);
       }
 
-      // Rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Rate limiting - avoid overloading the server
+      if (i < customPayloads.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
-    // Mark scan as completed only if it wasn't stopped early
-    if (isFuzzing) {
+    // Check if fuzzing is still active and component is mounted
+    if (activeFuzzingRef.current && isMountedRef.current) {
       setIsFuzzing(false);
+      activeFuzzingRef.current = false;
       
       // Dispatch scan complete event with final stats
       window.dispatchEvent(new CustomEvent('scanUpdate', {
@@ -249,6 +268,9 @@ export const RealTimeFuzzing: React.FC = () => {
   };
 
   const handleStopFuzzing = () => {
+    // Update the active fuzzing ref first
+    activeFuzzingRef.current = false;
+    
     setIsFuzzing(false);
     addLog("Fuzzing process stopped by user.");
     toast({
@@ -269,8 +291,11 @@ export const RealTimeFuzzing: React.FC = () => {
     }
   };
 
+  // Update the cleanup function to properly handle unmounting
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
+      activeFuzzingRef.current = false;
       setCustomPayloads([]);
     };
   }, []);
