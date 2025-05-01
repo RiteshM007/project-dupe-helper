@@ -14,7 +14,7 @@ import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 
 export const RealTimeFuzzing: React.FC = () => {
   const { isConnected, setIsConnected, dvwaUrl, setDvwaUrl, sessionCookie, setSessionCookie } = useDVWAConnection();
-  const [url, setUrl] = useState(dvwaUrl || "http://localhost:8080/DVWA");
+  const [url, setUrl] = useState(dvwaUrl || "http://localhost:8080");
   const [module, setModule] = useState("exec");
   const [isFuzzing, setIsFuzzing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);

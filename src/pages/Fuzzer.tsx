@@ -26,7 +26,7 @@ const Fuzzer = () => {
       if (!isConnected && !connecting) {
         setConnecting(true);
         setDvwaStatus('checking');
-        const dvwaServerUrl = 'http://localhost:8080/DVWA';
+        const dvwaServerUrl = 'http://localhost:8080';
         
         try {
           // Check if DVWA is reachable
