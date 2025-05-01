@@ -89,7 +89,7 @@ const MLAnalysis = () => {
             {!datasetReceived && !scanActive ? (
               <Card>
                 <CardContent className="p-6">
-                  <Alert variant="warning" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/50">
+                  <Alert variant="default" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/50">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>No Dataset Available</AlertTitle>
                     <AlertDescription>
