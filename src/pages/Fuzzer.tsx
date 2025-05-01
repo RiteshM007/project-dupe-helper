@@ -8,6 +8,7 @@ import { FuzzerStats } from '@/components/fuzzer/FuzzerStats';
 import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 import { checkDVWAConnection, loginToDVWA } from '@/utils/dvwaFuzzer';
 import { toast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 const Fuzzer = () => {
   const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
@@ -17,12 +18,14 @@ const Fuzzer = () => {
     successRate: 100
   });
   const [connecting, setConnecting] = useState(false);
+  const [dvwaStatus, setDvwaStatus] = useState<'online' | 'offline' | 'checking'>('checking');
 
   // Auto-connect to DVWA when the page loads
   useEffect(() => {
     const connectToDVWA = async () => {
       if (!isConnected && !connecting) {
         setConnecting(true);
+        setDvwaStatus('checking');
         const dvwaServerUrl = 'http://localhost:8080/DVWA';
         
         try {
@@ -31,6 +34,7 @@ const Fuzzer = () => {
           
           if (!isReachable) {
             console.log('DVWA server not reachable');
+            setDvwaStatus('offline');
             toast({
               title: "Connection Failed",
               description: "DVWA server not reachable at http://localhost:8080. Please ensure DVWA is running.",
@@ -39,6 +43,8 @@ const Fuzzer = () => {
             setConnecting(false);
             return;
           }
+          
+          setDvwaStatus('online');
           
           // Try to login with default credentials
           const loginResult = await loginToDVWA(dvwaServerUrl, 'admin', 'password');
@@ -60,6 +66,7 @@ const Fuzzer = () => {
           }
         } catch (error) {
           console.error('Error connecting to DVWA:', error);
+          setDvwaStatus('offline');
           toast({
             title: "Connection Error",
             description: "An error occurred while connecting to DVWA",
@@ -162,6 +169,16 @@ const Fuzzer = () => {
     <DashboardLayout>
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-6">Web Application Fuzzer</h1>
+        
+        <div className="mb-4">
+          {dvwaStatus === 'online' ? (
+            <Badge className="bg-green-500 text-white">DVWA Connected</Badge>
+          ) : dvwaStatus === 'offline' ? (
+            <Badge className="bg-red-500 text-white">DVWA Offline</Badge>
+          ) : (
+            <Badge className="bg-yellow-500 text-white">Checking DVWA...</Badge>
+          )}
+        </div>
         
         <Grid cols={1} gap={6} className="mb-6">
           <GridItem className="w-full">
