@@ -71,6 +71,24 @@ export async function fuzzerRequest(
 
     const vulnerabilityDetected = detectVulnerability(response.data, module);
 
+    // Prepare dataset entry for machine learning
+    const datasetEntry = {
+      payload,
+      responseTime,
+      statusCode: response.status,
+      vulnerabilityDetected,
+      responseLength: response.data.length,
+      module,
+      timestamp: new Date().toISOString(),
+      label: vulnerabilityDetected ? 'malicious' : 'safe',
+      severity: determineSeverity(payload, vulnerabilityDetected, module)
+    };
+
+    // Dispatch dataset entry event for ML consumption
+    window.dispatchEvent(new CustomEvent('datasetEntry', {
+      detail: datasetEntry
+    }));
+
     return {
       success: true,
       message: 'Request completed',
@@ -106,4 +124,21 @@ function detectVulnerability(responseBody: string, module: string): boolean {
     default:
       return false;
   }
+}
+
+function determineSeverity(payload: string, detected: boolean, module: string): string {
+  if (!detected) return 'low';
+  
+  // Determine severity based on payload and module
+  if (module === 'exec' && (payload.includes('rm') || payload.includes('/etc/passwd'))) {
+    return 'critical';
+  }
+  if (module === 'sqli' && (payload.includes('DROP') || payload.includes('TRUNCATE'))) {
+    return 'critical';
+  }
+  if (module === 'xss' && payload.includes('<script>')) {
+    return 'high';
+  }
+  
+  return 'medium';
 }

@@ -186,6 +186,10 @@ export const RealTimeFuzzing: React.FC = () => {
         // Update progress
         const newProgress = ((i + 1) / customPayloads.length) * 100;
         setProgress(newProgress);
+        
+        // Add short delay between requests to allow UI to update
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
       } catch (error) {
         addLog(`Error testing payload: ${payload}`);
         console.error("Fuzzing error:", error);
@@ -193,7 +197,7 @@ export const RealTimeFuzzing: React.FC = () => {
 
       // Rate limiting - avoid overloading the server
       if (i < customPayloads.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
 
@@ -201,6 +205,9 @@ export const RealTimeFuzzing: React.FC = () => {
     if (activeFuzzingRef.current && isMountedRef.current) {
       setIsFuzzing(false);
       activeFuzzingRef.current = false;
+      
+      // Make sure progress is at 100% at the end
+      setProgress(100);
       
       // Dispatch scan complete event with final stats
       window.dispatchEvent(new CustomEvent('scanUpdate', {

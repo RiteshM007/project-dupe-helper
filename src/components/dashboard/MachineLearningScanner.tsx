@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +29,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
   const [clusterAnalysisDone, setClusterAnalysisDone] = useState(false);
   const [anomalyModelTrained, setAnomalyModelTrained] = useState(false);
   const [classificationModelTrained, setClassificationModelTrained] = useState(false);
+  const [collectedDataset, setCollectedDataset] = useState<any[]>([]);
   const [modelInsights, setModelInsights] = useState<{
     accuracy: number;
     precision: number;
@@ -49,12 +49,40 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
     recommendations: []
   });
 
+  // Listen for dataset entries from fuzzer
+  useEffect(() => {
+    const handleDatasetEntry = (event: CustomEvent) => {
+      setCollectedDataset(prev => [...prev, event.detail]);
+    };
+
+    // Listen for scan completion event
+    const handleScanComplete = () => {
+      // Wait a moment for any final dataset entries
+      setTimeout(() => {
+        if (collectedDataset.length > 0) {
+          trainModel();
+        }
+      }, 500);
+    };
+
+    window.addEventListener('datasetEntry', handleDatasetEntry as EventListener);
+    window.addEventListener('scanComplete', handleScanComplete);
+
+    return () => {
+      window.removeEventListener('datasetEntry', handleDatasetEntry as EventListener);
+      window.removeEventListener('scanComplete', handleScanComplete);
+    };
+  }, [collectedDataset]);
+
   // Start training when scan completes and there's data
   useEffect(() => {
-    if (scanCompleted && dataset.length > 0 && !modelTrained && !trainingActive) {
+    // Combine provided dataset with collected dataset
+    const combinedDataset = [...dataset, ...collectedDataset];
+    
+    if (scanCompleted && combinedDataset.length > 0 && !modelTrained && !trainingActive) {
       trainModel();
     }
-  }, [scanCompleted, dataset, modelTrained]);
+  }, [scanCompleted, dataset, collectedDataset, modelTrained]);
 
   // Simulate training progress
   useEffect(() => {
@@ -80,20 +108,23 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
   const trainModel = async () => {
     setTrainingActive(true);
     setTrainingProgress(0);
-    toast.info("Starting ML model training...");
+    toast.info("Starting ML model training with scan results...");
+    
+    // Use the combined dataset
+    const combinedDataset = [...dataset, ...collectedDataset];
     
     // Actual ML training would happen here in a real application
     try {
       // Train isolation forest for anomaly detection
-      const isolationForestModel = await trainIsolationForest(dataset);
+      const isolationForestModel = await trainIsolationForest(combinedDataset);
       setAnomalyModelTrained(true);
       
       // Train random forest for classification
-      const randomForestModel = await trainRandomForest(dataset);
+      const randomForestModel = await trainRandomForest(combinedDataset);
       setClassificationModelTrained(true);
       
       // Perform clustering analysis
-      const clusteringResults = await performClustering(dataset, 3);
+      const clusteringResults = await performClustering(combinedDataset, 3);
       setClusterAnalysisDone(true);
       
       // Store results for UI display
@@ -108,7 +139,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
         }));
       }
       
-      toast.success("ML models trained successfully!");
+      toast.success("ML models trained successfully with fuzzing results!");
     } catch (error) {
       console.error("Error during ML training:", error);
       toast.error("Error training ML models");
@@ -264,7 +295,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
               </div>
               <Progress value={trainingProgress} className="h-2 bg-white/10" />
               <p className="text-xs text-white/60 italic">
-                Training on {dataset.length} data points from scan results
+                Training on {collectedDataset.length + dataset.length} data points from scan results
               </p>
             </div>
           ) : scanActive ? (
@@ -276,7 +307,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
                 </div>
               </div>
             </div>
-          ) : !scanCompleted ? (
+          ) : !scanCompleted && collectedDataset.length === 0 ? (
             <div className="bg-black/20 rounded-md p-4 border border-white/10">
               <div className="flex items-center">
                 <div className="w-full text-center">
@@ -391,13 +422,13 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
           )}
           
           {/* Manual Training */}
-          {!modelTrained && !trainingActive && dataset.length > 0 && (
+          {!modelTrained && !trainingActive && (collectedDataset.length > 0 || dataset.length > 0) && (
             <Button 
               onClick={trainModel}
               className="bg-purple-700 hover:bg-purple-600 text-white"
             >
               <Brain className="w-4 h-4 mr-2" />
-              Train ML Models
+              Train ML Models with {collectedDataset.length + dataset.length} Data Points
             </Button>
           )}
           

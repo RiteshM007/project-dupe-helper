@@ -20,6 +20,7 @@ export const ScanningStatus: React.FC<ScanningStatusProps> = ({ isScanning, prog
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="flex items-center justify-center"
               >
                 <Loader className="h-8 w-8 text-primary" />
               </motion.div>
@@ -28,6 +29,7 @@ export const ScanningStatus: React.FC<ScanningStatusProps> = ({ isScanning, prog
                 <p className="text-sm text-muted-foreground">Scanning target for vulnerabilities</p>
               </div>
               <Progress value={progress} className="w-full" />
+              <p className="text-xs text-muted-foreground">{Math.round(progress)}% complete</p>
             </>
           ) : progress === 100 ? (
             <motion.div
@@ -37,6 +39,7 @@ export const ScanningStatus: React.FC<ScanningStatusProps> = ({ isScanning, prog
             >
               <h3 className="text-xl font-semibold text-green-500">Fuzzing Complete ✅</h3>
               <p className="text-sm text-muted-foreground">Scan results are ready</p>
+              <p className="text-sm text-green-400 mt-2">Starting ML Analysis...</p>
             </motion.div>
           ) : (
             <div className="text-center text-muted-foreground">
