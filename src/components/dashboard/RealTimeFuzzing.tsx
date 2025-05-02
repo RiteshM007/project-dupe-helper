@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -211,8 +212,15 @@ export const RealTimeFuzzing: React.FC = () => {
     });
 
     try {
+      addLog("Creating fuzzing session...");
+      
       // Create a fuzzing session on the server
       const sessionResponse = await fuzzerApi.createFuzzer(url, 'custom_wordlist.txt');
+      
+      if (!sessionResponse || !sessionResponse.sessionId) {
+        throw new Error("Failed to create fuzzing session - no session ID returned");
+      }
+      
       const sessionId = sessionResponse.sessionId;
       setCurrentSessionId(sessionId);
       

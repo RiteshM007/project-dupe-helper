@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -34,7 +33,9 @@ api.interceptors.response.use(
 export const fuzzerApi = {
   createFuzzer: async (targetUrl: string, wordlistFile: string = 'default_wordlist.txt') => {
     try {
+      console.log('Creating fuzzer with target URL:', targetUrl);
       const response = await api.post('/fuzzer/create', { targetUrl, wordlistFile });
+      console.log('Fuzzer created:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error creating fuzzer:', error);
@@ -42,8 +43,26 @@ export const fuzzerApi = {
     }
   },
   
+  uploadPayloads: async (sessionId: string, payloads: string[]) => {
+    try {
+      if (!sessionId) {
+        throw new Error("Cannot upload payloads: session ID is undefined");
+      }
+      console.log(`Uploading ${payloads.length} payloads to session ${sessionId}`);
+      const response = await api.post(`/fuzzer/${sessionId}/payloads`, { payloads });
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading payloads:', error);
+      throw error;
+    }
+  },
+  
   startFuzzing: async (sessionId: string, vulnerabilityTypes: string[] = [], customPayloads: string[] = []) => {
     try {
+      if (!sessionId) {
+        throw new Error("Cannot start fuzzing: session ID is undefined");
+      }
+      console.log(`Starting fuzzing for session ${sessionId}`);
       const response = await api.post(`/fuzzer/${sessionId}/start`, { 
         vulnerabilityTypes,
         customPayloads
@@ -81,16 +100,6 @@ export const fuzzerApi = {
       return response.data;
     } catch (error) {
       console.error('Error getting dataset:', error);
-      throw error;
-    }
-  },
-  
-  uploadPayloads: async (sessionId: string, payloads: string[]) => {
-    try {
-      const response = await api.post(`/fuzzer/${sessionId}/payloads`, { payloads });
-      return response.data;
-    } catch (error) {
-      console.error('Error uploading payloads:', error);
       throw error;
     }
   },
