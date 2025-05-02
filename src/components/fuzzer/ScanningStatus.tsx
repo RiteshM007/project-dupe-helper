@@ -9,27 +9,29 @@ import { useSocket } from '@/hooks/use-socket';
 interface ScanningStatusProps {
   isScanning: boolean;
   progress: number;
+  onProgressUpdate?: (newProgress: number) => void;
 }
 
-export const ScanningStatus: React.FC<ScanningStatusProps> = ({ isScanning, progress }) => {
-  const { socket, isConnected } = useSocket();
+export const ScanningStatus: React.FC<ScanningStatusProps> = ({ 
+  isScanning, 
+  progress,
+  onProgressUpdate 
+}) => {
+  const { addEventListener } = useSocket();
   
   useEffect(() => {
-    if (!socket) return;
-    
-    const handleFuzzingProgress = (data: { progress: number }) => {
-      // This event will be handled by the parent component that manages the progress state
-      window.dispatchEvent(new CustomEvent('fuzzing_progress', { 
-        detail: { progress: data.progress } 
-      }));
-    };
-    
-    socket.on('fuzzing_progress', handleFuzzingProgress);
+    // Set up event listener for fuzzing progress
+    const removeListener = addEventListener<{ progress: number }>('fuzzing_progress', (data) => {
+      console.log('Received fuzzing_progress update:', data);
+      if (onProgressUpdate && typeof data.progress === 'number') {
+        onProgressUpdate(data.progress);
+      }
+    });
     
     return () => {
-      socket.off('fuzzing_progress', handleFuzzingProgress);
+      removeListener();
     };
-  }, [socket]);
+  }, [addEventListener, onProgressUpdate]);
 
   return (
     <Card>

@@ -11,6 +11,8 @@ import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useSocket } from '@/hooks/use-socket';
+import { ScanningStatus } from '@/components/fuzzer/ScanningStatus';
+import { fuzzerApi } from '@/services/api';
 
 const Fuzzer = () => {
   const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
@@ -22,7 +24,10 @@ const Fuzzer = () => {
   const [connecting, setConnecting] = useState(false);
   const [dvwaStatus, setDvwaStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const navigate = useNavigate();
-  const { socket } = useSocket();
+  const { addEventListener, emitEvent } = useSocket();
+  const [progress, setProgress] = useState(0);
+  const [isScanning, setIsScanning] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Auto-connect to DVWA when the page loads
   useEffect(() => {
@@ -85,121 +90,156 @@ const Fuzzer = () => {
     connectToDVWA();
   }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie]);
 
+  // Handle fuzzing progress updates from Socket.IO
   useEffect(() => {
-    // Define a polling interval to update stats
-    let requestsInterval: ReturnType<typeof setInterval>;
+    const removeProgressListener = addEventListener<{ progress: number }>('fuzzing_progress', (data) => {
+      console.log('Received fuzzing progress update:', data);
+      if (typeof data.progress === 'number') {
+        setProgress(data.progress);
+      }
+    });
+
+    // Handle fuzzing completion from Socket.IO
+    const removeCompleteListener = addEventListener<{ sessionId: string, vulnerabilities: number }>('fuzzing_complete', (data) => {
+      console.log('Fuzzing complete:', data);
+      setIsScanning(false);
+      setProgress(100);
+      
+      // Update stats with final data
+      setStatsData(prev => ({
+        ...prev,
+        vulnerabilitiesFound: data.vulnerabilities || prev.vulnerabilitiesFound
+      }));
+      
+      toast({
+        title: "Fuzzing Complete",
+        description: "Transitioning to ML Analysis",
+      });
+      
+      // Navigate to ML Analysis after short delay
+      setTimeout(() => {
+        navigate('/ml-analysis');
+      }, 1500);
+    });
+
+    // Handle fuzzing errors from Socket.IO
+    const removeErrorListener = addEventListener<{ message: string }>('fuzzing_error', (data) => {
+      console.error('Fuzzing error:', data);
+      setIsScanning(false);
+      
+      toast({
+        title: "Fuzzing Error",
+        description: data.message || "An error occurred during fuzzing",
+        variant: "destructive",
+      });
+    });
     
-    // Handle scan start
-    const handleScanStart = () => {
-      // Reset stats
+    return () => {
+      removeProgressListener();
+      removeCompleteListener();
+      removeErrorListener();
+    };
+  }, [addEventListener, navigate]);
+
+  // Handle external start/stop events (from RealTimeFuzzing component)
+  useEffect(() => {
+    const handleScanStart = (event: CustomEvent) => {
+      console.log('Scan started event received', event.detail);
+      setIsScanning(true);
+      setProgress(0);
+      setSessionId(event.detail?.sessionId || null);
+      
+      // Reset stats 
       setStatsData({
         requestsSent: 0,
         vulnerabilitiesFound: 0,
         successRate: 100
       });
-      
-      // Start polling for updates during scanning
-      let requests = 0;
-      let vulnerabilities = 0;
-      
-      requestsInterval = setInterval(() => {
-        // Simulate increases in requests and occasionally vulnerabilities
-        const newRequests = Math.floor(Math.random() * 5) + 1;
-        requests += newRequests;
-        
-        // Occasionally find a vulnerability
-        if (Math.random() > 0.85) {
-          vulnerabilities += 1;
-        }
-        
-        // Calculate success rate (inverse of vulnerability ratio)
-        const successRate = requests > 0 
-          ? Math.max(70, 100 - (vulnerabilities / requests * 100)) 
-          : 100;
-        
-        setStatsData({
-          requestsSent: requests,
-          vulnerabilitiesFound: vulnerabilities,
-          successRate: Math.round(successRate * 10) / 10
-        });
-      }, 1000);
     };
     
-    // Handle scan complete
     const handleScanComplete = (event: CustomEvent) => {
-      // Stop the polling interval
-      if (requestsInterval) {
-        clearInterval(requestsInterval);
+      console.log('Scan completed event received', event.detail);
+      setIsScanning(false);
+      setProgress(100);
+      setSessionId(null);
+      
+      // Update stats with final values
+      const { vulnerabilities = 0, payloadsTested = 0 } = event.detail || {};
+      setStatsData({
+        requestsSent: payloadsTested,
+        vulnerabilitiesFound: vulnerabilities,
+        successRate: payloadsTested > 0 
+          ? Math.round((1 - (vulnerabilities / payloadsTested)) * 100)
+          : 100
+      });
+    };
+    
+    const handleScanStop = () => {
+      console.log('Scan stopped event received');
+      setIsScanning(false);
+      
+      // If we have an active session, attempt to stop it on the backend
+      if (sessionId) {
+        fuzzerApi.stopFuzzing(sessionId)
+          .then(() => {
+            console.log('Fuzzing stopped on server');
+          })
+          .catch(err => {
+            console.error('Error stopping fuzzing on server:', err);
+          })
+          .finally(() => {
+            setSessionId(null);
+          });
       }
-      
-      // Get vulnerabilities from the event if available
-      const { vulnerabilities } = event.detail || { vulnerabilities: 0 };
-      
-      // Update with final statistics including any reported vulnerabilities
+    };
+    
+    const handlePayloadSent = () => {
       setStatsData(prev => ({
         ...prev,
-        vulnerabilitiesFound: prev.vulnerabilitiesFound + (vulnerabilities || 0),
-        successRate: Math.round((1 - (prev.vulnerabilitiesFound + (vulnerabilities || 0)) / prev.requestsSent) * 1000) / 10
+        requestsSent: prev.requestsSent + 1
       }));
-      
-      // Navigate to ML Analysis after short delay
-      setTimeout(() => {
-        toast({
-          title: "Fuzzing Complete",
-          description: "Transitioning to ML Analysis",
-        });
-        navigate('/ml-analysis');
-      }, 1500);
     };
     
-    // Handle scan stop
-    const handleScanStop = () => {
-      // Stop the polling interval
-      if (requestsInterval) {
-        clearInterval(requestsInterval);
-      }
+    const handleThreatDetected = () => {
+      setStatsData(prev => {
+        const newVulns = prev.vulnerabilitiesFound + 1;
+        return {
+          ...prev,
+          vulnerabilitiesFound: newVulns,
+          successRate: Math.max(70, 100 - (newVulns / prev.requestsSent * 100))
+        };
+      });
     };
     
     // Add event listeners
-    window.addEventListener('scanStart', handleScanStart);
+    window.addEventListener('scanStart', handleScanStart as EventListener);
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
     window.addEventListener('scanStop', handleScanStop);
+    window.addEventListener('payloadSent', handlePayloadSent);
+    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
     
     return () => {
       // Clean up event listeners
-      window.removeEventListener('scanStart', handleScanStart);
+      window.removeEventListener('scanStart', handleScanStart as EventListener);
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
       window.removeEventListener('scanStop', handleScanStop);
+      window.removeEventListener('payloadSent', handlePayloadSent);
+      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
       
-      // Clear the interval if it exists
-      if (requestsInterval) {
-        clearInterval(requestsInterval);
+      // If there's still an active session when component unmounts, stop it
+      if (sessionId && isScanning) {
+        console.log('Stopping fuzzing session on unmount:', sessionId);
+        fuzzerApi.stopFuzzing(sessionId).catch(err => {
+          console.error('Error stopping fuzzing on unmount:', err);
+        });
       }
     };
-  }, [navigate]);
+  }, [sessionId, isScanning]);
 
-  // Listen for Socket.IO fuzzing_complete event
-  useEffect(() => {
-    if (!socket) return;
-    
-    const handleFuzzingComplete = (data: any) => {
-      // Navigate to ML Analysis page
-      toast({
-        title: "Fuzzing Process Complete",
-        description: "Redirecting to Machine Learning Analysis",
-      });
-      
-      setTimeout(() => {
-        navigate('/ml-analysis');
-      }, 1000);
-    };
-    
-    socket.on('fuzzing_complete', handleFuzzingComplete);
-    
-    return () => {
-      socket.off('fuzzing_complete', handleFuzzingComplete);
-    };
-  }, [socket, navigate]);
+  // Function to handle progress updates from child components
+  const handleProgressUpdate = (newProgress: number) => {
+    setProgress(newProgress);
+  };
 
   return (
     <DashboardLayout>
@@ -221,6 +261,15 @@ const Fuzzer = () => {
             <FuzzerStats data={statsData} />
           </GridItem>
         </Grid>
+        
+        {/* Display scanning status component */}
+        <div className="mb-6">
+          <ScanningStatus 
+            isScanning={isScanning} 
+            progress={progress} 
+            onProgressUpdate={handleProgressUpdate}
+          />
+        </div>
         
         <RealTimeFuzzing />
       </div>

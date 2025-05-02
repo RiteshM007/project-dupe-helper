@@ -1,17 +1,18 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Link, Bug, Shield, Zap, Loader } from 'lucide-react';
+import { Link, Bug, Shield, Zap, Loader, Play, StopCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { PayloadUploader } from '@/components/fuzzer/PayloadUploader';
 import { LiveLogs } from '@/components/fuzzer/LiveLogs';
-import { checkDVWAConnection, loginToDVWA, fuzzerRequest, DVWAResponse } from '@/utils/dvwaFuzzer';
+import { checkDVWAConnection, loginToDVWA, fuzzerRequest } from '@/utils/dvwaFuzzer';
 import { useDVWAConnection } from '@/context/DVWAConnectionContext';
+import { fuzzerApi } from '@/services/api';
+import { useSocket } from '@/hooks/use-socket';
 
 export const RealTimeFuzzing: React.FC = () => {
   const { isConnected, setIsConnected, dvwaUrl, setDvwaUrl, sessionCookie, setSessionCookie } = useDVWAConnection();
@@ -29,12 +30,12 @@ export const RealTimeFuzzing: React.FC = () => {
     threatsDetected: 0,
   });
   const [payloadsReady, setPayloadsReady] = useState(false);
-  const [currentScanId, setCurrentScanId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   
-  // Add a ref to track if the component is unmounted
+  // Reference to track if component is mounted
   const isMountedRef = useRef(true);
-  // Add a ref to track the active fuzzing state
-  const activeFuzzingRef = useRef(false);
+  // Socket.IO hooks
+  const { addEventListener, emitEvent } = useSocket();
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -79,6 +80,109 @@ export const RealTimeFuzzing: React.FC = () => {
     }
   };
 
+  // Socket.IO event listeners for fuzzing process
+  useEffect(() => {
+    // Listen for fuzzing progress updates
+    const removeProgressListener = addEventListener<{ progress: number, sessionId: string }>('fuzzing_progress', (data) => {
+      console.log('Socket fuzzing_progress received:', data);
+      if (data.sessionId === currentSessionId) {
+        setProgress(data.progress);
+        
+        // Update payloads sent based on progress (simulated)
+        const totalPayloads = customPayloads.length;
+        const completedPayloads = Math.floor((data.progress / 100) * totalPayloads);
+        
+        setScanStats(prev => ({
+          ...prev,
+          payloadsSent: completedPayloads,
+          responsesReceived: completedPayloads
+        }));
+      }
+    });
+    
+    // Listen for fuzzing completion
+    const removeCompleteListener = addEventListener<{ sessionId: string, vulnerabilities: number }>('fuzzing_complete', (data) => {
+      console.log('Socket fuzzing_complete received:', data);
+      
+      if (data.sessionId === currentSessionId) {
+        setIsFuzzing(false);
+        setProgress(100);
+        
+        // Update final stats
+        setScanStats(prev => ({
+          ...prev,
+          threatsDetected: data.vulnerabilities || prev.threatsDetected
+        }));
+        
+        addLog(`Fuzzing session ${data.sessionId} completed successfully`);
+        
+        // Dispatch scan complete event for other components
+        window.dispatchEvent(new CustomEvent('scanComplete', {
+          detail: {
+            sessionId: data.sessionId,
+            vulnerabilities: data.vulnerabilities,
+            payloadsTested: scanStats.payloadsSent
+          }
+        }));
+        
+        toast({
+          title: "Fuzzing Completed",
+          description: `Scan complete with ${data.vulnerabilities} vulnerabilities detected`,
+        });
+        
+        setCurrentSessionId(null);
+      }
+    });
+    
+    // Listen for fuzzing errors
+    const removeErrorListener = addEventListener<{ message: string, sessionId: string }>('fuzzing_error', (data) => {
+      console.error('Socket fuzzing_error received:', data);
+      
+      if (data.sessionId === currentSessionId) {
+        setIsFuzzing(false);
+        addLog(`ERROR: ${data.message}`);
+        
+        toast({
+          title: "Fuzzing Error",
+          description: data.message || "An error occurred during fuzzing",
+          variant: "destructive",
+        });
+        
+        setCurrentSessionId(null);
+      }
+    });
+    
+    // Listen for threat detection
+    const removeThreatListener = addEventListener<{ payload: string, sessionId: string }>('threat_detected', (data) => {
+      console.log('Socket threat_detected received:', data);
+      
+      if (data.sessionId === currentSessionId) {
+        addLog(`⚠️ ALERT: Potential vulnerability detected with payload: ${data.payload}`);
+        
+        setScanStats(prev => ({
+          ...prev,
+          threatsDetected: prev.threatsDetected + 1
+        }));
+        
+        // Dispatch threat detected event for other components
+        window.dispatchEvent(new CustomEvent('threatDetected', {
+          detail: { 
+            payload: data.payload,
+            sessionId: data.sessionId
+          }
+        }));
+      }
+    });
+    
+    return () => {
+      // Clean up all listeners
+      removeProgressListener();
+      removeCompleteListener();
+      removeErrorListener();
+      removeThreatListener();
+    };
+  }, [addEventListener, currentSessionId, customPayloads.length, scanStats.payloadsSent]);
+
   const handleStartFuzzing = async () => {
     if (!isConnected) {
       toast({
@@ -98,9 +202,6 @@ export const RealTimeFuzzing: React.FC = () => {
       return;
     }
 
-    // Set the active fuzzing ref to true
-    activeFuzzingRef.current = true;
-    
     setIsFuzzing(true);
     setProgress(0);
     setScanStats({
@@ -109,129 +210,99 @@ export const RealTimeFuzzing: React.FC = () => {
       threatsDetected: 0,
     });
 
-    // Generate a unique scan ID
-    const scanId = Math.random().toString(36).substring(2, 11);
-    setCurrentScanId(scanId);
-    
-    // Dispatch scan start event
-    window.dispatchEvent(new CustomEvent('scanStart', {
-      detail: { 
-        scanId, 
-        status: 'in-progress'
-      }
-    }));
-    
-    addLog(`Started scan #${scanId}`);
-
-    // Process each payload
-    for (let i = 0; i < customPayloads.length; i++) {
-      // Check if component is still mounted and fuzzing is still active
-      if (!isMountedRef.current || !activeFuzzingRef.current) {
-        // If stopped early, mark as failed
-        if (isMountedRef.current) {
-          window.dispatchEvent(new CustomEvent('scanUpdate', {
-            detail: { 
-              scanId,
-              status: 'failed'
-            }
-          }));
-          addLog(`Scan #${scanId} stopped prematurely`);
-          setCurrentScanId(null);
-        }
-        break;
-      }
-
-      const payload = customPayloads[i];
-      addLog(`Testing payload: ${payload}`);
-
-      try {
-        setScanStats(prev => ({
-          ...prev,
-          payloadsSent: prev.payloadsSent + 1
-        }));
-
-        const result = await fuzzerRequest(dvwaUrl, payload, sessionCookie, module);
-        
-        // Check again if fuzzing is still active after the request
-        if (!isMountedRef.current || !activeFuzzingRef.current) break;
-        
-        setScanStats(prev => ({
-          ...prev, 
-          responsesReceived: prev.responsesReceived + 1
-        }));
-
-        if (result.vulnerabilityDetected) {
-          setScanStats(prev => ({
-            ...prev,
-            threatsDetected: prev.threatsDetected + 1
-          }));
-          
-          // Dispatch threat detected event
-          window.dispatchEvent(new CustomEvent('threatDetected', {
-            detail: { 
-              payload,
-              vulnerabilityType: moduleToVulnerabilityType(module),
-              severity: determineSeverity(payload, module)
-            }
-          }));
-          
-          addLog(`⚠️ ALERT: Potential vulnerability detected with payload: ${payload}`);
-          toast({
-            title: "Vulnerability Detected",
-            description: `A potential vulnerability was found using payload: ${payload}`,
-            variant: "destructive",
-          });
-        }
-
-        // Update progress
-        const newProgress = ((i + 1) / customPayloads.length) * 100;
-        setProgress(newProgress);
-        
-        // Add short delay between requests to allow UI to update
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-      } catch (error) {
-        addLog(`Error testing payload: ${payload}`);
-        console.error("Fuzzing error:", error);
-      }
-
-      // Rate limiting - avoid overloading the server
-      if (i < customPayloads.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-    }
-
-    // Check if fuzzing is still active and component is mounted
-    if (activeFuzzingRef.current && isMountedRef.current) {
-      setIsFuzzing(false);
-      activeFuzzingRef.current = false;
+    try {
+      // Create a fuzzing session on the server
+      const sessionResponse = await fuzzerApi.createFuzzer(url, 'custom_wordlist.txt');
+      const sessionId = sessionResponse.sessionId;
+      setCurrentSessionId(sessionId);
       
-      // Make sure progress is at 100% at the end
-      setProgress(100);
+      addLog(`Created fuzzing session with ID: ${sessionId}`);
       
-      // Dispatch scan complete event with final stats
-      window.dispatchEvent(new CustomEvent('scanUpdate', {
-        detail: {
-          scanId,
-          status: 'completed',
-          vulnerabilities: scanStats.threatsDetected
+      // Upload custom payloads to the server
+      await fuzzerApi.uploadPayloads(sessionId, customPayloads);
+      addLog(`Uploaded ${customPayloads.length} payloads to server`);
+      
+      // Start the fuzzing process on the server
+      const startResponse = await fuzzerApi.startFuzzing(sessionId, [moduleToVulnerabilityType(module)], customPayloads);
+      
+      addLog(`Started fuzzing with mode: ${fuzzingMode}`);
+      addLog(`Target module: ${module}`);
+      
+      // Dispatch scan start event
+      window.dispatchEvent(new CustomEvent('scanStart', {
+        detail: { 
+          sessionId, 
+          status: 'in-progress'
         }
       }));
       
-      window.dispatchEvent(new CustomEvent('scanComplete', {
-        detail: {
-          scanId,
-          vulnerabilities: scanStats.threatsDetected,
-          payloadsTested: scanStats.payloadsSent
-        }
-      }));
-      
-      addLog(`Scan #${scanId} completed successfully`);
-      setCurrentScanId(null);
-      toast({
-        title: "Fuzzing Completed",
-        description: `Scan complete with ${scanStats.threatsDetected} vulnerabilities detected`,
+      // Emit event to socket server that we're starting (optional, depends on your backend implementation)
+      emitEvent('start_fuzzing', {
+        sessionId,
+        module,
+        fuzzingMode,
+        payloadCount: customPayloads.length
       });
+      
+      toast({
+        title: "Fuzzing Started",
+        description: `Starting fuzzing session with ${customPayloads.length} payloads`,
+      });
+    } catch (error: any) {
+      console.error('Error starting fuzzing:', error);
+      setIsFuzzing(false);
+      
+      toast({
+        title: "Error Starting Fuzzing",
+        description: error.message || "Failed to start fuzzing process",
+        variant: "destructive",
+      });
+      
+      setCurrentSessionId(null);
+    }
+  };
+
+  const handleStopFuzzing = async () => {
+    if (!currentSessionId) {
+      setIsFuzzing(false);
+      return;
+    }
+    
+    try {
+      addLog(`Stopping fuzzing session ${currentSessionId}...`);
+      
+      // Call the API to stop the fuzzing process
+      await fuzzerApi.stopFuzzing(currentSessionId);
+      
+      addLog("Fuzzing process stopped by user");
+      setIsFuzzing(false);
+      
+      // Dispatch scan stop event
+      window.dispatchEvent(new CustomEvent('scanStop', {
+        detail: { 
+          sessionId: currentSessionId,
+          status: 'stopped'
+        }
+      }));
+      
+      toast({
+        title: "Fuzzing Stopped",
+        description: "The fuzzing process has been stopped",
+      });
+      
+      setCurrentSessionId(null);
+    } catch (error: any) {
+      console.error('Error stopping fuzzing:', error);
+      
+      toast({
+        title: "Error Stopping Fuzzing",
+        description: error.message || "Failed to stop fuzzing process",
+        variant: "destructive",
+      });
+      
+      // Force state reset even if API call failed
+      setIsFuzzing(false);
+      setCurrentSessionId(null);
     }
   };
 
@@ -248,7 +319,7 @@ export const RealTimeFuzzing: React.FC = () => {
     return mappings[module] || 'unknown';
   };
   
-  // Determine severity based on payload and vulnerability type
+  // Determine severity based on payload and vulnerability type  
   const determineSeverity = (payload: string, module: string): string => {
     // Simplistic severity determination logic
     if (module === 'sqli' && payload.includes('DROP TABLE')) {
@@ -274,38 +345,20 @@ export const RealTimeFuzzing: React.FC = () => {
     return defaultSeverities[module] || 'medium';
   };
 
-  const handleStopFuzzing = () => {
-    // Update the active fuzzing ref first
-    activeFuzzingRef.current = false;
-    
-    setIsFuzzing(false);
-    addLog("Fuzzing process stopped by user.");
-    toast({
-      title: "Fuzzing Stopped",
-      description: "The fuzzing process has been stopped",
-    });
-    
-    // If there's an active scan, mark it as failed
-    if (currentScanId) {
-      window.dispatchEvent(new CustomEvent('scanUpdate', {
-        detail: { 
-          scanId: currentScanId,
-          status: 'failed'
-        }
-      }));
-      addLog(`Scan #${currentScanId} marked as failed`);
-      setCurrentScanId(null);
-    }
-  };
-
-  // Update the cleanup function to properly handle unmounting
+  // Handle component cleanup on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
-      activeFuzzingRef.current = false;
-      setCustomPayloads([]);
+      
+      // If a fuzzing session is active when component unmounts, stop it
+      if (currentSessionId && isFuzzing) {
+        console.log('Cleaning up active fuzzing session on unmount:', currentSessionId);
+        fuzzerApi.stopFuzzing(currentSessionId).catch(err => {
+          console.error('Error stopping fuzzing on unmount:', err);
+        });
+      }
     };
-  }, []);
+  }, [currentSessionId, isFuzzing]);
 
   return (
     <div className="space-y-6">
@@ -418,10 +471,13 @@ export const RealTimeFuzzing: React.FC = () => {
               {isFuzzing ? (
                 <>
                   Stop Fuzzing
-                  <Loader className="ml-2 h-4 w-4 animate-spin" />
+                  <StopCircle className="ml-2 h-4 w-4" />
                 </>
               ) : (
-                "Start Fuzzing"
+                <>
+                  Start Fuzzing
+                  <Play className="ml-2 h-4 w-4" />
+                </>
               )}
             </Button>
           </div>
