@@ -7,7 +7,7 @@ import { toast } from '@/hooks/use-toast';
 let socket: Socket | null = null;
 
 // Define specific socket events
-export type SocketEvent = 'fuzzing_progress' | 'fuzzing_complete' | 'fuzzing_error';
+export type SocketEvent = 'fuzzing_progress' | 'fuzzing_complete' | 'fuzzing_error' | 'threat_detected';
 
 export const useSocket = () => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
