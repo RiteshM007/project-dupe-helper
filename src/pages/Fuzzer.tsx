@@ -9,6 +9,8 @@ import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 import { checkDVWAConnection, loginToDVWA } from '@/utils/dvwaFuzzer';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
+import { useSocket } from '@/hooks/use-socket';
 
 const Fuzzer = () => {
   const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
@@ -19,6 +21,8 @@ const Fuzzer = () => {
   });
   const [connecting, setConnecting] = useState(false);
   const [dvwaStatus, setDvwaStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+  const navigate = useNavigate();
+  const { socket } = useSocket();
 
   // Auto-connect to DVWA when the page loads
   useEffect(() => {
@@ -137,6 +141,15 @@ const Fuzzer = () => {
         vulnerabilitiesFound: prev.vulnerabilitiesFound + (vulnerabilities || 0),
         successRate: Math.round((1 - (prev.vulnerabilitiesFound + (vulnerabilities || 0)) / prev.requestsSent) * 1000) / 10
       }));
+      
+      // Navigate to ML Analysis after short delay
+      setTimeout(() => {
+        toast({
+          title: "Fuzzing Complete",
+          description: "Transitioning to ML Analysis",
+        });
+        navigate('/ml-analysis');
+      }, 1500);
     };
     
     // Handle scan stop
@@ -163,7 +176,30 @@ const Fuzzer = () => {
         clearInterval(requestsInterval);
       }
     };
-  }, []);
+  }, [navigate]);
+
+  // Listen for Socket.IO fuzzing_complete event
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleFuzzingComplete = (data: any) => {
+      // Navigate to ML Analysis page
+      toast({
+        title: "Fuzzing Process Complete",
+        description: "Redirecting to Machine Learning Analysis",
+      });
+      
+      setTimeout(() => {
+        navigate('/ml-analysis');
+      }, 1000);
+    };
+    
+    socket.on('fuzzing_complete', handleFuzzingComplete);
+    
+    return () => {
+      socket.off('fuzzing_complete', handleFuzzingComplete);
+    };
+  }, [socket, navigate]);
 
   return (
     <DashboardLayout>

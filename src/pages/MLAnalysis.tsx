@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScanningStatus } from '@/components/fuzzer/ScanningStatus';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useSocket } from '@/hooks/use-socket';
 
 const MLAnalysis = () => {
   const [scanActive, setScanActive] = useState(false);
@@ -14,6 +16,8 @@ const MLAnalysis = () => {
   const [dataset, setDataset] = useState<any[]>([]);
   const [threatLevel, setThreatLevel] = useState<'none' | 'low' | 'medium' | 'high' | 'critical'>('none');
   const [datasetReceived, setDatasetReceived] = useState(false);
+  const { socket } = useSocket();
+  const navigate = useNavigate();
 
   // Listen for events from the fuzzer component
   useEffect(() => {
@@ -41,6 +45,12 @@ const MLAnalysis = () => {
       }
     };
 
+    const handleFuzzingProgress = (event: CustomEvent) => {
+      if (event.detail && event.detail.progress !== undefined) {
+        setProgress(event.detail.progress);
+      }
+    };
+
     const handleDatasetEntry = (event: CustomEvent) => {
       setDataset(prev => [...prev, event.detail]);
       setDatasetReceived(true);
@@ -63,18 +73,57 @@ const MLAnalysis = () => {
       setProgress(100);
     };
 
+    // Listen for Socket.IO event via custom event bridge
+    window.addEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
+    
+    // Standard events
     window.addEventListener('scanStart', handleScanStart as EventListener);
     window.addEventListener('scanUpdate', handleScanUpdate as EventListener);
     window.addEventListener('datasetEntry', handleDatasetEntry as EventListener);
     window.addEventListener('scanComplete', handleScanComplete);
 
     return () => {
+      window.removeEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
       window.removeEventListener('scanStart', handleScanStart as EventListener);
       window.removeEventListener('scanUpdate', handleScanUpdate as EventListener);
       window.removeEventListener('datasetEntry', handleDatasetEntry as EventListener);
       window.removeEventListener('scanComplete', handleScanComplete);
     };
   }, [threatLevel]);
+
+  // Listen for Socket.IO events directly
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleFuzzingComplete = (data: { dataset: any[] }) => {
+      console.log("Fuzzing complete with dataset:", data);
+      
+      // Set the dataset
+      if (data.dataset && data.dataset.length > 0) {
+        setDataset(data.dataset);
+        setDatasetReceived(true);
+        setScanCompleted(true);
+        setProgress(100);
+        
+        // Analyze threat level
+        let maxSeverity = 'none';
+        data.dataset.forEach(entry => {
+          if (entry.severity === 'critical') maxSeverity = 'critical';
+          else if (entry.severity === 'high' && maxSeverity !== 'critical') maxSeverity = 'high';
+          else if (entry.severity === 'medium' && maxSeverity !== 'critical' && maxSeverity !== 'high') maxSeverity = 'medium';
+          else if (entry.severity === 'low' && maxSeverity === 'none') maxSeverity = 'low';
+        });
+        
+        setThreatLevel(maxSeverity as any);
+      }
+    };
+    
+    socket.on('fuzzing_complete', handleFuzzingComplete);
+    
+    return () => {
+      socket.off('fuzzing_complete', handleFuzzingComplete);
+    };
+  }, [socket]);
 
   return (
     <DashboardLayout>

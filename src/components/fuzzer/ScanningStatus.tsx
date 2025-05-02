@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Loader } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useSocket } from '@/hooks/use-socket';
 
 interface ScanningStatusProps {
   isScanning: boolean;
@@ -11,6 +12,25 @@ interface ScanningStatusProps {
 }
 
 export const ScanningStatus: React.FC<ScanningStatusProps> = ({ isScanning, progress }) => {
+  const { socket, isConnected } = useSocket();
+  
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleFuzzingProgress = (data: { progress: number }) => {
+      // This event will be handled by the parent component that manages the progress state
+      window.dispatchEvent(new CustomEvent('fuzzing_progress', { 
+        detail: { progress: data.progress } 
+      }));
+    };
+    
+    socket.on('fuzzing_progress', handleFuzzingProgress);
+    
+    return () => {
+      socket.off('fuzzing_progress', handleFuzzingProgress);
+    };
+  }, [socket]);
+
   return (
     <Card>
       <CardContent className="p-6">
