@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import React from "react"; // Added React import
+import React from "react";
 import Index from "./pages/Index";
 import Fuzzer from "./pages/Fuzzer";
 import MachineLearning from "./pages/MachineLearning";
@@ -29,10 +29,10 @@ const App = () => (
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <DVWAConnectionProvider>
-          <BrowserRouter>
+        <BrowserRouter>
+          <DVWAConnectionProvider>
+            <Toaster />
+            <Sonner />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/fuzzer" element={<Fuzzer />} />
@@ -44,8 +44,8 @@ const App = () => (
               {/* Catch-all route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
-        </DVWAConnectionProvider>
+          </DVWAConnectionProvider>
+        </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
   </React.StrictMode>
