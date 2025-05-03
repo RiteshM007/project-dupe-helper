@@ -15,17 +15,25 @@ export const useSocket = () => {
   useEffect(() => {
     // Only create the socket once
     if (!socket) {
+      // Make sure we're connecting to the correct server URL
       const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      console.log('Connecting to Socket.IO server at:', serverUrl);
+      
       socket = io(serverUrl, {
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
         autoConnect: true,
+        transports: ['websocket', 'polling'], // Ensure we try different transport methods
       });
     }
     
     function onConnect() {
       setIsConnected(true);
       console.log('Socket.IO connected successfully');
+      toast({
+        title: "Real-time Connection Established",
+        description: "Connected to the fuzzing server",
+      });
     }
     
     function onDisconnect() {
@@ -37,11 +45,12 @@ export const useSocket = () => {
       console.error('Socket error:', err);
       toast({
         title: 'Connection Error',
-        description: 'Failed to connect to the server',
+        description: 'Failed to connect to the server. Check if the backend is running.',
         variant: 'destructive',
       });
     }
     
+    // Set up socket event listeners
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('connect_error', onError);
@@ -49,6 +58,7 @@ export const useSocket = () => {
     // Ensure connection
     if (!socket.connected) {
       socket.connect();
+      console.log('Attempting to connect to Socket.IO server...');
     }
     
     return () => {
@@ -60,10 +70,15 @@ export const useSocket = () => {
   
   // Function to add event listeners with proper typing
   const addEventListener = <T,>(event: SocketEvent, callback: (data: T) => void) => {
-    if (!socket) return () => {};
+    if (!socket) {
+      console.warn('Socket not initialized, cannot add event listener for:', event);
+      return () => {};
+    }
     
+    console.log(`Adding Socket.IO event listener for: ${event}`);
     socket.on(event, callback);
     return () => {
+      console.log(`Removing Socket.IO event listener for: ${event}`);
       socket.off(event, callback);
     };
   };
@@ -75,6 +90,7 @@ export const useSocket = () => {
       return false;
     }
     
+    console.log(`Emitting Socket.IO event: ${event}`, data);
     socket.emit(event, data);
     return true;
   };

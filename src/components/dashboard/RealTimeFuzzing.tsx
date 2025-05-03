@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { PayloadUploader } from '@/components/fuzzer/PayloadUploader';
 import { LiveLogs } from '@/components/fuzzer/LiveLogs';
-import { checkDVWAConnection, loginToDVWA, fuzzerRequest } from '@/utils/dvwaFuzzer';
+import { checkDVWAConnection, loginToDVWA } from '@/utils/dvwaFuzzer';
 import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 import { fuzzerApi } from '@/services/api';
 import { useSocket } from '@/hooks/use-socket';
@@ -36,11 +35,43 @@ export const RealTimeFuzzing: React.FC = () => {
   // Reference to track if component is mounted
   const isMountedRef = useRef(true);
   // Socket.IO hooks
-  const { addEventListener, emitEvent } = useSocket();
+  const { addEventListener, emitEvent, isConnected: socketConnected } = useSocket();
+
+  // Log component mount status
+  useEffect(() => {
+    console.log('RealTimeFuzzing component mounted');
+    
+    // Set up cleanup on unmount
+    return () => {
+      console.log('RealTimeFuzzing component unmounted');
+      isMountedRef.current = false;
+      
+      // Clean up any active fuzzing session
+      if (currentSessionId && isFuzzing) {
+        console.log('Cleaning up active fuzzing session on unmount:', currentSessionId);
+        fuzzerApi.stopFuzzing(currentSessionId).catch(err => {
+          console.error('Error stopping fuzzing on unmount:', err);
+        });
+      }
+    };
+  }, []);
+
+  // Log current status for debugging
+  useEffect(() => {
+    console.log('Current fuzzing status:', {
+      isFuzzing,
+      currentSessionId,
+      progress,
+      payloadsReady,
+      payloadCount: customPayloads.length,
+      socketConnected
+    });
+  }, [isFuzzing, currentSessionId, progress, payloadsReady, customPayloads.length, socketConnected]);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+    console.log(`Fuzzing Log: [${timestamp}] ${message}`);
   };
 
   const handlePayloadsUploaded = (payloads: string[]) => {
@@ -52,30 +83,39 @@ export const RealTimeFuzzing: React.FC = () => {
   const handleConnect = async () => {
     addLog(`Attempting to connect to DVWA at ${url}`);
     
-    const isReachable = await checkDVWAConnection(url);
-    if (!isReachable) {
-      toast({
-        title: "Connection Failed",
-        description: "DVWA server not reachable. Please start DVWA and try again.",
-        variant: "destructive",
-      });
-      return;
-    }
+    try {
+      const isReachable = await checkDVWAConnection(url);
+      if (!isReachable) {
+        toast({
+          title: "Connection Failed",
+          description: "DVWA server not reachable. Please start DVWA and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const loginResult = await loginToDVWA(url, 'admin', 'password');
-    if (loginResult.success && loginResult.cookie) {
-      setIsConnected(true);
-      setDvwaUrl(url);
-      setSessionCookie(loginResult.cookie);
-      addLog('Successfully connected to DVWA');
+      const loginResult = await loginToDVWA(url, 'admin', 'password');
+      if (loginResult.success && loginResult.cookie) {
+        setIsConnected(true);
+        setDvwaUrl(url);
+        setSessionCookie(loginResult.cookie);
+        addLog('Successfully connected to DVWA');
+        toast({
+          title: "Connected",
+          description: "Successfully connected to DVWA",
+        });
+      } else {
+        toast({
+          title: "Login Failed",
+          description: "Could not authenticate with DVWA",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error connecting to DVWA:', error);
       toast({
-        title: "Connected",
-        description: "Successfully connected to DVWA",
-      });
-    } else {
-      toast({
-        title: "Login Failed",
-        description: "Could not authenticate with DVWA",
+        title: "Connection Error",
+        description: "An error occurred while connecting to DVWA",
         variant: "destructive",
       });
     }
@@ -83,6 +123,13 @@ export const RealTimeFuzzing: React.FC = () => {
 
   // Socket.IO event listeners for fuzzing process
   useEffect(() => {
+    if (!socketConnected) {
+      console.log('Socket not connected, not setting up event listeners yet');
+      return;
+    }
+    
+    console.log('Setting up Socket.IO event listeners');
+    
     // Listen for fuzzing progress updates
     const removeProgressListener = addEventListener<{ progress: number, sessionId: string }>('fuzzing_progress', (data) => {
       console.log('Socket fuzzing_progress received:', data);
@@ -182,7 +229,7 @@ export const RealTimeFuzzing: React.FC = () => {
       removeErrorListener();
       removeThreatListener();
     };
-  }, [addEventListener, currentSessionId, customPayloads.length, scanStats.payloadsSent]);
+  }, [addEventListener, currentSessionId, customPayloads.length, scanStats.payloadsSent, socketConnected]);
 
   const handleStartFuzzing = async () => {
     if (!isConnected) {
@@ -203,6 +250,7 @@ export const RealTimeFuzzing: React.FC = () => {
       return;
     }
 
+    // Reset states before starting
     setIsFuzzing(true);
     setProgress(0);
     setScanStats({
@@ -210,6 +258,9 @@ export const RealTimeFuzzing: React.FC = () => {
       responsesReceived: 0,
       threatsDetected: 0,
     });
+    
+    // Add initial log
+    addLog("Starting new fuzzing session...");
 
     try {
       addLog("Creating fuzzing session...");
@@ -227,11 +278,13 @@ export const RealTimeFuzzing: React.FC = () => {
       addLog(`Created fuzzing session with ID: ${sessionId}`);
       
       // Upload custom payloads to the server
+      addLog(`Uploading ${customPayloads.length} payloads to server...`);
       await fuzzerApi.uploadPayloads(sessionId, customPayloads);
-      addLog(`Uploaded ${customPayloads.length} payloads to server`);
+      addLog(`Uploaded ${customPayloads.length} payloads to server successfully`);
       
       // Start the fuzzing process on the server
-      const startResponse = await fuzzerApi.startFuzzing(sessionId, [moduleToVulnerabilityType(module)], customPayloads);
+      addLog("Starting fuzzing process on server...");
+      await fuzzerApi.startFuzzing(sessionId, [moduleToVulnerabilityType(module)], customPayloads);
       
       addLog(`Started fuzzing with mode: ${fuzzingMode}`);
       addLog(`Target module: ${module}`);
@@ -245,12 +298,18 @@ export const RealTimeFuzzing: React.FC = () => {
       }));
       
       // Emit event to socket server that we're starting (optional, depends on your backend implementation)
-      emitEvent('start_fuzzing', {
+      const emitSuccess = emitEvent('start_fuzzing', {
         sessionId,
         module,
         fuzzingMode,
         payloadCount: customPayloads.length
       });
+      
+      if (emitSuccess) {
+        addLog("Notified server of fuzzing start via Socket.IO");
+      } else {
+        addLog("Warning: Could not notify server via Socket.IO - continue with HTTP API");
+      }
       
       toast({
         title: "Fuzzing Started",
@@ -259,6 +318,8 @@ export const RealTimeFuzzing: React.FC = () => {
     } catch (error: any) {
       console.error('Error starting fuzzing:', error);
       setIsFuzzing(false);
+      
+      addLog(`Error starting fuzzing: ${error.message || "Unknown error"}`);
       
       toast({
         title: "Error Starting Fuzzing",
@@ -293,6 +354,9 @@ export const RealTimeFuzzing: React.FC = () => {
         }
       }));
       
+      // Notify server via Socket.IO (optional)
+      emitEvent('stop_fuzzing', { sessionId: currentSessionId });
+      
       toast({
         title: "Fuzzing Stopped",
         description: "The fuzzing process has been stopped",
@@ -301,6 +365,7 @@ export const RealTimeFuzzing: React.FC = () => {
       setCurrentSessionId(null);
     } catch (error: any) {
       console.error('Error stopping fuzzing:', error);
+      addLog(`Error stopping fuzzing: ${error.message || "Unknown error"}`);
       
       toast({
         title: "Error Stopping Fuzzing",

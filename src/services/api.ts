@@ -1,3 +1,4 @@
+
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -34,7 +35,11 @@ export const fuzzerApi = {
   createFuzzer: async (targetUrl: string, wordlistFile: string = 'default_wordlist.txt') => {
     try {
       console.log('Creating fuzzer with target URL:', targetUrl);
-      const response = await api.post('/fuzzer/create', { targetUrl, wordlistFile });
+      // Make sure the endpoint matches what's expected on the backend
+      const response = await api.post('/fuzzer/create', { 
+        targetUrl, 
+        wordlistFile 
+      });
       console.log('Fuzzer created:', response.data);
       return response.data;
     } catch (error) {
@@ -50,6 +55,7 @@ export const fuzzerApi = {
       }
       console.log(`Uploading ${payloads.length} payloads to session ${sessionId}`);
       const response = await api.post(`/fuzzer/${sessionId}/payloads`, { payloads });
+      console.log('Payloads uploaded successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error uploading payloads:', error);
@@ -63,10 +69,15 @@ export const fuzzerApi = {
         throw new Error("Cannot start fuzzing: session ID is undefined");
       }
       console.log(`Starting fuzzing for session ${sessionId}`);
+      console.log('Vulnerability types:', vulnerabilityTypes);
+      console.log('Custom payloads count:', customPayloads.length);
+      
+      // Make sure we're sending the data in the format the backend expects
       const response = await api.post(`/fuzzer/${sessionId}/start`, { 
         vulnerabilityTypes,
         customPayloads
       });
+      console.log('Fuzzing started successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error starting fuzzing:', error);
