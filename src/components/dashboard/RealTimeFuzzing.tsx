@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -271,9 +270,9 @@ export const RealTimeFuzzing: React.FC = () => {
       
       console.log("Session response:", sessionResponse);
       
-      // Fix: Using session_id instead of sessionId based on actual API response
-      if (!sessionResponse || !sessionResponse.session_id) {
-        throw new Error("Failed to create fuzzing session - no session ID returned from API");
+      // Check if session was created successfully
+      if (!sessionResponse || !sessionResponse.session_id || !sessionResponse.success) {
+        throw new Error(`Failed to create fuzzing session - ${sessionResponse?.message || 'No session ID returned'}`);
       }
       
       // Use session_id from the response
@@ -282,44 +281,69 @@ export const RealTimeFuzzing: React.FC = () => {
       
       addLog(`Created fuzzing session with ID: ${sessionId}`);
       
-      // Upload custom payloads to the server
-      addLog(`Uploading ${customPayloads.length} payloads to server...`);
-      await fuzzerApi.uploadPayloads(sessionId, customPayloads);
-      addLog(`Uploaded ${customPayloads.length} payloads to server successfully`);
-      
-      // Start the fuzzing process on the server
-      addLog("Starting fuzzing process on server...");
-      await fuzzerApi.startFuzzing(sessionId, [moduleToVulnerabilityType(module)], customPayloads);
-      
-      addLog(`Started fuzzing with mode: ${fuzzingMode}`);
-      addLog(`Target module: ${module}`);
-      
-      // Dispatch scan start event
-      window.dispatchEvent(new CustomEvent('scanStart', {
-        detail: { 
-          sessionId, 
-          status: 'in-progress'
+      try {
+        // Upload custom payloads to the server
+        addLog(`Uploading ${customPayloads.length} payloads to server...`);
+        const uploadResponse = await fuzzerApi.uploadPayloads(sessionId, customPayloads);
+        
+        if (!uploadResponse || !uploadResponse.success) {
+          throw new Error(`Failed to upload payloads: ${uploadResponse?.message || 'Unknown error'}`);
         }
-      }));
-      
-      // Emit event to socket server that we're starting (optional, depends on your backend implementation)
-      const emitSuccess = emitEvent('start_fuzzing', {
-        sessionId,
-        module,
-        fuzzingMode,
-        payloadCount: customPayloads.length
-      });
-      
-      if (emitSuccess) {
-        addLog("Notified server of fuzzing start via Socket.IO");
-      } else {
-        addLog("Warning: Could not notify server via Socket.IO - continue with HTTP API");
+        
+        addLog(`Uploaded ${customPayloads.length} payloads to server successfully`);
+        
+        // Start the fuzzing process on the server
+        addLog("Starting fuzzing process on server...");
+        const startResponse = await fuzzerApi.startFuzzing(sessionId, [moduleToVulnerabilityType(module)], []);
+        
+        if (!startResponse || !startResponse.success) {
+          throw new Error(`Failed to start fuzzing: ${startResponse?.message || 'Unknown error'}`);
+        }
+        
+        addLog(`Started fuzzing with mode: ${fuzzingMode}`);
+        addLog(`Target module: ${module}`);
+        
+        // Dispatch scan start event
+        window.dispatchEvent(new CustomEvent('scanStart', {
+          detail: { 
+            sessionId, 
+            status: 'in-progress'
+          }
+        }));
+        
+        // Emit event to socket server that we're starting (optional, depends on your backend implementation)
+        const emitSuccess = emitEvent('start_fuzzing', {
+          sessionId,
+          module,
+          fuzzingMode,
+          payloadCount: customPayloads.length
+        });
+        
+        if (emitSuccess) {
+          addLog("Notified server of fuzzing start via Socket.IO");
+        } else {
+          addLog("Warning: Could not notify server via Socket.IO - continue with HTTP API");
+        }
+        
+        toast({
+          title: "Fuzzing Started",
+          description: `Starting fuzzing session with ${customPayloads.length} payloads`,
+        });
+      } catch (error: any) {
+        // If we fail at uploading payloads or starting fuzzing, we should clean up
+        addLog(`Error during fuzzing setup: ${error.message}`);
+        
+        if (sessionId) {
+          try {
+            await fuzzerApi.stopFuzzing(sessionId);
+            addLog(`Cleaned up session ${sessionId} due to error`);
+          } catch (cleanupError) {
+            console.error('Error during session cleanup:', cleanupError);
+          }
+        }
+        
+        throw error; // Rethrow to be caught by outer catch block
       }
-      
-      toast({
-        title: "Fuzzing Started",
-        description: `Starting fuzzing session with ${customPayloads.length} payloads`,
-      });
     } catch (error: any) {
       console.error('Error starting fuzzing:', error);
       setIsFuzzing(false);
