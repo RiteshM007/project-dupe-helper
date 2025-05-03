@@ -659,6 +659,37 @@ def handle_connect():
 def handle_disconnect():
     logger.info(f"Client disconnected: {request.sid}")
 
+@app.route('/api/fuzzer/<session_id>/custom-payloads', methods=['POST'])
+def add_custom_payloads(session_id):
+    """Add custom payloads to an existing fuzzer session"""
+    try:
+        # Get the active fuzzer session
+        fuzzer = active_fuzzers.get(session_id)
+        if not fuzzer:
+            return jsonify({"error": f"No active fuzzer session with ID {session_id}"}), 404
+            
+        # Get payloads from request
+        data = request.get_json()
+        payloads = data.get('payloads', [])
+        
+        if not payloads:
+            return jsonify({"error": "No payloads provided"}), 400
+            
+        # Call the addCustomPayloads method
+        success = fuzzer.addCustomPayloads(payloads)
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "message": f"Added {len(payloads)} custom payloads to session {session_id}"
+            })
+        else:
+            return jsonify({"error": "Failed to add custom payloads"}), 500
+            
+    except Exception as e:
+        app.logger.error(f"Error adding custom payloads: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     # Create necessary directories
     os.makedirs("models", exist_ok=True)

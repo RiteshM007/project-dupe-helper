@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -55,10 +54,8 @@ export const fuzzerApi = {
       }
       console.log(`Uploading ${payloads.length} payloads to session ${sessionId}`);
       
-      // Fix: The backend endpoint expects a different format for uploading payloads 
-      // based on the error message "WebFuzzer object has no attribute 'addCustomPayloads'"
-      // Let's adjust our call to match what the backend expects
-      const response = await api.post(`/fuzzer/${sessionId}/payloads`, { 
+      // Update to match the expected method name in the server-side WebFuzzer class
+      const response = await api.post(`/fuzzer/${sessionId}/custom-payloads`, { 
         payloads: payloads 
       });
       console.log('Payloads uploaded successfully:', response.data);

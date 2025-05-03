@@ -1,4 +1,3 @@
-
 # Web Fuzzer Python implementation
 
 import time
@@ -24,6 +23,7 @@ class WebFuzzer:
         self.dvwa_url = None
         self.dvwa_cookie = None
         self.security_level = "low"
+        self.custom_payloads = []  # Added to store custom payloads
 
     def logActivity(self, message):
         log_entry = {
@@ -104,6 +104,23 @@ class WebFuzzer:
             self.logActivity(f"DVWA connection error: {str(e)}")
             return {"success": False, "message": f"Connection error: {str(e)}"}
 
+    def addCustomPayloads(self, payloads):
+        """Add custom payloads to the wordlist"""
+        if not payloads or not isinstance(payloads, list):
+            self.logActivity("Error: No valid payloads provided")
+            return False
+            
+        self.logActivity(f"Adding {len(payloads)} custom payloads")
+        self.custom_payloads.extend(payloads)
+        
+        # Also add to wordlist if it's already loaded
+        if self.wordlist:
+            self.wordlist.extend(payloads)
+            self.total_payloads = len(self.wordlist)
+            self.logActivity(f"Wordlist updated, now contains {self.total_payloads} payloads")
+        
+        return True
+
     def loadWordlist(self):
         # Load wordlist from file
         self.logActivity(f"Loading wordlist from {self.wordlist_file}...")
@@ -158,6 +175,10 @@ class WebFuzzer:
                     "admin'/**/OR/**/1=1--",
                 ]
             
+            # Add any custom payloads that were added before loading the wordlist
+            if self.custom_payloads:
+                self.wordlist.extend(self.custom_payloads)
+                
             self.total_payloads = len(self.wordlist)
             self.logActivity(f"Loaded {self.total_payloads} payloads from wordlist.")
             return self.wordlist
