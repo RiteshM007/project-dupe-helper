@@ -4,7 +4,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileUp, Upload, Database, BarChart2, Layers, FileText, Export } from 'lucide-react';
+import { FileUp, Upload, Database, BarChart2, Layers, FileText, Share } from 'lucide-react';
 
 const MLAnalysis = () => {
   const [dataset, setDataset] = useState<any[]>([]);
@@ -96,7 +96,7 @@ const MLAnalysis = () => {
               Upload Dataset
             </Button>
             <Button className="bg-purple-600 hover:bg-purple-700 gap-2" onClick={handleExport}>
-              <Export size={18} />
+              <Share size={18} />
               Export
             </Button>
           </div>
