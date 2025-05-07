@@ -7,6 +7,10 @@ echo "Setting up Web Application Fuzzer..."
 echo "Installing frontend dependencies..."
 npm install
 
+# Install global Vite for development
+echo "Installing Vite globally..."
+npm install -g vite
+
 # Install Python backend dependencies
 echo "Installing Python backend dependencies..."
 cd server
