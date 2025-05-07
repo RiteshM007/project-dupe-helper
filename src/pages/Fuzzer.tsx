@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
@@ -23,7 +22,7 @@ const Fuzzer = () => {
   const [connecting, setConnecting] = useState(false);
   const [dvwaStatus, setDvwaStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const navigate = useNavigate();
-  const { addEventListener, isConnected: socketConnected } = useSocket();
+  const { addEventListener } = useSocket();
   const [progress, setProgress] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -34,7 +33,6 @@ const Fuzzer = () => {
     console.log('Current state:', {
       isConnected,
       dvwaStatus,
-      socketConnected,
       isScanning,
       sessionId,
       progress
@@ -119,25 +117,20 @@ const Fuzzer = () => {
     connectToDVWA();
   }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie]);
 
-  // Handle fuzzing progress updates from Socket.IO
+  // Handle fuzzing progress updates from custom events
   useEffect(() => {
-    if (!socketConnected) {
-      console.log('Socket not connected, not setting up fuzzing progress listener');
-      return;
-    }
-    
     console.log('Setting up fuzzing progress listener');
     
     const removeProgressListener = addEventListener<{ progress: number }>('fuzzing_progress', (data) => {
-      console.log('Received fuzzing progress update from Socket.IO:', data);
+      console.log('Received fuzzing progress update:', data);
       if (typeof data.progress === 'number') {
         setProgress(data.progress);
       }
     });
 
-    // Handle fuzzing completion from Socket.IO
+    // Handle fuzzing completion from custom events
     const removeCompleteListener = addEventListener<{ sessionId: string, vulnerabilities: number }>('fuzzing_complete', (data) => {
-      console.log('Fuzzing complete from Socket.IO:', data);
+      console.log('Fuzzing complete event received:', data);
       setIsScanning(false);
       setProgress(100);
       
@@ -158,9 +151,9 @@ const Fuzzer = () => {
       }, 1500);
     });
 
-    // Handle fuzzing errors from Socket.IO
+    // Handle fuzzing errors from custom events
     const removeErrorListener = addEventListener<{ message: string }>('fuzzing_error', (data) => {
-      console.error('Fuzzing error from Socket.IO:', data);
+      console.error('Fuzzing error event received:', data);
       setIsScanning(false);
       
       toast({
@@ -175,7 +168,7 @@ const Fuzzer = () => {
       removeCompleteListener();
       removeErrorListener();
     };
-  }, [addEventListener, navigate, socketConnected]);
+  }, [addEventListener, navigate]);
 
   // Handle external start/stop events (from RealTimeFuzzing component)
   useEffect(() => {
@@ -282,10 +275,6 @@ const Fuzzer = () => {
             <Badge className="bg-red-500 text-white">DVWA Offline</Badge>
           ) : (
             <Badge className="bg-yellow-500 text-white">Checking DVWA...</Badge>
-          )}
-          
-          {socketConnected && (
-            <Badge className="bg-blue-500 text-white ml-2">Socket.IO Connected</Badge>
           )}
         </div>
         

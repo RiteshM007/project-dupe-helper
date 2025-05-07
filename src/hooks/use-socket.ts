@@ -27,7 +27,7 @@ export const useSocket = () => {
     };
   };
   
-  // Function to emit events (now using custom events)
+  // Function to emit events (using custom events)
   const emitEvent = (event: string, data?: any) => {
     console.log(`Emitting event: ${event}`, data);
     

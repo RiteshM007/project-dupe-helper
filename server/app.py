@@ -10,7 +10,6 @@ import traceback
 import requests
 from bs4 import BeautifulSoup
 from web_fuzzer import WebFuzzer
-from flask_socketio import SocketIO
 from ml_models import (
     train_isolation_forest,
     train_random_forest,
@@ -34,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # Store active fuzzers by session ID
 active_fuzzers = {}
@@ -94,11 +92,8 @@ def run_fuzzing_task(session_id, fuzzer):
             fuzzer.payloads_processed += 1
             fuzzer.scan_progress = int((i+1) / total_steps * 100)
             
-            # Emit progress via Socket.IO
-            socketio.emit('fuzzing_progress', {
-                'progress': fuzzer.scan_progress,
-                'session_id': session_id
-            })
+            # Since we don't have Socket.IO anymore, we just log progress
+            logger.info(f"Fuzzing progress: {fuzzer.scan_progress}% for session {session_id}")
             
             # Simulate some work
             time.sleep(0.1)
@@ -106,11 +101,7 @@ def run_fuzzing_task(session_id, fuzzer):
         fuzzer.logActivity("Fuzzing process completed" if fuzzer.scan_active else "Fuzzing process stopped")
         fuzzer.scan_active = False
         
-        # Emit completion event with dataset
-        socketio.emit('fuzzing_complete', {
-            'session_id': session_id,
-            'dataset': fuzzer.getDataset()
-        })
+        logger.info(f"Fuzzing completed for session {session_id}")
         
     except Exception as e:
         fuzzer.scan_active = False
@@ -125,6 +116,27 @@ def health_check():
         'api_version': '1.0.0',
         'timestamp': time.time()
     })
+
+@app.route('/api/dvwa/status', methods=['GET'])
+def check_dvwa_status():
+    """Check if DVWA is available"""
+    try:
+        base_url = request.args.get('url', 'http://localhost:8080')
+        logger.info(f"Checking DVWA status for: {base_url}")
+        
+        try:
+            response = requests.get(f"{base_url}/login.php", timeout=2)
+            if response.status_code == 200:
+                logger.info(f"DVWA status check: online for {base_url}")
+                return jsonify({'status': 'online'}), 200
+            logger.info(f"DVWA status check: offline for {base_url} (status code {response.status_code})")
+            return jsonify({'status': 'offline'}), 200
+        except requests.exceptions.RequestException as e:
+            logger.error(f"DVWA status check error: {str(e)}")
+            return jsonify({'status': 'offline'}), 200
+    except Exception as e:
+        logger.error(f"Error checking DVWA status: {traceback.format_exc()}")
+        return jsonify({'status': 'offline'}), 200
 
 @app.route('/api/dvwa/connect', methods=['GET'])
 def connect_dvwa():
@@ -160,19 +172,6 @@ def connect_dvwa():
             "status": "error", 
             "message": str(e)
         }), 500
-
-@app.route('/api/dvwa/status', methods=['GET'])
-def check_dvwa_status():
-    """Check if DVWA is available"""
-    try:
-        base_url = request.args.get('url', 'http://localhost:8080')
-        response = requests.get(f"{base_url}/login.php", timeout=2)
-        if response.status_code == 200:
-            return jsonify({'status': 'online'}), 200
-        return jsonify({'status': 'offline'}), 503
-    except Exception:
-        logger.error(f"Error checking DVWA status: {traceback.format_exc()}")
-        return jsonify({'status': 'offline'}), 503
 
 @app.route('/api/fuzzer/create', methods=['POST'])
 def create_fuzzer():
@@ -650,15 +649,6 @@ def cleanup_sessions():
             'error': str(e)
         }), 500
 
-# Add Socket.IO connection events
-@socketio.on('connect')
-def handle_connect():
-    logger.info(f"Client connected: {request.sid}")
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    logger.info(f"Client disconnected: {request.sid}")
-
 @app.route('/api/fuzzer/<session_id>/custom-payloads', methods=['POST'])
 def add_custom_payloads(session_id):
     """Add custom payloads to an existing fuzzer session"""
@@ -696,5 +686,5 @@ if __name__ == '__main__':
     os.makedirs("results", exist_ok=True)
     os.makedirs("reports", exist_ok=True)
     
-    # Run with Socket.IO instead of app.run
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    # Run Flask app without Socket.IO
+    app.run(debug=True, host='0.0.0.0', port=5000)
