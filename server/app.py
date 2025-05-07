@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
@@ -11,6 +10,7 @@ import traceback
 import requests
 from bs4 import BeautifulSoup
 from web_fuzzer import WebFuzzer
+from flask_socketio import SocketIO
 from ml_models import (
     train_isolation_forest,
     train_random_forest,
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 # Store active fuzzers by session ID
 active_fuzzers = {}
@@ -93,8 +94,11 @@ def run_fuzzing_task(session_id, fuzzer):
             fuzzer.payloads_processed += 1
             fuzzer.scan_progress = int((i+1) / total_steps * 100)
             
-            # Just log the progress - clients will poll for updates
-            logger.info(f"Fuzzing progress for session {session_id}: {fuzzer.scan_progress}%")
+            # Emit progress via Socket.IO
+            socketio.emit('fuzzing_progress', {
+                'progress': fuzzer.scan_progress,
+                'session_id': session_id
+            })
             
             # Simulate some work
             time.sleep(0.1)
@@ -102,8 +106,11 @@ def run_fuzzing_task(session_id, fuzzer):
         fuzzer.logActivity("Fuzzing process completed" if fuzzer.scan_active else "Fuzzing process stopped")
         fuzzer.scan_active = False
         
-        # Log completion - clients will poll for updates
-        logger.info(f"Fuzzing completed for session {session_id} with dataset: {fuzzer.getDataset()}")
+        # Emit completion event with dataset
+        socketio.emit('fuzzing_complete', {
+            'session_id': session_id,
+            'dataset': fuzzer.getDataset()
+        })
         
     except Exception as e:
         fuzzer.scan_active = False
@@ -643,6 +650,15 @@ def cleanup_sessions():
             'error': str(e)
         }), 500
 
+# Add Socket.IO connection events
+@socketio.on('connect')
+def handle_connect():
+    logger.info(f"Client connected: {request.sid}")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    logger.info(f"Client disconnected: {request.sid}")
+
 @app.route('/api/fuzzer/<session_id>/custom-payloads', methods=['POST'])
 def add_custom_payloads(session_id):
     """Add custom payloads to an existing fuzzer session"""
@@ -680,5 +696,5 @@ if __name__ == '__main__':
     os.makedirs("results", exist_ok=True)
     os.makedirs("reports", exist_ok=True)
     
-    # Run with Flask app directly, no socketio
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Run with Socket.IO instead of app.run
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)

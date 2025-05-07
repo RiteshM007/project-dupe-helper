@@ -27,7 +27,6 @@ const Fuzzer = () => {
   const [progress, setProgress] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
 
   // Log component mount and current state
   useEffect(() => {
@@ -51,11 +50,6 @@ const Fuzzer = () => {
         fuzzerApi.stopFuzzing(sessionId).catch(err => {
           console.error('Error stopping fuzzing on unmount:', err);
         });
-      }
-
-      // Clear any polling interval
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
       }
     };
   }, []);
@@ -125,92 +119,32 @@ const Fuzzer = () => {
     connectToDVWA();
   }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie]);
 
-  // Set up polling for fuzzing status updates when scanning is active
+  // Handle fuzzing progress updates from Socket.IO
   useEffect(() => {
-    if (isScanning && sessionId) {
-      // Start polling for status updates
-      const intervalId = window.setInterval(async () => {
-        try {
-          const status = await fuzzerApi.getFuzzerStatus(sessionId);
-          
-          if (status && status.success) {
-            // Update progress
-            setProgress(status.progress);
-            
-            // Dispatch progress event for other components
-            const progressEvent = new CustomEvent('fuzzing_progress', { 
-              detail: { 
-                progress: status.progress,
-                sessionId: sessionId
-              }
-            });
-            window.dispatchEvent(progressEvent);
-            
-            // Handle fuzzing completion
-            if (status.progress === 100 && !status.active) {
-              // Get dataset to count vulnerabilities
-              const datasetResponse = await fuzzerApi.getDataset(sessionId);
-              const vulnerabilitiesFound = datasetResponse?.dataset?.filter(
-                (item: any) => item.is_vulnerability
-              ).length || 0;
-              
-              // Dispatch completion event
-              const completeEvent = new CustomEvent('fuzzing_complete', {
-                detail: {
-                  sessionId,
-                  vulnerabilities: vulnerabilitiesFound
-                }
-              });
-              window.dispatchEvent(completeEvent);
-              
-              // Clean up polling
-              clearInterval(intervalId);
-              setPollingInterval(null);
-            }
-          }
-        } catch (error) {
-          console.error('Error polling fuzzer status:', error);
-          
-          // Dispatch error event
-          const errorEvent = new CustomEvent('fuzzing_error', {
-            detail: {
-              message: 'Failed to poll fuzzer status',
-              sessionId
-            }
-          });
-          window.dispatchEvent(errorEvent);
-        }
-      }, 1000); // Poll every second
-      
-      setPollingInterval(intervalId);
-      
-      // Clean up on unmount or when scanning stops
-      return () => {
-        clearInterval(intervalId);
-        setPollingInterval(null);
-      };
+    if (!socketConnected) {
+      console.log('Socket not connected, not setting up fuzzing progress listener');
+      return;
     }
-  }, [isScanning, sessionId]);
-
-  // Handle fuzzing progress updates from custom events
-  useEffect(() => {
-    const handleFuzzingProgress = (event: CustomEvent) => {
-      console.log('Received fuzzing progress update:', event.detail);
-      if (typeof event.detail?.progress === 'number') {
-        setProgress(event.detail.progress);
+    
+    console.log('Setting up fuzzing progress listener');
+    
+    const removeProgressListener = addEventListener<{ progress: number }>('fuzzing_progress', (data) => {
+      console.log('Received fuzzing progress update from Socket.IO:', data);
+      if (typeof data.progress === 'number') {
+        setProgress(data.progress);
       }
-    };
+    });
 
-    // Handle fuzzing completion
-    const handleFuzzingComplete = (event: CustomEvent) => {
-      console.log('Fuzzing complete:', event.detail);
+    // Handle fuzzing completion from Socket.IO
+    const removeCompleteListener = addEventListener<{ sessionId: string, vulnerabilities: number }>('fuzzing_complete', (data) => {
+      console.log('Fuzzing complete from Socket.IO:', data);
       setIsScanning(false);
       setProgress(100);
       
       // Update stats with final data
       setStatsData(prev => ({
         ...prev,
-        vulnerabilitiesFound: event.detail?.vulnerabilities || prev.vulnerabilitiesFound
+        vulnerabilitiesFound: data.vulnerabilities || prev.vulnerabilitiesFound
       }));
       
       toast({
@@ -222,31 +156,26 @@ const Fuzzer = () => {
       setTimeout(() => {
         navigate('/ml-analysis');
       }, 1500);
-    };
+    });
 
-    // Handle fuzzing errors
-    const handleFuzzingError = (event: CustomEvent) => {
-      console.error('Fuzzing error:', event.detail);
+    // Handle fuzzing errors from Socket.IO
+    const removeErrorListener = addEventListener<{ message: string }>('fuzzing_error', (data) => {
+      console.error('Fuzzing error from Socket.IO:', data);
       setIsScanning(false);
       
       toast({
         title: "Fuzzing Error",
-        description: event.detail?.message || "An error occurred during fuzzing",
+        description: data.message || "An error occurred during fuzzing",
         variant: "destructive",
       });
-    };
-    
-    // Add event listeners
-    window.addEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
-    window.addEventListener('fuzzing_complete', handleFuzzingComplete as EventListener);
-    window.addEventListener('fuzzing_error', handleFuzzingError as EventListener);
+    });
     
     return () => {
-      window.removeEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
-      window.removeEventListener('fuzzing_complete', handleFuzzingComplete as EventListener);
-      window.removeEventListener('fuzzing_error', handleFuzzingError as EventListener);
+      removeProgressListener();
+      removeCompleteListener();
+      removeErrorListener();
     };
-  }, [navigate]);
+  }, [addEventListener, navigate, socketConnected]);
 
   // Handle external start/stop events (from RealTimeFuzzing component)
   useEffect(() => {
@@ -355,7 +284,9 @@ const Fuzzer = () => {
             <Badge className="bg-yellow-500 text-white">Checking DVWA...</Badge>
           )}
           
-          <Badge className="bg-blue-500 text-white ml-2">API Connected</Badge>
+          {socketConnected && (
+            <Badge className="bg-blue-500 text-white ml-2">Socket.IO Connected</Badge>
+          )}
         </div>
         
         <Grid cols={1} gap={6} className="mb-6">
