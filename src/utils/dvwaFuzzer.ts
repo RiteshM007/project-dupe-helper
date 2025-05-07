@@ -12,7 +12,7 @@ export interface DVWAResponse {
 export async function checkDVWAConnection(url: string): Promise<boolean> {
   try {
     console.log(`Checking DVWA connection at: ${url}`);
-    // Use the API endpoint for status check
+    // Use the API endpoint for status check with relative URL
     const response = await axios.get(`/api/dvwa/status?url=${encodeURIComponent(url)}`, { 
       timeout: 5000,
       headers: {'Cache-Control': 'no-cache'} 
@@ -29,7 +29,7 @@ export async function checkDVWAConnection(url: string): Promise<boolean> {
 export async function loginToDVWA(url: string, username: string = 'admin', password: string = 'password'): Promise<{ success: boolean; cookie?: string }> {
   try {
     console.log(`Attempting to login to DVWA at: ${url}`);
-    // Use the API endpoint for connecting with session handling
+    // Use the API endpoint for connecting with session handling with relative URL
     const response = await axios.get(
       `/api/dvwa/connect?url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
       { 
