@@ -11,7 +11,8 @@ cd ..
 
 # Handle Node.js dependencies
 echo "Installing Node.js dependencies..."
-npm install
+chmod +x install-dependencies.sh
+./install-dependencies.sh
 
 echo "Setup complete! You can now start the application with:"
 echo "npm run dev"
