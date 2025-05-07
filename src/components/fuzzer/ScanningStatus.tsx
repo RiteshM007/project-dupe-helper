@@ -1,74 +1,121 @@
 
-import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
 import { Progress } from '@/components/ui/progress';
-import { Loader } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Zap } from 'lucide-react';
 
 interface ScanningStatusProps {
   isScanning: boolean;
   progress: number;
-  onProgressUpdate?: (newProgress: number) => void;
+  onProgressUpdate?: (progress: number) => void;
 }
 
 export const ScanningStatus: React.FC<ScanningStatusProps> = ({ 
-  isScanning, 
-  progress,
-  onProgressUpdate 
+  isScanning = false, 
+  progress = 0,
+  onProgressUpdate
 }) => {
-  React.useEffect(() => {
-    // Set up event listener for fuzzing progress
-    const handleFuzzingProgress = (event: CustomEvent) => {
-      console.log('Received fuzzing_progress update:', event.detail);
-      if (onProgressUpdate && typeof event.detail?.progress === 'number') {
-        onProgressUpdate(event.detail.progress);
-      }
-    };
+  const [currentProgress, setCurrentProgress] = useState(progress);
+  
+  // Update internal progress state when prop changes
+  useEffect(() => {
+    setCurrentProgress(progress);
+  }, [progress]);
+
+  // Demo effect - update progress periodically when scanning
+  useEffect(() => {
+    let interval: number;
     
-    window.addEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
+    if (isScanning && currentProgress < 100) {
+      interval = window.setInterval(() => {
+        // Use functional update to avoid closure issues
+        setCurrentProgress(prev => {
+          const newProgress = Math.min(prev + 1, 100);
+          
+          if (onProgressUpdate) {
+            onProgressUpdate(newProgress);
+          }
+          
+          return newProgress;
+        });
+      }, 500);
+    }
     
     return () => {
-      window.removeEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
+      if (interval) {
+        clearInterval(interval);
+      }
     };
-  }, [onProgressUpdate]);
-
+  }, [isScanning, onProgressUpdate]);
+  
+  const getScanStatusText = () => {
+    if (!isScanning && currentProgress === 0) return 'Ready to Start';
+    if (!isScanning && currentProgress === 100) return 'Scan Complete';
+    if (!isScanning) return 'Scan Paused';
+    if (currentProgress < 25) return 'Initializing Scan';
+    if (currentProgress < 50) return 'Scanning Vulnerabilities';
+    if (currentProgress < 75) return 'Testing Payloads';
+    if (currentProgress < 95) return 'Analyzing Results';
+    return 'Finalizing Scan';
+  };
+  
+  const handleStop = () => {
+    window.dispatchEvent(new Event('scanStop'));
+  };
+  
   return (
-    <Card className="bg-black/20 border-gray-800 text-white">
-      <CardContent className="p-6">
-        <div className="flex flex-col items-center justify-center space-y-4">
+    <Card className="w-full bg-card shadow">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-semibold">Scanning Status</CardTitle>
           {isScanning ? (
-            <>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="flex items-center justify-center"
-              >
-                <Loader className="h-8 w-8 text-purple-500" />
-              </motion.div>
-              <div className="text-center">
-                <h3 className="font-semibold text-white">Fuzzing in Progress...</h3>
-                <p className="text-sm text-gray-400">Scanning target for vulnerabilities</p>
-              </div>
-              <Progress value={progress} className="w-full bg-gray-800 [&>*]:bg-purple-600" />
-              <p className="text-xs text-gray-400">{Math.round(progress)}% complete</p>
-            </>
-          ) : progress === 100 ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center"
-            >
-              <h3 className="text-xl font-semibold text-green-500">Fuzzing Complete ✅</h3>
-              <p className="text-sm text-gray-400">Scan results are ready</p>
-              <p className="text-sm text-purple-400 mt-2">ML Analysis Ready</p>
-            </motion.div>
+            <Badge className="bg-blue-500 text-white">Scanning</Badge>
+          ) : currentProgress === 100 ? (
+            <Badge className="bg-green-500 text-white">Complete</Badge>
           ) : (
-            <div className="text-center text-gray-400">
-              Ready to start fuzzing
+            <Badge className="bg-gray-500 text-white">Idle</Badge>
+          )}
+        </div>
+      </CardHeader>
+      
+      <CardContent className="pb-2">
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between mb-1 text-sm">
+              <span>{getScanStatusText()}</span>
+              <span className="font-mono">{currentProgress}%</span>
+            </div>
+            <Progress value={currentProgress} className="h-2" />
+          </div>
+          
+          {isScanning && (
+            <div className="flex items-center text-xs text-gray-500">
+              <Zap className="h-3 w-3 mr-1 text-yellow-500" />
+              <span className="animate-pulse">
+                {currentProgress < 30 ? 'Probing endpoints...' : 
+                 currentProgress < 60 ? 'Injecting test payloads...' : 
+                 currentProgress < 90 ? 'Analyzing responses...' : 
+                 'Preparing report...'}
+              </span>
             </div>
           )}
         </div>
       </CardContent>
+      
+      {isScanning && (
+        <CardFooter>
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            className="w-full"
+            onClick={handleStop}
+          >
+            Stop Scan
+          </Button>
+        </CardFooter>
+      )}
     </Card>
   );
 };

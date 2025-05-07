@@ -1,69 +1,96 @@
-# Welcome to your Lovable project
 
-## Project info
+# Web Application Fuzzer
 
-**URL**: https://lovable.dev/projects/126742e6-4a41-43cf-8b80-07ec7ac3124c
+A web application vulnerability scanner and fuzzer with machine learning analysis capabilities.
 
-## How can I edit this code?
+## Setup Instructions
 
-There are several ways of editing your application.
+### Prerequisites
 
-**Use Lovable**
+- Python 3.8+ for backend
+- Node.js 16+ for frontend
+- DVWA (Damn Vulnerable Web Application) running on http://localhost:8080
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/126742e6-4a41-43cf-8b80-07ec7ac3124c) and start prompting.
+### Backend Setup
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1. Install Python requirements:
+```bash
+cd server
+pip install -r requirements.txt
 ```
 
-**Edit a file directly in GitHub**
+2. Run the Flask backend:
+```bash
+cd server
+python app.py
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The backend server will be available at http://localhost:5000
 
-**Use GitHub Codespaces**
+### Frontend Setup
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
 
-## What technologies are used for this project?
+2. Start the development server:
+```bash
+npm run dev
+# or
+yarn dev
+```
 
-This project is built with .
+The frontend will be available at http://localhost:3000
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## API Documentation
 
-## How can I deploy this project?
+### DVWA Connection API
 
-Simply open [Lovable](https://lovable.dev/projects/126742e6-4a41-43cf-8b80-07ec7ac3124c) and click on Share -> Publish.
+#### Check DVWA Status
+`GET /api/dvwa/status`
 
-## I want to use a custom domain - is that possible?
+Query Parameters:
+- `url`: URL of the DVWA instance (default: http://localhost:8080)
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+Response:
+```json
+{
+  "status": "online" | "offline"
+}
+```
+
+#### Connect to DVWA
+`GET /api/dvwa/connect`
+
+Query Parameters:
+- `url`: URL of the DVWA instance (default: http://localhost:8080)
+- `username`: DVWA username (default: admin)
+- `password`: DVWA password (default: password)
+
+Response:
+```json
+{
+  "status": "success" | "error",
+  "message": "Connection message",
+  "session_id": "session identifier",
+  "cookie": "session cookie"
+}
+```
+
+## Troubleshooting
+
+### DVWA Connection Issues
+
+If you're experiencing issues connecting to DVWA:
+
+1. Ensure DVWA is running and accessible at http://localhost:8080
+2. Check the Flask backend logs for connection errors
+3. Verify the network connectivity between the backend and DVWA
+4. Make sure CORS is properly configured
+
+### Real-time Updates
+
+This application uses custom events and polling for real-time updates rather than WebSockets/Socket.IO.
