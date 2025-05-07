@@ -11,14 +11,11 @@ export interface DVWAResponse {
 
 export async function checkDVWAConnection(url: string): Promise<boolean> {
   try {
-    console.log(`Checking DVWA connection at: ${url}`);
-    // Use the API endpoint for status check with relative URL
-    const response = await axios.get(`/api/dvwa/status?url=${encodeURIComponent(url)}`, { 
+    // Use the new backend API endpoint for status check
+    const response = await axios.get(`http://localhost:5000/api/dvwa/status?url=${url}`, { 
       timeout: 5000,
       headers: {'Cache-Control': 'no-cache'} 
     });
-    
-    console.log("DVWA status response:", response.data);
     return response.data.status === 'online';
   } catch (error) {
     console.error('Error checking DVWA connection:', error);
@@ -28,17 +25,14 @@ export async function checkDVWAConnection(url: string): Promise<boolean> {
 
 export async function loginToDVWA(url: string, username: string = 'admin', password: string = 'password'): Promise<{ success: boolean; cookie?: string }> {
   try {
-    console.log(`Attempting to login to DVWA at: ${url}`);
-    // Use the API endpoint for connecting with session handling with relative URL
+    // Use the new backend API endpoint for connecting with session handling
     const response = await axios.get(
-      `/api/dvwa/connect?url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
+      `http://localhost:5000/api/dvwa/connect?url=${url}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
       { 
         timeout: 10000,
         headers: {'Cache-Control': 'no-cache'} 
       }
     );
-    
-    console.log("DVWA login response:", response.data);
     
     if (response.data.status === 'success' && response.data.cookie) {
       return { success: true, cookie: response.data.cookie };

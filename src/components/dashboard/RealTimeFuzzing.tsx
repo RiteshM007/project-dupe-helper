@@ -34,7 +34,7 @@ export const RealTimeFuzzing: React.FC = () => {
   
   // Reference to track if component is mounted
   const isMountedRef = useRef(true);
-  // Socket.IO hooks replaced with custom event hook
+  // Socket.IO hooks
   const { addEventListener, emitEvent, isConnected: socketConnected } = useSocket();
 
   // Log component mount status
@@ -121,82 +121,115 @@ export const RealTimeFuzzing: React.FC = () => {
     }
   };
 
-  // Initialize polling mechanism for progress updates
+  // Socket.IO event listeners for fuzzing process
   useEffect(() => {
-    let progressPollInterval: number | null = null;
-    
-    if (isFuzzing && currentSessionId) {
-      progressPollInterval = window.setInterval(async () => {
-        try {
-          const statusResponse = await fuzzerApi.getFuzzerStatus(currentSessionId);
-          if (statusResponse.success) {
-            const newProgress = statusResponse.progress || 0;
-            setProgress(newProgress);
-            
-            // Update payloads sent based on progress
-            const payloadsSent = statusResponse.payloads_processed || 0;
-            setScanStats(prev => ({
-              ...prev, 
-              payloadsSent,
-              responsesReceived: payloadsSent
-            }));
-            
-            // Check if fuzzing is complete
-            if (!statusResponse.active && newProgress === 100) {
-              setIsFuzzing(false);
-              
-              // Dispatch scan complete event for other components
-              window.dispatchEvent(new CustomEvent('scanComplete', {
-                detail: {
-                  sessionId: currentSessionId,
-                  vulnerabilities: scanStats.threatsDetected,
-                  payloadsTested: payloadsSent
-                }
-              }));
-              
-              toast({
-                title: "Fuzzing Completed",
-                description: `Scan complete with ${scanStats.threatsDetected} vulnerabilities detected`,
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Error polling fuzzing status:', error);
-        }
-      }, 2000); // Poll every 2 seconds
+    if (!socketConnected) {
+      console.log('Socket not connected, not setting up event listeners yet');
+      return;
     }
     
-    return () => {
-      if (progressPollInterval !== null) {
-        window.clearInterval(progressPollInterval);
+    console.log('Setting up Socket.IO event listeners');
+    
+    // Listen for fuzzing progress updates
+    const removeProgressListener = addEventListener<{ progress: number, sessionId: string }>('fuzzing_progress', (data) => {
+      console.log('Socket fuzzing_progress received:', data);
+      if (data.sessionId === currentSessionId) {
+        setProgress(data.progress);
+        
+        // Update payloads sent based on progress (simulated)
+        const totalPayloads = customPayloads.length;
+        const completedPayloads = Math.floor((data.progress / 100) * totalPayloads);
+        
+        setScanStats(prev => ({
+          ...prev,
+          payloadsSent: completedPayloads,
+          responsesReceived: completedPayloads
+        }));
       }
-    };
-  }, [isFuzzing, currentSessionId, scanStats.threatsDetected]);
-
-  // Custom event listeners for the fuzzing process
-  useEffect(() => {
-    const handleThreatDetected = (event: CustomEvent) => {
-      const data = event.detail;
-      console.log('Threat detected event received:', data);
+    });
+    
+    // Listen for fuzzing completion
+    const removeCompleteListener = addEventListener<{ sessionId: string, vulnerabilities: number }>('fuzzing_complete', (data) => {
+      console.log('Socket fuzzing_complete received:', data);
       
-      if (data.sessionId === currentSessionId || !currentSessionId) {
+      if (data.sessionId === currentSessionId) {
+        setIsFuzzing(false);
+        setProgress(100);
+        
+        // Update final stats
+        setScanStats(prev => ({
+          ...prev,
+          threatsDetected: data.vulnerabilities || prev.threatsDetected
+        }));
+        
+        addLog(`Fuzzing session ${data.sessionId} completed successfully`);
+        
+        // Dispatch scan complete event for other components
+        window.dispatchEvent(new CustomEvent('scanComplete', {
+          detail: {
+            sessionId: data.sessionId,
+            vulnerabilities: data.vulnerabilities,
+            payloadsTested: scanStats.payloadsSent
+          }
+        }));
+        
+        toast({
+          title: "Fuzzing Completed",
+          description: `Scan complete with ${data.vulnerabilities} vulnerabilities detected`,
+        });
+        
+        setCurrentSessionId(null);
+      }
+    });
+    
+    // Listen for fuzzing errors
+    const removeErrorListener = addEventListener<{ message: string, sessionId: string }>('fuzzing_error', (data) => {
+      console.error('Socket fuzzing_error received:', data);
+      
+      if (data.sessionId === currentSessionId) {
+        setIsFuzzing(false);
+        addLog(`ERROR: ${data.message}`);
+        
+        toast({
+          title: "Fuzzing Error",
+          description: data.message || "An error occurred during fuzzing",
+          variant: "destructive",
+        });
+        
+        setCurrentSessionId(null);
+      }
+    });
+    
+    // Listen for threat detection
+    const removeThreatListener = addEventListener<{ payload: string, sessionId: string }>('threat_detected', (data) => {
+      console.log('Socket threat_detected received:', data);
+      
+      if (data.sessionId === currentSessionId) {
         addLog(`⚠️ ALERT: Potential vulnerability detected with payload: ${data.payload}`);
         
         setScanStats(prev => ({
           ...prev,
           threatsDetected: prev.threatsDetected + 1
         }));
+        
+        // Dispatch threat detected event for other components
+        window.dispatchEvent(new CustomEvent('threatDetected', {
+          detail: { 
+            payload: data.payload,
+            sessionId: data.sessionId
+          }
+        }));
       }
-    };
-    
-    // Add event listeners with proper type casting
-    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+    });
     
     return () => {
-      // Clean up event listeners
-      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+      // Clean up all listeners
+      removeProgressListener();
+      removeCompleteListener();
+      removeErrorListener();
+      removeThreatListener();
     };
-  }, [currentSessionId]);
+  }, [addEventListener, currentSessionId, customPayloads.length, scanStats.payloadsSent, socketConnected]);
 
   const handleStartFuzzing = async () => {
     if (!isConnected) {
@@ -278,15 +311,19 @@ export const RealTimeFuzzing: React.FC = () => {
           }
         }));
         
-        // Use custom event instead of Socket.IO
-        emitEvent('start_fuzzing', {
+        // Emit event to socket server that we're starting (optional, depends on your backend implementation)
+        const emitSuccess = emitEvent('start_fuzzing', {
           sessionId,
           module,
           fuzzingMode,
           payloadCount: customPayloads.length
         });
         
-        addLog("Started fuzzing process using custom events");
+        if (emitSuccess) {
+          addLog("Notified server of fuzzing start via Socket.IO");
+        } else {
+          addLog("Warning: Could not notify server via Socket.IO - continue with HTTP API");
+        }
         
         toast({
           title: "Fuzzing Started",
@@ -346,7 +383,7 @@ export const RealTimeFuzzing: React.FC = () => {
         }
       }));
       
-      // Use custom event instead of Socket.IO
+      // Notify server via Socket.IO (optional)
       emitEvent('stop_fuzzing', { sessionId: currentSessionId });
       
       toast({
