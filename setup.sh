@@ -7,16 +7,18 @@ echo "Setting up Web Application Fuzzer..."
 echo "Installing frontend dependencies..."
 npm install
 
-# Install global Vite for development
-echo "Installing Vite globally..."
+# Make sure vite is installed both globally and locally
+echo "Installing Vite globally and locally..."
 npm install -g vite
+npm install vite --save-dev
 
 # Install Python backend dependencies
 echo "Installing Python backend dependencies..."
 cd server
-pip install -r requirements.txt
 
-echo "Installing beautifulsoup4 (specific version)..."
+# Fix beautifulsoup4 installation by specifying a proper version
+pip install -r requirements.txt
+pip uninstall -y beautifulsoup4
 pip install beautifulsoup4==4.12.2
 
 cd ..
