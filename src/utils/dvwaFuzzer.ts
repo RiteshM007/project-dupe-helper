@@ -13,7 +13,7 @@ export async function checkDVWAConnection(url: string): Promise<boolean> {
   try {
     console.log(`Checking DVWA connection at: ${url}`);
     // Use the API endpoint for status check
-    const response = await axios.get(`http://localhost:5000/api/dvwa/status?url=${encodeURIComponent(url)}`, { 
+    const response = await axios.get(`/api/dvwa/status?url=${encodeURIComponent(url)}`, { 
       timeout: 5000,
       headers: {'Cache-Control': 'no-cache'} 
     });
@@ -31,7 +31,7 @@ export async function loginToDVWA(url: string, username: string = 'admin', passw
     console.log(`Attempting to login to DVWA at: ${url}`);
     // Use the API endpoint for connecting with session handling
     const response = await axios.get(
-      `http://localhost:5000/api/dvwa/connect?url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
+      `/api/dvwa/connect?url=${encodeURIComponent(url)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
       { 
         timeout: 10000,
         headers: {'Cache-Control': 'no-cache'} 
