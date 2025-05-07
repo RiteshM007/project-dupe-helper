@@ -45,3 +45,8 @@ If you still encounter issues:
 1. Check that Vite is installed properly with `vite --version`
 2. Verify that all TypeScript types are installed with `npm list --depth=0 | grep types`
 3. Ensure beautifulsoup4 is installed correctly with `pip list | grep beautifulsoup4`
+4. If TypeScript errors persist, you may need to run `npx tsc --noEmit` to see more detailed error messages
+
+### Handling the TSConfig Issue
+
+The `tsconfig.json` file is read-only in this environment. The global type definitions in `src/types/global.d.ts` have been updated to handle the type issues without modifying tsconfig.json.
