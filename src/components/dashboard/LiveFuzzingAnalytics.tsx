@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -97,9 +96,9 @@ export const LiveFuzzingAnalytics = () => {
     window.addEventListener('scanComplete', handleScanComplete);
     
     // Update data every 2 seconds when active
-    let interval: number | null = null;
+    let interval: NodeJS.Timeout | null = null;
     if (isActive) {
-      interval = window.setInterval(() => {
+      interval = setInterval(() => {
         setAnalyticsData(prev => {
           // Add synthetic data point if fuzzing is active
           const time = new Date();

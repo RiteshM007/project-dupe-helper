@@ -9,9 +9,9 @@ import { checkDVWAConnection, loginToDVWA } from '@/utils/dvwaFuzzer';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
+import { useSocket } from '@/hooks/use-socket';
 import { ScanningStatus } from '@/components/fuzzer/ScanningStatus';
 import { fuzzerApi } from '@/services/api';
-import axios from 'axios';
 
 const Fuzzer = () => {
   const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
@@ -23,10 +23,10 @@ const Fuzzer = () => {
   const [connecting, setConnecting] = useState(false);
   const [dvwaStatus, setDvwaStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const navigate = useNavigate();
+  const { addEventListener, isConnected: socketConnected } = useSocket();
   const [progress, setProgress] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<number | null>(null);
 
   // Log component mount and current state
   useEffect(() => {
@@ -34,6 +34,7 @@ const Fuzzer = () => {
     console.log('Current state:', {
       isConnected,
       dvwaStatus,
+      socketConnected,
       isScanning,
       sessionId,
       progress
@@ -50,11 +51,6 @@ const Fuzzer = () => {
           console.error('Error stopping fuzzing on unmount:', err);
         });
       }
-
-      // Clear polling interval if set
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
     };
   }, []);
 
@@ -69,11 +65,8 @@ const Fuzzer = () => {
         try {
           console.log('Attempting to connect to DVWA server at:', dvwaServerUrl);
           
-          // Check if DVWA is reachable using the API
-          const statusResponse = await axios.get(`http://localhost:5000/api/dvwa/status?url=${dvwaServerUrl}`);
-          console.log('DVWA status response:', statusResponse.data);
-          
-          const isReachable = statusResponse.data.status === 'online';
+          // Check if DVWA is reachable
+          const isReachable = await checkDVWAConnection(dvwaServerUrl);
           
           if (!isReachable) {
             console.log('DVWA server not reachable');
@@ -90,13 +83,12 @@ const Fuzzer = () => {
           setDvwaStatus('online');
           
           // Try to login with default credentials
-          const connectResponse = await axios.get(`http://localhost:5000/api/dvwa/connect?url=${dvwaServerUrl}&username=admin&password=password`);
-          console.log('DVWA connect response:', connectResponse.data);
+          const loginResult = await loginToDVWA(dvwaServerUrl, 'admin', 'password');
           
-          if (connectResponse.data.status === 'success' && connectResponse.data.cookie) {
+          if (loginResult.success && loginResult.cookie) {
             setIsConnected(true);
             setDvwaUrl(dvwaServerUrl);
-            setSessionCookie(connectResponse.data.cookie);
+            setSessionCookie(loginResult.cookie);
             console.log('Successfully connected to DVWA');
             toast({
               title: "Connected to DVWA",
@@ -127,46 +119,63 @@ const Fuzzer = () => {
     connectToDVWA();
   }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie]);
 
-  // Set up polling for fuzzing progress if active
+  // Handle fuzzing progress updates from Socket.IO
   useEffect(() => {
-    if (isScanning && sessionId) {
-      // Start polling for progress
-      const interval = window.setInterval(async () => {
-        try {
-          const statusResponse = await fuzzerApi.getFuzzerStatus(sessionId);
-          if (statusResponse.success) {
-            setProgress(statusResponse.progress);
-            
-            // If not active anymore, stop polling
-            if (!statusResponse.active && statusResponse.progress === 100) {
-              setIsScanning(false);
-              clearInterval(interval);
-              setPollingInterval(null);
-              
-              // Notify completion
-              toast({
-                title: "Fuzzing Complete",
-                description: "Transitioning to ML Analysis",
-              });
-              
-              // Navigate to ML Analysis after short delay
-              setTimeout(() => {
-                navigate('/ml-analysis');
-              }, 1500);
-            }
-          }
-        } catch (error) {
-          console.error('Error polling fuzzer status:', error);
-        }
-      }, 1000);
-      
-      setPollingInterval(interval);
-      
-      return () => {
-        clearInterval(interval);
-      };
+    if (!socketConnected) {
+      console.log('Socket not connected, not setting up fuzzing progress listener');
+      return;
     }
-  }, [isScanning, sessionId, navigate]);
+    
+    console.log('Setting up fuzzing progress listener');
+    
+    const removeProgressListener = addEventListener<{ progress: number }>('fuzzing_progress', (data) => {
+      console.log('Received fuzzing progress update from Socket.IO:', data);
+      if (typeof data.progress === 'number') {
+        setProgress(data.progress);
+      }
+    });
+
+    // Handle fuzzing completion from Socket.IO
+    const removeCompleteListener = addEventListener<{ sessionId: string, vulnerabilities: number }>('fuzzing_complete', (data) => {
+      console.log('Fuzzing complete from Socket.IO:', data);
+      setIsScanning(false);
+      setProgress(100);
+      
+      // Update stats with final data
+      setStatsData(prev => ({
+        ...prev,
+        vulnerabilitiesFound: data.vulnerabilities || prev.vulnerabilitiesFound
+      }));
+      
+      toast({
+        title: "Fuzzing Complete",
+        description: "Transitioning to ML Analysis",
+      });
+      
+      // Navigate to ML Analysis after short delay
+      setTimeout(() => {
+        navigate('/ml-analysis');
+      }, 1500);
+    });
+
+    // Handle fuzzing errors from Socket.IO
+    const removeErrorListener = addEventListener<{ message: string }>('fuzzing_error', (data) => {
+      console.error('Fuzzing error from Socket.IO:', data);
+      setIsScanning(false);
+      
+      toast({
+        title: "Fuzzing Error",
+        description: data.message || "An error occurred during fuzzing",
+        variant: "destructive",
+      });
+    });
+    
+    return () => {
+      removeProgressListener();
+      removeCompleteListener();
+      removeErrorListener();
+    };
+  }, [addEventListener, navigate, socketConnected]);
 
   // Handle external start/stop events (from RealTimeFuzzing component)
   useEffect(() => {
@@ -273,6 +282,10 @@ const Fuzzer = () => {
             <Badge className="bg-red-500 text-white">DVWA Offline</Badge>
           ) : (
             <Badge className="bg-yellow-500 text-white">Checking DVWA...</Badge>
+          )}
+          
+          {socketConnected && (
+            <Badge className="bg-blue-500 text-white ml-2">Socket.IO Connected</Badge>
           )}
         </div>
         

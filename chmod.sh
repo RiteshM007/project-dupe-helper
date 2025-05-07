@@ -1,9 +1,0 @@
-
-#!/bin/bash
-
-# Make scripts executable
-chmod +x setup.sh
-chmod +x fix-deps.sh
-chmod +x make-executable.sh
-
-echo "Made all scripts executable!"

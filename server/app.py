@@ -126,26 +126,6 @@ def health_check():
         'timestamp': time.time()
     })
 
-@app.route('/api/dvwa/status', methods=['GET'])
-def check_dvwa_status():
-    """Check if DVWA is available"""
-    try:
-        base_url = request.args.get('url', 'http://localhost:8080')
-        logger.info(f"Checking DVWA status at: {base_url}")
-        
-        # Add timeout to prevent hanging
-        response = requests.get(f"{base_url}/login.php", timeout=5)
-        
-        if response.status_code == 200:
-            logger.info(f"DVWA is online at {base_url}")
-            return jsonify({'status': 'online'}), 200
-        
-        logger.info(f"DVWA returned non-200 status: {response.status_code}")
-        return jsonify({'status': 'offline'}), 200
-    except Exception as e:
-        logger.error(f"Error checking DVWA status: {str(e)}")
-        return jsonify({'status': 'offline'}), 200
-
 @app.route('/api/dvwa/connect', methods=['GET'])
 def connect_dvwa():
     """Connect to DVWA with proper session handling"""
@@ -154,7 +134,6 @@ def connect_dvwa():
         username = request.args.get('username', 'admin')
         password = request.args.get('password', 'password')
         
-        logger.info(f"Attempting to connect to DVWA at: {base_url}")
         session = get_dvwa_session(base_url, username, password)
         
         # Store session cookies
@@ -169,7 +148,6 @@ def connect_dvwa():
             'cookies': cookies_str
         }
         
-        logger.info(f"Successfully connected to DVWA with session ID: {session_id}")
         return jsonify({
             "status": "success", 
             "message": "Connected and logged in to DVWA",
@@ -177,11 +155,24 @@ def connect_dvwa():
             "cookie": cookies_str
         }), 200
     except Exception as e:
-        logger.error(f"Error connecting to DVWA: {str(e)}")
+        logger.error(f"Error connecting to DVWA: {traceback.format_exc()}")
         return jsonify({
             "status": "error", 
             "message": str(e)
         }), 500
+
+@app.route('/api/dvwa/status', methods=['GET'])
+def check_dvwa_status():
+    """Check if DVWA is available"""
+    try:
+        base_url = request.args.get('url', 'http://localhost:8080')
+        response = requests.get(f"{base_url}/login.php", timeout=2)
+        if response.status_code == 200:
+            return jsonify({'status': 'online'}), 200
+        return jsonify({'status': 'offline'}), 503
+    except Exception:
+        logger.error(f"Error checking DVWA status: {traceback.format_exc()}")
+        return jsonify({'status': 'offline'}), 503
 
 @app.route('/api/fuzzer/create', methods=['POST'])
 def create_fuzzer():
