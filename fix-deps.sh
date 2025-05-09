@@ -4,7 +4,8 @@
 # Remove problematic dependency
 sed -i '/beautifulsoup4/d' package.json
 
-# Install all dependencies properly
+# Clean install dependencies
+rm -rf node_modules
 npm install
 
 # Install specific packages that might be causing issues

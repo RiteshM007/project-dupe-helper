@@ -28,5 +28,8 @@ To fix the build issues, please follow these steps:
 If you encounter further issues:
 
 - Make sure Node.js and npm are installed and up to date
-- Try deleting `node_modules` and running `npm install` again
+- Try deleting `node_modules` and running `npm install` again 
 - Check that you have the correct permissions in your directories
+- If you see React hook errors, make sure your global.d.ts file is properly set up
+- For Recharts component errors, ensure that the Recharts module declaration in global.d.ts is complete
+
