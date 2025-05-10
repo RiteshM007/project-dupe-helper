@@ -14,4 +14,7 @@ npm install @tanstack/react-query react-router-dom framer-motion gsap sonner
 npm install @hookform/resolvers zod recharts date-fns
 npm install lucide-react
 
+# Make sure Vite is installed and available globally (as backup)
+npm install -g vite
+
 echo "Dependencies fixed! Now run: npm run dev"

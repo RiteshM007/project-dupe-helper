@@ -32,4 +32,6 @@ If you encounter further issues:
 - Check that you have the correct permissions in your directories
 - If you see React hook errors, make sure your global.d.ts file is properly set up
 - For Recharts component errors, ensure that the Recharts module declaration in global.d.ts is complete
+- If vite command is not found, try installing it globally with `npm install -g vite`
+- For Python dependencies, beautifulsoup4 has been removed as it's not compatible with npm. If you need Python functionality, use the requirements.txt file with pip
 

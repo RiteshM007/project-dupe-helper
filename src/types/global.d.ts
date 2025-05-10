@@ -28,21 +28,34 @@ declare namespace NodeJS {
 // Add specific type for ThreatLevel that's used in CyberpunkScannerAnimation.tsx
 type ThreatLevel = 'none' | 'low' | 'medium' | 'high' | 'critical';
 
-// Add Recharts component declarations
+// Add Recharts component declarations with proper React.Component inheritance
 declare module 'recharts' {
   import * as React from 'react';
   
-  export class LineChart extends React.Component<any> {}
-  export class Line extends React.Component<any> {}
-  export class XAxis extends React.Component<any> {}
-  export class YAxis extends React.Component<any> {}
-  export class CartesianGrid extends React.Component<any> {}
-  export class Tooltip extends React.Component<any> {}
-  export class Legend extends React.Component<any> {}
-  export class ResponsiveContainer extends React.Component<any> {}
-  export class AreaChart extends React.Component<any> {}
-  export class Area extends React.Component<any> {}
-  export class PieChart extends React.Component<any> {}
-  export class Pie extends React.Component<any> {}
-  export class Cell extends React.Component<any> {}
+  // Define a base component class that includes the necessary React.Component properties
+  class RechartsComponent<P = any> extends React.Component<P> {
+    props: P;
+    context: any;
+    setState(state: any, callback?: () => void): void;
+    forceUpdate(callback?: () => void): void;
+    render(): React.ReactNode;
+    state: any;
+    refs: any;
+  }
+  
+  export class LineChart extends RechartsComponent<any> {}
+  export class Line extends RechartsComponent<any> {}
+  export class XAxis extends RechartsComponent<any> {}
+  export class YAxis extends RechartsComponent<any> {}
+  export class CartesianGrid extends RechartsComponent<any> {}
+  export class Tooltip extends RechartsComponent<any> {}
+  export class Legend extends RechartsComponent<any> {}
+  export class ResponsiveContainer extends RechartsComponent<any> {}
+  export class AreaChart extends RechartsComponent<any> {}
+  export class Area extends RechartsComponent<any> {}
+  export class PieChart extends RechartsComponent<any> {}
+  export class Pie extends RechartsComponent<any> {}
+  export class Cell extends RechartsComponent<any> {}
+  export class BarChart extends RechartsComponent<any> {}
+  export class Bar extends RechartsComponent<any> {}
 }
