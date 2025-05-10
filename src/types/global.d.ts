@@ -9,10 +9,25 @@ declare module 'react' {
   export const useState: <T>(initialState: T | (() => T)) => [T, (newState: T | ((prevState: T) => T)) => void];
   export const useEffect: (effect: () => (void | (() => void)), deps?: readonly any[]) => void;
   export const useRef: <T>(initialValue: T) => { current: T };
+  export const useContext: <T>(context: React.Context<T>) => T;
+  export const createContext: <T>(defaultValue: T) => React.Context<T>;
+  export const forwardRef: <T, P = {}>(render: React.ForwardRefRenderFunction<T, P>) => React.ForwardRefExoticComponent<React.PropsWithoutRef<P> & React.RefAttributes<T>>;
   
-  // Add missing FC type
+  // Add missing React types
   export type FC<P = {}> = React.FunctionComponent<P>;
   export type FunctionComponent<P = {}> = React.ComponentType<P>;
+  export type ElementRef<T> = React.ElementRef<T>;
+  export type ComponentPropsWithoutRef<T> = React.ComponentPropsWithoutRef<T>;
+  export type HTMLAttributes<T = any> = React.HTMLAttributes<T>;
+  export type ButtonHTMLAttributes<T = any> = React.ButtonHTMLAttributes<T>;
+  export type ComponentProps<T> = React.ComponentProps<T>;
+  export type ReactNode = React.ReactNode;
+  export type ChangeEvent<T = Element> = React.ChangeEvent<T>;
+  export type Context<T> = React.Context<T>;
+  export type RefAttributes<T> = React.RefAttributes<T>;
+  export type ForwardRefRenderFunction<T, P = {}> = React.ForwardRefRenderFunction<T, P>;
+  export type ForwardRefExoticComponent<P> = React.ForwardRefExoticComponent<P>;
+  export type PropsWithoutRef<P> = React.PropsWithoutRef<P>;
 }
 
 // Fix for 'react/jsx-runtime' missing
@@ -58,4 +73,7 @@ declare module 'recharts' {
   export class Cell extends RechartsComponent<any> {}
   export class BarChart extends RechartsComponent<any> {}
   export class Bar extends RechartsComponent<any> {}
+  export class ScatterChart extends RechartsComponent<any> {}
+  export class Scatter extends RechartsComponent<any> {}
+  export class ZAxis extends RechartsComponent<any> {}
 }
