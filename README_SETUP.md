@@ -30,8 +30,8 @@ If you encounter further issues:
 - Make sure Node.js and npm are installed and up to date
 - Try deleting `node_modules` and running `npm install` again 
 - Check that you have the correct permissions in your directories
-- If you see React hook errors, make sure your global.d.ts file is properly set up
+- If you see React hook errors, make sure the global.d.ts file is properly set up
 - For Recharts component errors, ensure that the Recharts module declaration in global.d.ts is complete
 - If vite command is not found, try installing it globally with `npm install -g vite`
-- For Python dependencies, beautifulsoup4 has been removed as it's not compatible with npm. If you need Python functionality, use the requirements.txt file with pip
-
+- For Lucide component errors, ensure the LucideProps interface in global.d.ts includes the className property
+- For UI component errors with children/className props, ensure their interfaces explicitly include these props

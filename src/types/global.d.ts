@@ -1,4 +1,6 @@
 
+/// <reference types="react" />
+
 // Declare modules that don't have type definitions
 declare module 'react' {
   // Re-export all types from React
@@ -76,4 +78,132 @@ declare module 'recharts' {
   export class ScatterChart extends RechartsComponent<any> {}
   export class Scatter extends RechartsComponent<any> {}
   export class ZAxis extends RechartsComponent<any> {}
+}
+
+// Add lucide-react definitions
+declare module 'lucide-react' {
+  import * as React from 'react';
+
+  export interface LucideProps extends React.SVGProps<SVGSVGElement> {
+    size?: number | string;
+    absoluteStrokeWidth?: boolean;
+    color?: string;
+    strokeWidth?: number | string;
+    className?: string;
+    children?: React.ReactNode;
+  }
+
+  export type LucideIcon = React.ForwardRefExoticComponent<
+    LucideProps & React.RefAttributes<SVGSVGElement>
+  >;
+
+  // Declare all icons that are used
+  export const ChevronLeft: LucideIcon;
+  export const ChevronRight: LucideIcon;
+  export const LayoutDashboard: LucideIcon;
+  export const Zap: LucideIcon;
+  export const FileBarChart: LucideIcon;
+  export const Settings: LucideIcon;
+  export const Terminal: LucideIcon;
+  export const Moon: LucideIcon;
+  export const Sun: LucideIcon;
+  export const Brain: LucideIcon;
+  export const Menu: LucideIcon;
+  export const Circle: LucideIcon;
+}
+
+// Add types for shadcn/ui components
+declare module '@/components/ui' {
+  import * as React from 'react';
+  
+  // Label component
+  export interface LabelProps extends React.LabelHTMLAttributes<HTMLLabelElement> {
+    children?: React.ReactNode;
+    className?: string;
+  }
+  
+  export const Label: React.ForwardRefExoticComponent<
+    LabelProps & React.RefAttributes<HTMLLabelElement>
+  >;
+
+  // Progress component
+  export interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
+    value?: number;
+    max?: number;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const Progress: React.ForwardRefExoticComponent<
+    ProgressProps & React.RefAttributes<HTMLDivElement>
+  >;
+
+  // Tabs components
+  export interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+    defaultValue?: string;
+    value?: string;
+    onValueChange?: (value: string) => void;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const Tabs: React.ForwardRefExoticComponent<
+    TabsProps & React.RefAttributes<HTMLDivElement>
+  >;
+
+  export interface TabsListProps extends React.HTMLAttributes<HTMLDivElement> {
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const TabsList: React.ForwardRefExoticComponent<
+    TabsListProps & React.RefAttributes<HTMLDivElement>
+  >;
+
+  export interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+    value: string;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const TabsTrigger: React.ForwardRefExoticComponent<
+    TabsTriggerProps & React.RefAttributes<HTMLButtonElement>
+  >;
+
+  export interface TabsContentProps extends React.HTMLAttributes<HTMLDivElement> {
+    value: string;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const TabsContent: React.ForwardRefExoticComponent<
+    TabsContentProps & React.RefAttributes<HTMLDivElement>
+  >;
+
+  // ScrollArea
+  export interface ScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const ScrollArea: React.ForwardRefExoticComponent<
+    ScrollAreaProps & React.RefAttributes<HTMLDivElement>
+  >;
+}
+
+// Add Badge component definition
+declare module '@/components/ui/badge' {
+  import * as React from 'react';
+  import { VariantProps } from 'class-variance-authority';
+  
+  const badgeVariants: (props?: { variant?: "default" | "secondary" | "destructive" | "outline" | null }) => string;
+  
+  export interface BadgeProps
+    extends React.HTMLAttributes<HTMLDivElement>,
+      VariantProps<typeof badgeVariants> {
+    children?: React.ReactNode;
+    className?: string;
+  }
+  
+  export const Badge: React.FC<BadgeProps>;
 }

@@ -4,4 +4,4 @@
 chmod +x fix-deps.sh
 chmod +x setup.sh
 
-echo "Scripts are now executable. Run ./fix-deps.sh first."
+echo "Scripts are now executable. Run ./fix-deps.sh first followed by ./setup.sh."
