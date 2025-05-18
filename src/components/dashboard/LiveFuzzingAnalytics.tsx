@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -96,9 +97,11 @@ export const LiveFuzzingAnalytics = () => {
     window.addEventListener('scanComplete', handleScanComplete);
     
     // Update data every 2 seconds when active
-    let interval: NodeJS.Timeout | null = null;
+    let intervalId: number | undefined = undefined;
     if (isActive) {
-      interval = setInterval(() => {
+      // Use window.setInterval instead of setInterval directly
+      // and explicitly store as number type to avoid the NodeJS.Timeout issue
+      intervalId = window.setInterval(() => {
         setAnalyticsData(prev => {
           // Add synthetic data point if fuzzing is active
           const time = new Date();
@@ -125,13 +128,15 @@ export const LiveFuzzingAnalytics = () => {
             successRate: successRate,
           };
         });
-      }, 2000);
+      }, 2000) as unknown as number;
     }
     
     return () => {
       window.removeEventListener('scanStart', handleScanStart);
       window.removeEventListener('scanComplete', handleScanComplete);
-      if (interval) clearInterval(interval);
+      if (intervalId !== undefined) {
+        window.clearInterval(intervalId);
+      }
     };
   }, [isActive]);
   

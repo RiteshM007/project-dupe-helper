@@ -12,6 +12,10 @@ To fix the build issues, please follow these steps:
    ```
    ./fix-deps.sh
    ```
+   This will:
+   - Remove the problematic beautifulsoup4 dependency
+   - Install all required dependencies, including React, Recharts, Lucide, etc.
+   - Install Vite globally
    
 3. Run the setup script:
    ```
@@ -28,10 +32,9 @@ To fix the build issues, please follow these steps:
 If you encounter further issues:
 
 - Make sure Node.js and npm are installed and up to date
-- Try deleting `node_modules` and running `npm install` again 
-- Check that you have the correct permissions in your directories
-- If you see React hook errors, make sure the global.d.ts file is properly set up
+- If you see React hook errors, check that the global.d.ts file has the proper React type definitions
 - For Recharts component errors, ensure that the Recharts module declaration in global.d.ts is complete
-- If vite command is not found, try installing it globally with `npm install -g vite`
-- For Lucide component errors, ensure the LucideProps interface in global.d.ts includes the className property
-- For UI component errors with children/className props, ensure their interfaces explicitly include these props
+- For UI component errors where children/className props are missing, update the global.d.ts interface definitions
+- If icon errors persist, check that all used lucide-react icons are declared in the global.d.ts file
+- If build errors persist, try running `npm install` again manually
+- If you get any Timeout type errors, make sure to cast intervals to 'number' type

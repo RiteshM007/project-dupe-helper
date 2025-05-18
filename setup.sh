@@ -1,6 +1,9 @@
 
 #!/bin/bash
 
+# Make sure fix-deps.sh is executable
+chmod +x fix-deps.sh
+
 # Install all dependencies
 npm install
 
