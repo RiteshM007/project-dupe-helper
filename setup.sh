@@ -12,8 +12,10 @@ mkdir -p src/types
 mkdir -p src/components/layout
 mkdir -p src/components/dashboard
 mkdir -p src/components/fuzzer
+mkdir -p src/components/headless
 mkdir -p src/lib
 mkdir -p src/hooks
+mkdir -p src/utils/browser
 
 # Let the user know we're done
 echo "Setup complete! You can now run: npm run dev"

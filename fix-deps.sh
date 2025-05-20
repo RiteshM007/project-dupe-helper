@@ -25,6 +25,9 @@ npm install @radix-ui/react-separator @radix-ui/react-slider @radix-ui/react-slo
 npm install @radix-ui/react-switch @radix-ui/react-tabs @radix-ui/react-toast
 npm install @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-tooltip
 
+# Install additional dependencies for headless browser functionality
+npm install puppeteer axios
+
 # Make sure Vite is installed and available globally (as backup)
 npm install -g vite
 
