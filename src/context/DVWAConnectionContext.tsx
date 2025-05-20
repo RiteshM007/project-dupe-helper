@@ -1,40 +1,47 @@
 
 import React, { createContext, useContext, useState } from 'react';
 
-interface DVWAConnectionContextType {
+export interface DVWAConnectionContextType {
   isConnected: boolean;
-  setIsConnected: (status: boolean) => void;
+  setIsConnected: (connected: boolean) => void;
   dvwaUrl: string;
   setDvwaUrl: (url: string) => void;
   sessionCookie: string;
   setSessionCookie: (cookie: string) => void;
 }
 
-const DVWAConnectionContext = createContext<DVWAConnectionContextType | undefined>(undefined);
+const DVWAConnectionContext = createContext<DVWAConnectionContextType>({
+  isConnected: false,
+  setIsConnected: () => {},
+  dvwaUrl: '',
+  setDvwaUrl: () => {},
+  sessionCookie: '',
+  setSessionCookie: () => {},
+});
 
-export function DVWAConnectionProvider({ children }: { children: React.ReactNode }) {
-  const [isConnected, setIsConnected] = useState(false);
-  const [dvwaUrl, setDvwaUrl] = useState('');
-  const [sessionCookie, setSessionCookie] = useState('');
+export const useDVWAConnection = () => useContext(DVWAConnectionContext);
+
+export const DVWAConnectionProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [dvwaUrl, setDvwaUrl] = useState<string>('');
+  const [sessionCookie, setSessionCookie] = useState<string>('');
 
   return (
-    <DVWAConnectionContext.Provider value={{
-      isConnected,
-      setIsConnected,
-      dvwaUrl,
-      setDvwaUrl,
-      sessionCookie,
-      setSessionCookie
-    }}>
+    <DVWAConnectionContext.Provider
+      value={{
+        isConnected,
+        setIsConnected,
+        dvwaUrl,
+        setDvwaUrl,
+        sessionCookie,
+        setSessionCookie,
+      }}
+    >
       {children}
     </DVWAConnectionContext.Provider>
   );
-}
+};
 
-export function useDVWAConnection() {
-  const context = useContext(DVWAConnectionContext);
-  if (context === undefined) {
-    throw new Error('useDVWAConnection must be used within a DVWAConnectionProvider');
-  }
-  return context;
-}
+export default DVWAConnectionProvider;

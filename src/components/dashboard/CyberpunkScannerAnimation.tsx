@@ -1,386 +1,187 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle } from 'lucide-react';
 
-import React, { useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import gsap from 'gsap';
-
-// Define the threat level type explicitly
-type ThreatLevel = 'none' | 'low' | 'medium' | 'high' | 'critical';
-
-interface CyberpunkScannerAnimationProps {
-  active?: boolean;
-  threatLevel?: ThreatLevel;
-  detectedThreats?: number;
-  dvwaConnected?: boolean;
-  dvwaUrl?: string;
-  currentVulnerability?: string;
-  exploitPayload?: string;
+interface Detection {
+  id: string;
+  text: string;
+  level: string;
+  timestamp: Date;
 }
 
-export const CyberpunkScannerAnimation: React.FC<CyberpunkScannerAnimationProps> = ({
-  active = false,
-  threatLevel = 'none',
-  detectedThreats = 0,
-  dvwaConnected = false,
-  dvwaUrl = '',
-  currentVulnerability = '',
-  exploitPayload = ''
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const scannerRef = useRef<HTMLDivElement>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const beamRef = useRef<HTMLDivElement>(null);
-  const glitchTextRef = useRef<HTMLDivElement>(null);
-
-  // Define colors based on threat level
-  const getThreatColor = (): string => {
-    switch (threatLevel) {
-      case 'critical':
-        return '#ff2d55';
-      case 'high':
-        return '#ff9500';
-      case 'medium':
-        return '#ffcc00';
-      case 'low':
-        return '#34c759';
-      default:
-        return '#00ccff';
-    }
-  };
+export const CyberpunkScannerAnimation: React.FC = () => {
+  const [scanProgress, setScanProgress] = useState(0);
+  const [detections, setDetections] = useState<Detection[]>([]);
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [scanActive, setScanActive] = useState(false);
 
   useEffect(() => {
-    if (!active || !containerRef.current) return;
-    
-    const threatColor = getThreatColor();
-    const scanner = scannerRef.current;
-    const grid = gridRef.current;
-    const beam = beamRef.current;
-    const glitchText = glitchTextRef.current;
-    
-    if (scanner && grid && beam) {
-      // Reset animations
-      gsap.killTweensOf([scanner, grid, beam]);
-      
-      // Scanner rotation animation
-      gsap.to(scanner, {
-        rotation: 360,
-        duration: 8,
-        repeat: -1,
-        ease: "linear"
-      });
-      
-      // Scanner pulse animation
-      gsap.to(scanner, {
-        opacity: 0.7,
-        scale: 1.05,
-        duration: 1.5,
-        repeat: -1,
-        yoyo: true,
-        ease: "sine.inOut"
-      });
-      
-      // Grid movement animation
-      gsap.to(grid, {
-        backgroundPosition: '0 -100px',
-        duration: 10,
-        repeat: -1,
-        ease: "linear"
-      });
-      
-      // Scan beam animation
-      gsap.fromTo(beam, {
-        top: 0,
-        opacity: 0.5
-      }, {
-        top: '100%',
-        opacity: 0.8,
-        duration: 2,
-        repeat: -1,
-        ease: "power1.inOut",
-        yoyo: true
-      });
-      
-      // Malware detection animation (if threats found)
-      if (threatLevel !== 'none' && glitchText) {
-        gsap.set(glitchText, {
-          display: 'flex'
-        });
-        
-        // Create glitch effect
-        const glitchTl = gsap.timeline({
-          repeat: -1,
-          repeatDelay: 3
-        });
-        
-        glitchTl.to(glitchText, {
-          x: () => `${Math.random() * 10 - 5}px`,
-          y: () => `${Math.random() * 5 - 2.5}px`,
-          skewX: () => `${Math.random() * 4 - 2}deg`,
-          textShadow: `${threatColor} 2px 0px, cyan -2px 0px`,
-          duration: 0.1,
-          repeat: 20,
-          yoyo: true,
-          ease: "steps(1)"
-        });
-      } else if (glitchText) {
-        gsap.set(glitchText, {
-          display: 'none'
-        });
-      }
-    }
-    
-    return () => {
-      if (scanner && grid && beam && glitchText) {
-        gsap.killTweensOf([scanner, grid, beam, glitchText]);
-      }
+    const handleScanStart = () => {
+      setScanProgress(0);
+      setDetections([]);
+      setIsFlashing(false);
+      setScanActive(true);
     };
-  }, [active, threatLevel]);
 
-  // Simplify the complex template literal for grid background
-  const gridBackgroundImage = `
-    linear-gradient(0deg, transparent 24%, ${getThreatColor()}1a 25%, ${getThreatColor()}1a 26%, transparent 27%, transparent 74%, ${getThreatColor()}1a 75%, ${getThreatColor()}1a 76%, transparent 77%, transparent),
-    linear-gradient(90deg, transparent 24%, ${getThreatColor()}1a 25%, ${getThreatColor()}1a 26%, transparent 27%, transparent 74%, ${getThreatColor()}1a 75%, ${getThreatColor()}1a 76%, transparent 77%, transparent)
-  `;
+    const handleScanProgress = (e: CustomEvent<{ progress: number }>) => {
+      setScanProgress(e.detail.progress);
+    };
 
-  // Helper function to determine text color class
-  const getTextColorClass = (level: ThreatLevel): string => {
-    if (level === 'none') return 'text-cyan-400';
-    if (level === 'critical') return 'text-red-500';
-    if (level === 'high') return 'text-orange-500';
-    if (level === 'medium') return 'text-yellow-500';
-    if (level === 'low') return 'text-green-500';
-    return 'text-cyan-400';
+    const handleScanComplete = () => {
+      setScanActive(false);
+    };
+
+    const handleScanStop = () => {
+      setScanActive(false);
+    };
+
+    const handleThreatDetected = (e: CustomEvent<{ payload: string; field: string; severity: ThreatLevel | string }>) => {
+      const { payload, severity } = e.detail;
+      
+      // Cast severity to ThreatLevel if it's a string
+      const threatLevel = severity as ThreatLevel;
+      
+      setDetections(prev => [
+        ...prev, 
+        {
+          id: `threat-${Date.now()}`,
+          text: payload,
+          level: threatLevel || 'medium',
+          timestamp: new Date()
+        }
+      ]);
+      
+      // Flash effect
+      setIsFlashing(true);
+      setTimeout(() => setIsFlashing(false), 1000);
+    };
+
+    window.addEventListener('scanStart', handleScanStart);
+    window.addEventListener('scanProgress', handleScanProgress as EventListener);
+    window.addEventListener('scanComplete', handleScanComplete);
+    window.addEventListener('scanStop', handleScanStop);
+    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+
+    return () => {
+      window.removeEventListener('scanStart', handleScanStart);
+      window.removeEventListener('scanProgress', handleScanProgress as EventListener);
+      window.removeEventListener('scanComplete', handleScanComplete);
+      window.removeEventListener('scanStop', handleScanStop);
+      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+    };
+  }, []);
+
+  const getThreatColor = (threatLevel: ThreatLevel | string): string => {
+    // Cast string to ThreatLevel if it's a string
+    const level = threatLevel as ThreatLevel;
+    
+    switch (level) {
+      case 'critical':
+        return '#ff0022';
+      case 'high':
+        return '#ff3d00';
+      case 'medium':
+        return '#ffaa00';
+      case 'low':
+        return '#00aaff';
+      default:
+        return '#00aaff'; // Default to 'low' color
+    }
   };
 
+  const getDetectionStyle = (level: string) => {
+    const color = getThreatColor(level);
+    return {
+      color: color,
+      textShadow: `0 0 5px ${color}, 0 0 10px ${color}`,
+    };
+  };
+
+  const handleThreatDetected = useCallback((e: CustomEvent<{ payload: string; field: string; severity: ThreatLevel | string }>) => {
+    const { payload, severity } = e.detail;
+    
+    // Cast severity to ThreatLevel if it's a string
+    const threatLevel = severity as ThreatLevel;
+    
+    setDetections(prev => [
+      ...prev, 
+      {
+        id: `threat-${Date.now()}`,
+        text: payload,
+        level: threatLevel || 'medium',
+        timestamp: new Date()
+      }
+    ]);
+    
+    // Flash effect
+    setIsFlashing(true);
+    setTimeout(() => setIsFlashing(false), 1000);
+  }, []);
+
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-full overflow-hidden bg-black/80 rounded-md"
-      style={{ perspective: '1000px' }}
-    >
-      <div
-        ref={gridRef}
-        className="absolute inset-0 z-0"
-        style={{
-          backgroundImage: gridBackgroundImage,
-          backgroundSize: '50px 50px',
-          opacity: 0.5
-        }}
-      />
-
-      <div
-        ref={scannerRef}
-        className="absolute top-1/2 left-1/2 w-[200px] h-[200px] -ml-[100px] -mt-[100px] z-10"
-      >
+    <Card className="bg-black/90 text-white border-white/10 overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg font-semibold">Cyberpunk Scanner</CardTitle>
+        <CardDescription className="text-sm text-gray-400">Real-time threat detection</CardDescription>
+      </CardHeader>
+      <CardContent className="relative h-[240px]">
+        {/* Scan Lines */}
         <div
-          className="w-full h-full rounded-full border-2 border-cyan-500/50 flex items-center justify-center"
-          style={{ boxShadow: `0 0 20px ${getThreatColor()}80` }}
-        >
-          <div className="w-3/4 h-3/4 rounded-full border border-cyan-400/30" />
-          <div className="absolute w-1/2 h-1/2 rounded-full border border-cyan-300/20" />
-          
-          <div className="absolute w-full h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
-          <div className="absolute h-full w-[2px] bg-gradient-to-b from-transparent via-cyan-400 to-transparent" />
-          
-          <div
-            className="absolute top-1/2 left-1/2 h-[50%] w-[4px] -ml-[2px] origin-bottom transform rotate-0"
-            style={{
-              background: `linear-gradient(to top, ${getThreatColor()}, transparent)`,
-              boxShadow: `0 0 15px ${getThreatColor()}`
-            }}
-          />
-        </div>
-      </div>
-
-      <div className="absolute top-4 left-4 z-20">
-        <div className="font-mono text-xs text-cyan-400">
-          <div className="flex gap-2 items-center mb-1">
-            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            <span>SCAN STATUS: {active ? 'ACTIVE' : 'STANDBY'}</span>
-          </div>
-          <div className="text-[10px] opacity-70">TARGET SYSTEM ANALYSIS</div>
-          
-          {dvwaConnected && (
-            <div className="mt-2 p-1.5 bg-black/30 border border-cyan-900/30 rounded-sm text-[10px]">
-              <div className="text-green-400 flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                DVWA CONNECTED
-              </div>
-              <div className="mt-0.5 text-[9px] opacity-80 break-all">
-                {dvwaUrl || 'localhost/dvwa'}
-              </div>
-              
-              {currentVulnerability && (
-                <div className="mt-1 text-yellow-400">
-                  VULNERABILITY: {currentVulnerability}
-                </div>
-              )}
-              
-              {exploitPayload && (
-                <div className="mt-0.5 font-bold text-red-400 break-all">
-                  PAYLOAD: {exploitPayload}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="absolute top-4 right-4 z-20">
-        <div className="font-mono text-xs text-right">
-          <div className={getTextColorClass(threatLevel)}>
-            THREAT LEVEL: {threatLevel.toUpperCase()}
-          </div>
-          <div className="text-[10px] text-cyan-400 opacity-70">
-            {detectedThreats > 0
-              ? `${detectedThreats} THREAT${detectedThreats !== 1 ? 'S' : ''} DETECTED`
-              : 'NO THREATS DETECTED'}
-          </div>
-        </div>
-      </div>
-
-      <div
-        ref={beamRef}
-        className="absolute left-0 w-full h-1 z-15"
-        style={{
-          background: `linear-gradient(to right, transparent, ${getThreatColor()}, transparent)`,
-          boxShadow: `0 0 10px ${getThreatColor()}`,
-          opacity: 0.7
-        }}
-      />
-
-      <div className="absolute inset-0 z-5">
-        <svg width="100%" height="100%" className="opacity-20">
-          <g stroke={getThreatColor()} strokeWidth="1" fill="none">
-            <AnimatePresence>
-              {active && (
-                <>
-                  <motion.path
-                    d="M10,10 L50,10 L50,50 L100,50"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    exit={{ pathLength: 0 }}
-                    transition={{ duration: 2, repeat: -1, repeatType: "loop", repeatDelay: 3 }}
-                  />
-                  <motion.path
-                    d="M100,10 L180,10 L180,120"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    exit={{ pathLength: 0 }}
-                    transition={{ duration: 1.5, repeat: -1, repeatType: "loop", repeatDelay: 2, delay: 0.5 }}
-                  />
-                  <motion.path
-                    d="M10,100 L80,100 L80,180 L200,180"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    exit={{ pathLength: 0 }}
-                    transition={{ duration: 2.5, repeat: -1, repeatType: "loop", repeatDelay: 1, delay: 1 }}
-                  />
-                </>
-              )}
-            </AnimatePresence>
-          </g>
-        </svg>
-      </div>
-
-      <div
-        ref={glitchTextRef}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 text-4xl font-bold font-mono hidden items-center justify-center"
-      >
-        <div className={threatLevel === 'critical' ? 'text-red-500' : getTextColorClass(threatLevel)}>
-          {threatLevel === 'critical'
-            ? 'MALWARE'
-            : threatLevel === 'high'
-            ? 'THREAT'
-            : threatLevel === 'medium'
-            ? 'WARNING'
-            : threatLevel === 'low'
-            ? 'CAUTION'
-            : ''}
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {active && (
-          <>
-            <motion.div
-              className="absolute top-[80%] left-4 z-20 w-[120px] h-[40px] border border-cyan-500/50 font-mono text-[10px] text-cyan-400 p-1 rounded-sm"
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 0.8, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div className="flex justify-between items-center mb-1">
-                <span>PROC:</span>
-                <span className="text-right">ACTIVE</span>
-              </div>
-              <div className="w-full h-[6px] bg-black/50 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-cyan-500"
-                  initial={{ width: '0%' }}
-                  animate={{ width: ['30%', '80%', '45%', '90%', '60%'] }}
-                  transition={{ duration: 4, repeat: -1, repeatType: "reverse" }}
-                />
-              </div>
-            </motion.div>
-            
-            <motion.div
-              className="absolute top-[80%] right-4 z-20 w-[120px] h-[40px] border border-cyan-500/50 font-mono text-[10px] text-cyan-400 p-1 rounded-sm"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 0.8, x: 0 }}
-              exit={{ opacity: 0, x: 50 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <div className="flex justify-between items-center mb-1">
-                <span>MEM:</span>
-                <span className="text-right">{Math.floor(Math.random() * 1024)}MB</span>
-              </div>
-              <div className="w-full h-[6px] bg-black/50 rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-cyan-500"
-                  initial={{ width: '0%' }}
-                  animate={{ width: ['20%', '70%', '40%', '85%', '55%'] }}
-                  transition={{ duration: 5, repeat: -1, repeatType: "reverse" }}
-                />
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {active && dvwaConnected && (
-        <motion.div
-          className="absolute bottom-[20%] left-1/2 -translate-x-1/2 z-20 w-[80%] max-w-[400px] border border-yellow-500/50 font-mono text-[10px] text-yellow-400 p-2 rounded-sm bg-black/50"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 30 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="text-[11px] font-bold mb-1 text-center">DVWA EXPLOIT DETECTION</div>
-          <div className="flex justify-between items-center mb-1">
-            <span>TYPE:</span>
-            <span className="text-right font-bold">{currentVulnerability || 'SQL INJECTION'}</span>
-          </div>
-          
-          {exploitPayload && (
-            <div className="w-full mt-1 p-1 bg-black/50 rounded-sm break-all">
-              <div className="text-red-400 font-bold text-[8px] mb-0.5">EXPLOIT:</div>
-              <div className="text-[8px]">{exploitPayload}</div>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {active && (
-        <motion.div
-          className="absolute inset-0 z-40 pointer-events-none mix-blend-overlay"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0, 0.05, 0, 0.08, 0] }}
-          transition={{ duration: 0.5, repeat: -1, repeatDelay: Math.random() * 5 + 2 }}
+          className={`absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent to-black opacity-50 transition-opacity duration-500 ${
+            scanActive ? 'translate-y-0' : '-translate-y-full'
+          }`}
           style={{
-            backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+            animation: scanActive ? 'scan 3s linear infinite' : 'none',
           }}
         />
-      )}
-    </div>
+
+        {/* Static */}
+        <div
+          className="absolute top-0 left-0 w-full h-full pointer-events-none"
+          style={{
+            background: 'url(/static.gif)',
+            mixBlendMode: 'overlay',
+            opacity: 0.3,
+          }}
+        />
+
+        {/* Progress Bar */}
+        <div className="absolute bottom-4 left-4 w-[calc(100%-2rem)]">
+          <Progress value={scanProgress} className="h-1 bg-gray-800" />
+          <p className="text-xs text-right mt-1 text-gray-400">{Math.round(scanProgress)}%</p>
+        </div>
+
+        {/* Detections */}
+        <div className="absolute top-4 left-4 w-[calc(100%-2rem)] h-[calc(100%-6rem)] overflow-y-auto">
+          {detections.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              {scanActive ? 'Scanning for threats...' : 'No threats detected'}
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {detections.map((detection) => (
+                <li
+                  key={detection.id}
+                  className="text-sm font-mono"
+                  style={getDetectionStyle(detection.level)}
+                >
+                  <AlertCircle className="inline-block mr-1 h-4 w-4 align-middle" />
+                  {detection.text}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Flash Effect */}
+        <div
+          className={`absolute top-0 left-0 w-full h-full bg-red-500 opacity-50 z-10 transition-opacity duration-300 pointer-events-none ${
+            isFlashing ? 'opacity-50' : 'opacity-0'
+          }`}
+        />
+      </CardContent>
+    </Card>
   );
 };

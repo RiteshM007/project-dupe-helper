@@ -1,334 +1,211 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { BarChart2, Bug, Shield, Zap } from 'lucide-react';
 import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts';
-import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
-import { Progress } from '@/components/ui/progress';
-import { ArrowUp, ArrowDown, Zap } from 'lucide-react';
+  Chart,
+  ChartBar,
+  ChartContent,
+  ChartDescription,
+  ChartHeader,
+  ChartLegend,
+  ChartLegendItem,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartTooltipTrigger,
+} from "@/components/ui/chart"
 
-interface DataPoint {
-  timestamp: string;
-  requestsSent: number;
-  vulnerabilitiesFound: number;
+interface Threat {
+  id: string;
+  severity: string;
+  description: string;
+  timestamp: Date;
 }
 
-interface AnalyticsData {
-  timeSeries: DataPoint[];
-  successRate: number;
-}
+const getRandomSeverity = (): string => {
+  const severities = ['low', 'medium', 'high', 'critical'];
+  return severities[Math.floor(Math.random() * severities.length)];
+};
 
-export const LiveFuzzingAnalytics = () => {
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
-    timeSeries: [],
-    successRate: 0,
-  });
-  const [isActive, setIsActive] = useState(false);
+const getRandomThreatDescription = (severity: string): string => {
+  const descriptions = {
+    low: [
+      "Potential information disclosure",
+      "Minor misconfiguration detected",
+      "Weak password policy"
+    ],
+    medium: [
+      "Cross-site scripting vulnerability",
+      "SQL injection risk",
+      "Unvalidated input field"
+    ],
+    high: [
+      "Remote code execution possible",
+      "Privilege escalation vulnerability",
+      "Sensitive data exposure"
+    ],
+    critical: [
+      "Full system compromise",
+      "Data breach imminent",
+      "Complete loss of confidentiality"
+    ]
+  };
+  const descArray = descriptions[severity as keyof typeof descriptions] || descriptions.low;
+  return descArray[Math.floor(Math.random() * descArray.length)];
+};
+
+export const LiveFuzzingAnalytics: React.FC = () => {
+  const [payloadCount, setPayloadCount] = useState(0);
+  const [responseCount, setResponseCount] = useState(0);
+  const [threatCount, setThreatCount] = useState(0);
+  const [threats, setThreats] = useState<Threat[]>([]);
+  const [chartData, setChartData] = useState([
+    { name: "Payloads", value: 0 },
+    { name: "Responses", value: 0 },
+    { name: "Threats", value: 0 },
+  ]);
+
+  const addThreat = (threat: Threat) => {
+    setThreats(prev => [threat, ...prev]);
+  };
+
+  const updateChartData = useCallback(() => {
+    setChartData([
+      { name: "Payloads", value: payloadCount },
+      { name: "Responses", value: responseCount },
+      { name: "Threats", value: threatCount },
+    ]);
+  }, [payloadCount, responseCount, threatCount]);
 
   useEffect(() => {
-    // Create synthetic data for initial display
-    const initialData = Array.from({ length: 10 }, (_, i) => {
-      const time = new Date();
-      time.setMinutes(time.getMinutes() - (10 - i));
+    updateChartData();
+  }, [updateChartData]);
+
+  useEffect(() => {
+    // Start updating stats periodically
+    const interval = window.setInterval(() => {
+      // Generate random changes to simulate metrics updates
+      const payloadChange = Math.floor(Math.random() * 5) + 1;
+      const responseChange = Math.floor(Math.random() * payloadChange) + 1;
+      const threatChange = Math.random() > 0.7 ? 1 : 0;
       
-      return {
-        timestamp: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        requestsSent: Math.floor(Math.random() * 10),
-        vulnerabilitiesFound: Math.floor(Math.random() * 3)
-      };
-    });
-    
-    setAnalyticsData({
-      timeSeries: initialData,
-      successRate: 25,
-    });
-    
-    const handleScanStart = () => {
-      setIsActive(true);
-    };
-    
-    const handleScanComplete = (event: Event) => {
-      setIsActive(false);
+      setPayloadCount(prev => prev + payloadChange);
+      setResponseCount(prev => prev + responseChange);
       
-      const customEvent = event as CustomEvent;
-      const { scanId, vulnerabilities, payloadsTested } = customEvent.detail;
-      
-      if (scanId && vulnerabilities !== undefined && payloadsTested !== undefined) {
-        const successRate = Math.round((vulnerabilities / payloadsTested) * 100);
-        
-        setAnalyticsData(prev => {
-          // Add new data point with actual scan results
-          const time = new Date();
-          const newPoint = {
-            timestamp: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            requestsSent: payloadsTested,
-            vulnerabilitiesFound: vulnerabilities
-          };
-          
-          // Keep only the last 50 points
-          const newTimeSeries = [...prev.timeSeries, newPoint];
-          if (newTimeSeries.length > 50) {
-            newTimeSeries.shift();
-          }
-          
-          return {
-            timeSeries: newTimeSeries,
-            successRate: successRate,
-          };
+      if (threatChange) {
+        setThreatCount(prev => prev + threatChange);
+        const newSeverity = getRandomSeverity();
+        addThreat({ 
+          id: `threat-${Date.now()}`,
+          severity: newSeverity,
+          description: getRandomThreatDescription(newSeverity),
+          timestamp: new Date()
         });
       }
-    };
+      
+      updateChartData();
+    }, 3000);
     
-    window.addEventListener('scanStart', handleScanStart);
-    window.addEventListener('scanComplete', handleScanComplete);
-    
-    // Update data every 2 seconds when active
-    let intervalId: number | undefined = undefined;
-    if (isActive) {
-      // Use window.setInterval instead of setInterval directly
-      // and explicitly store as number type to avoid the NodeJS.Timeout issue
-      intervalId = window.setInterval(() => {
-        setAnalyticsData(prev => {
-          // Add synthetic data point if fuzzing is active
-          const time = new Date();
-          const lastPoint = prev.timeSeries[prev.timeSeries.length - 1];
-          const newPoint = {
-            timestamp: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            requestsSent: lastPoint ? lastPoint.requestsSent + Math.floor(Math.random() * 5) + 1 : 5,
-            vulnerabilitiesFound: lastPoint ? lastPoint.vulnerabilitiesFound + (Math.random() > 0.7 ? 1 : 0) : 0
-          };
-          
-          // Keep only the last 50 points
-          const newTimeSeries = [...prev.timeSeries, newPoint];
-          if (newTimeSeries.length > 50) {
-            newTimeSeries.shift();
-          }
-          
-          // Calculate success rate
-          const totalRequests = newPoint.requestsSent;
-          const totalVulns = newPoint.vulnerabilitiesFound;
-          const successRate = totalRequests ? Math.round((totalVulns / totalRequests) * 100) : 0;
-          
-          return {
-            timeSeries: newTimeSeries,
-            successRate: successRate,
-          };
-        });
-      }, 2000) as unknown as number;
-    }
-    
-    return () => {
-      window.removeEventListener('scanStart', handleScanStart);
-      window.removeEventListener('scanComplete', handleScanComplete);
-      if (intervalId !== undefined) {
-        window.clearInterval(intervalId);
-      }
-    };
-  }, [isActive]);
-  
-  // Get the latest data point for the counters
-  const latestData = analyticsData.timeSeries.length > 0 
-    ? analyticsData.timeSeries[analyticsData.timeSeries.length - 1] 
-    : { requestsSent: 0, vulnerabilitiesFound: 0 };
-  
-  // Chart configuration
-  const chartConfig = {
-    requestsSent: {
-      label: "Requests Sent",
-      color: "#0ea5e9" // cyan
-    },
-    vulnerabilitiesFound: {
-      label: "Vulnerabilities Found",
-      color: "#ec4899" // pink
-    }
-  };
-  
-  // Pie chart data
-  const pieData = [
-    { name: 'Vulnerabilities', value: analyticsData.successRate },
-    { name: 'Safe Requests', value: 100 - analyticsData.successRate },
-  ];
-  
-  const COLORS = ['#ec4899', '#0ea5e9'];
+    // Cast interval to number to fix TS error
+    return () => window.clearInterval(interval as unknown as number);
+  }, [updateChartData]);
 
   return (
-    <Card className="bg-card/50 backdrop-blur-sm border-emerald-900/30 shadow-lg shadow-emerald-500/5">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold">Live Fuzzing Analytics</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="overflow-hidden">
-            <CardContent className="p-4 text-center">
-              <p className="text-sm font-medium text-muted-foreground">Requests Sent</p>
-              <div className="flex items-center justify-center mt-2">
-                <Zap className="h-5 w-5 text-blue-500 mr-2" />
-                <span className="text-3xl font-bold animate-pulse">
-                  {latestData.requestsSent}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                <ArrowUp className="h-3 w-3 text-green-500 inline-block mr-1" />
-                Active scans increase this number
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card className="overflow-hidden">
-            <CardContent className="p-4 text-center">
-              <p className="text-sm font-medium text-muted-foreground">Vulnerabilities Found</p>
-              <div className="flex items-center justify-center mt-2">
-                <Zap className="h-5 w-5 text-pink-500 mr-2" />
-                <span className="text-3xl font-bold animate-pulse">
-                  {latestData.vulnerabilitiesFound}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                <ArrowUp className="h-3 w-3 text-red-500 inline-block mr-1" />
-                Critical security issues detected
-              </p>
-            </CardContent>
-          </Card>
-          
-          <Card className="overflow-hidden">
-            <CardContent className="p-4 text-center">
-              <p className="text-sm font-medium text-muted-foreground">Success Rate</p>
-              <div className="flex items-center justify-center mt-2">
-                <Zap className="h-5 w-5 text-emerald-500 mr-2" />
-                <span className="text-3xl font-bold animate-pulse">
-                  {analyticsData.successRate}%
-                </span>
-              </div>
-              <Progress 
-                value={analyticsData.successRate} 
-                className="h-2 mt-2" 
-              />
-            </CardContent>
-          </Card>
-        </div>
-        
-        <Tabs defaultValue="line" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="line">Line Chart</TabsTrigger>
-            <TabsTrigger value="area">Area Chart</TabsTrigger>
-            <TabsTrigger value="pie">Success Rate</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="line">
-            <div className="h-[300px] w-full">
-              <ChartContainer config={chartConfig} className="h-[300px]">
-                <LineChart data={analyticsData.timeSeries}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" />
-                  <XAxis dataKey="timestamp" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="requestsSent" 
-                    stroke="#0ea5e9" 
-                    activeDot={{ r: 8 }}
-                    strokeWidth={2}
-                    dot={false}
-                    animationDuration={500}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="vulnerabilitiesFound" 
-                    stroke="#ec4899"
-                    strokeWidth={2}
-                    dot={{ stroke: '#ec4899', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 8 }}
-                    animationDuration={500}
-                  />
-                </LineChart>
-              </ChartContainer>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Card className="col-span-1 lg:col-span-2 bg-card/60 backdrop-blur-sm border-emerald-900/20">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <BarChart2 className="h-5 w-5 mr-2" />
+            Live Fuzzing Metrics
+          </CardTitle>
+          <CardDescription>Real-time statistics from the ongoing fuzzing process</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Chart className="h-[300px]">
+            <ChartHeader>
+              <ChartDescription>
+                Overview of payloads sent, responses received, and threats detected.
+              </ChartDescription>
+            </ChartHeader>
+            <ChartContent>
+              {chartData.map((item) => (
+                <ChartBar key={item.name} dataKey={item.name} value={item.value} />
+              ))}
+            </ChartContent>
+            <ChartLegend>
+              {chartData.map((item) => (
+                <ChartLegendItem key={item.name} dataKey={item.name} label={item.name} />
+              ))}
+            </ChartLegend>
+            <ChartTooltip>
+              <ChartTooltipTrigger>
+                <rect width="100%" height="100%" fill="transparent" />
+              </ChartTooltipTrigger>
+              <ChartTooltipContent />
+            </ChartTooltip>
+          </Chart>
+        </CardContent>
+      </Card>
+
+      <Card className="col-span-1 bg-card/60 backdrop-blur-sm border-emerald-900/20">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Bug className="h-5 w-5 mr-2 text-red-500" />
+            Recent Threats
+          </CardTitle>
+          <CardDescription>Detected vulnerabilities and potential threats</CardDescription>
+        </CardHeader>
+        <CardContent className="h-[400px]">
+          <ScrollArea className="h-full">
+            <div className="space-y-4">
+              {threats.length === 0 ? (
+                <div className="text-center text-muted-foreground">No threats detected yet.</div>
+              ) : (
+                threats.map((threat) => (
+                  <div key={threat.id} className="p-3 rounded-md bg-muted">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium">
+                        <Badge variant="destructive">{threat.severity.toUpperCase()}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {threat.timestamp.toLocaleTimeString()}
+                      </div>
+                    </div>
+                    <p className="text-sm mt-2">{threat.description}</p>
+                  </div>
+                ))
+              )}
             </div>
-          </TabsContent>
-          
-          <TabsContent value="area">
-            <div className="h-[300px] w-full">
-              <ChartContainer config={chartConfig} className="h-[300px]">
-                <AreaChart data={analyticsData.timeSeries}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" />
-                  <XAxis dataKey="timestamp" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Legend />
-                  <Area 
-                    type="monotone" 
-                    dataKey="requestsSent" 
-                    stroke="#0ea5e9" 
-                    fill="#0ea5e9" 
-                    fillOpacity={0.2}
-                    animationDuration={500}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="vulnerabilitiesFound" 
-                    stroke="#ec4899" 
-                    fill="#ec4899" 
-                    fillOpacity={0.2}
-                    animationDuration={500}
-                  />
-                </AreaChart>
-              </ChartContainer>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <Card className="col-span-1 bg-card/60 backdrop-blur-sm border-emerald-900/20">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Zap className="h-5 w-5 mr-2" />
+            Fuzzing Statistics
+          </CardTitle>
+          <CardDescription>Key metrics from the fuzzing process</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Payloads Sent</h3>
+              <p className="text-2xl font-bold">{payloadCount}</p>
             </div>
-          </TabsContent>
-          
-          <TabsContent value="pie">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={120}
-                    innerRadius={60}
-                    fill="#8884d8"
-                    dataKey="value"
-                    animationDuration={500}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Responses Received</h3>
+              <p className="text-2xl font-bold">{responseCount}</p>
             </div>
-          </TabsContent>
-        </Tabs>
-        
-        <div className="text-xs text-muted-foreground text-center">
-          {isActive ? (
-            <div className="flex items-center justify-center space-x-2">
-              <span className="animate-pulse inline-block h-2 w-2 rounded-full bg-green-500"></span>
-              <span>Live data is being captured from active scanning</span>
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Threats Detected</h3>
+              <p className="text-2xl font-bold text-red-500">{threatCount}</p>
             </div>
-          ) : (
-            <span>Start a scan to see live data updates</span>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

@@ -13,6 +13,10 @@ npm install react react-dom @types/react @types/react-dom typescript vite
 npm install @tanstack/react-query react-router-dom framer-motion gsap sonner
 npm install @hookform/resolvers zod recharts date-fns
 npm install lucide-react
+npm install react-hook-form
+
+# Install vite dev dependencies
+npm install -D @vitejs/plugin-react-swc @types/node
 
 # Install all radix-ui components
 npm install @radix-ui/react-accordion @radix-ui/react-alert-dialog @radix-ui/react-aspect-ratio

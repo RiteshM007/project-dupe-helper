@@ -292,9 +292,19 @@ export const RealTimeFuzzing: React.FC = () => {
         
         addLog(`Uploaded ${customPayloads.length} payloads to server successfully`);
         
-        // Start the fuzzing process on the server
+        // Start the fuzzing process on the server - FIXED: Changed to use vulnerabilityType array directly
+        // since server doesn't support setVulnerabilityTypes method
         addLog("Starting fuzzing process on server...");
-        const startResponse = await fuzzerApi.startFuzzing(sessionId, [moduleToVulnerabilityType(module)], []);
+        
+        // Get the vulnerability type based on the selected module
+        const vulnType = moduleToVulnerabilityType(module);
+        
+        const startResponse = await fuzzerApi.startFuzzing(
+          sessionId, 
+          // Pass vulnerability type without calling setVulnerabilityTypes on server
+          vulnType ? [vulnType] : ['all'], 
+          customPayloads // Pass payloads directly to ensure they're available to the server
+        );
         
         if (!startResponse || !startResponse.success) {
           throw new Error(`Failed to start fuzzing: ${startResponse?.message || 'Unknown error'}`);

@@ -28,9 +28,9 @@ To fix the build issues and set up the Web Fuzzer with headless browser capabili
    npm run dev
    ```
 
-## New Field-Targeted Fuzzing Features
+## Field-Targeted Fuzzing Features
 
-The application now includes field-targeted fuzzing capabilities:
+The application includes field-targeted fuzzing capabilities:
 
 1. **Headless Browser Control**
    - Connect to a target URL
@@ -58,3 +58,10 @@ If you encounter further issues:
 - If icon errors persist, check that all used lucide-react icons are declared in the global.d.ts file
 - If build errors persist, try running `npm install` again manually
 - If you get any Timeout type errors, make sure to cast intervals to 'number' type
+
+## Server Connection Errors
+
+If you see errors like "Request failed with status code 500" or "WebFuzzer object has no attribute":
+- Make sure your backend server is running and accessible
+- Check that the API endpoints match what the frontend is expecting
+- The fuzzer API has been updated to handle vulnerability types differently
