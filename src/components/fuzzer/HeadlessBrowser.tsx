@@ -1,259 +1,259 @@
+import React, { useState, useCallback } from 'react';
+import {
+  Card,
+  Input,
+  Button,
+} from "@/components/ui";
+import { Loader, Search, Server, Check } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Link, Bug, Shield, Play, StopCircle } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-import { useDVWAConnection } from '@/context/DVWAConnectionContext';
-
-interface HeadlessBrowserProps {
-  onConnect: (url: string) => void;
-  onStartFuzzing: () => void;
-  onStopFuzzing: () => void;
-  isFuzzing: boolean;
-  hasSelectedField: boolean;
-  exploitKeyword: string;
+interface Field {
+  id: string;
+  name: string;
+  type: string;
+  value?: string;
+  selector: string;
 }
 
-export const HeadlessBrowser: React.FC<HeadlessBrowserProps> = ({
-  onConnect,
-  onStartFuzzing,
-  onStopFuzzing,
-  isFuzzing,
-  hasSelectedField,
-  exploitKeyword,
-}) => {
-  const { isConnected, dvwaUrl, setDvwaUrl } = useDVWAConnection();
-  const [url, setUrl] = useState(dvwaUrl || 'http://localhost:8080');
-  const [browserStatus, setBrowserStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
-  const [targetOptions, setTargetOptions] = useState({
-    useAuthentication: true,
-    disableSecurity: false,
-    followRedirects: true
+interface BrowserOptions {
+  headless: boolean;
+  devtools: boolean;
+}
+
+export const HeadlessBrowser = () => {
+  const [targetUrl, setTargetUrl] = useState<string>('');
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [isConnecting, setIsConnecting] = useState<boolean>(false);
+  const [isDetecting, setIsDetecting] = useState<boolean>(false);
+  const [detectedFields, setDetectedFields] = useState<Field[]>([]);
+  const [browserOptions, setBrowserOptions] = useState<BrowserOptions>({
+    headless: true,
+    devtools: false,
   });
+  const { toast } = useToast();
 
-  useEffect(() => {
-    if (isConnected) {
-      setBrowserStatus('connected');
-    }
-  }, [isConnected]);
-
-  const handleConnect = () => {
-    // Validate URL
-    if (!url || !url.startsWith('http')) {
+  const handleConnect = useCallback(async () => {
+    setIsConnecting(true);
+    try {
+      // Simulate connecting to the target URL
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setIsConnected(true);
       toast({
-        title: "Invalid URL",
-        description: "Please enter a valid URL starting with http:// or https://",
-        variant: "destructive",
+        title: "Connected",
+        description: `Successfully connected to ${targetUrl}`,
       });
-      return;
+    } catch (error) {
+      console.error("Connection error:", error);
+      toast({
+        variant: "destructive",
+        title: "Connection Failed",
+        description: "Failed to connect to the target URL.",
+      });
+    } finally {
+      setIsConnecting(false);
     }
+  }, [targetUrl, toast]);
 
-    setBrowserStatus('connecting');
-    
-    // Simulate browser connection
-    setTimeout(() => {
-      if (Math.random() > 0.3) { // Simulating successful connection most of the time
-        setBrowserStatus('connected');
-        setDvwaUrl(url);
-        onConnect(url);
-        
-        toast({
-          title: "Headless Browser Connected",
-          description: `Connected to ${url}`,
-        });
-      } else {
-        setBrowserStatus('error');
-        
-        toast({
-          title: "Connection Failed",
-          description: "Could not connect to the target URL",
-          variant: "destructive",
-        });
+  const handleDetectFields = useCallback(async () => {
+    setIsDetecting(true);
+    try {
+      // Simulate detecting fields
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const mockFields: Field[] = [
+        { id: 'username', name: 'Username', type: 'text', selector: '#username' },
+        { id: 'password', name: 'Password', type: 'password', selector: '#password' },
+        { id: 'submit', name: 'Submit', type: 'submit', selector: '#submit' },
+      ];
+      setDetectedFields(mockFields);
+      toast({
+        title: "Fields Detected",
+        description: `Detected ${mockFields.length} fields on the page.`,
+      });
+    } catch (error) {
+      console.error("Field detection error:", error);
+      toast({
+        variant: "destructive",
+        title: "Detection Failed",
+        description: "Failed to detect fields on the page.",
+      });
+    } finally {
+      setIsDetecting(false);
+    }
+  }, [toast]);
+
+  const handleFieldSelect = (field: Field) => {
+    toast({
+      title: "Field Selected",
+      description: `Selected field: ${field.name || field.id}`,
+    });
+    // Dispatch custom event
+    window.dispatchEvent(new CustomEvent('fieldSelected', {
+      detail: {
+        fieldId: field.id,
+        fieldType: field.type,
+        fieldName: field.name,
       }
-    }, 2000);
-  };
-
-  const handleStartFuzzing = () => {
-    if (!hasSelectedField) {
-      toast({
-        title: "No Field Selected",
-        description: "Please select a target field first",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!exploitKeyword) {
-      toast({
-        title: "No Exploit Keyword",
-        description: "Please set an exploit keyword to trigger fuzzing",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    onStartFuzzing();
+    }));
   };
 
   return (
-    <Card className="bg-card/60 backdrop-blur-sm border-slate-800/20">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Link className="h-5 w-5 mr-2" />
-          Headless Browser Control
-        </CardTitle>
-        <CardDescription>
-          Configure and control the headless browser for targeted fuzzing
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Target URL</label>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter target URL (e.g., http://localhost:8080)"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              disabled={browserStatus === 'connecting' || isFuzzing}
-            />
+    <Card className="p-6">
+      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <Server className="h-5 w-5" />
+        Headless Browser Control
+      </h3>
+      
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Input
+            type="url"
+            placeholder="Enter target URL..."
+            value={targetUrl}
+            onChange={(e) => setTargetUrl(e.target.value)}
+            className="flex-1"
+          />
+          <Button
+            onClick={handleConnect}
+            disabled={isConnecting || isConnected}
+            className="min-w-[120px]"
+          >
+            {isConnecting ? (
+              <>
+                <Loader className="h-4 w-4 mr-2 animate-spin" />
+                Connecting...
+              </>
+            ) : isConnected ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Connected
+              </>
+            ) : (
+              'Connect'
+            )}
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-sm font-medium">
+              Status: {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
+          {isConnected && (
             <Button
-              onClick={handleConnect}
-              disabled={browserStatus === 'connecting' || isFuzzing}
-              variant={browserStatus === 'connected' ? "outline" : "default"}
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsConnected(false);
+                setDetectedFields([]);
+                toast({
+                  title: "Disconnected",
+                  description: "Browser connection closed",
+                });
+              }}
             >
-              {browserStatus === 'connecting' ? "Connecting..." : 
-               browserStatus === 'connected' ? "Connected" : "Connect"}
+              Disconnect
             </Button>
+          )}
+        </div>
+
+        {/* Browser Options */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium">Browser Options</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="headless"
+                checked={browserOptions.headless}
+                onChange={(e) => setBrowserOptions(prev => ({
+                  ...prev,
+                  headless: e.target.checked
+                }))}
+                className="rounded"
+              />
+              <label htmlFor="headless" className="text-sm">Headless Mode</label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="devtools"
+                checked={browserOptions.devtools}
+                onChange={(e) => setBrowserOptions(prev => ({
+                  ...prev,
+                  devtools: e.target.checked
+                }))}
+                className="rounded"
+              />
+              <label htmlFor="devtools" className="text-sm">DevTools</label>
+            </div>
           </div>
         </div>
-        
-        {browserStatus === 'connected' && (
-          <>
-            <Tabs defaultValue="options" className="w-full">
-              <TabsList className="w-full">
-                <TabsTrigger value="options">Browser Options</TabsTrigger>
-                <TabsTrigger value="status">Status</TabsTrigger>
-                <TabsTrigger value="console">Console</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="options" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <label htmlFor="auth" className="flex items-center space-x-2 text-sm">
-                    <input
-                      id="auth"
-                      type="checkbox"
-                      checked={targetOptions.useAuthentication}
-                      onChange={(e) => setTargetOptions({...targetOptions, useAuthentication: e.target.checked})}
-                      className="rounded border-gray-300"
-                    />
-                    <span>Use Authentication</span>
-                  </label>
-                  
-                  <label htmlFor="security" className="flex items-center space-x-2 text-sm">
-                    <input
-                      id="security"
-                      type="checkbox"
-                      checked={targetOptions.disableSecurity}
-                      onChange={(e) => setTargetOptions({...targetOptions, disableSecurity: e.target.checked})}
-                      className="rounded border-gray-300"
-                    />
-                    <span>Disable Security Features</span>
-                  </label>
-                  
-                  <label htmlFor="redirects" className="flex items-center space-x-2 text-sm">
-                    <input
-                      id="redirects"
-                      type="checkbox"
-                      checked={targetOptions.followRedirects}
-                      onChange={(e) => setTargetOptions({...targetOptions, followRedirects: e.target.checked})}
-                      className="rounded border-gray-300"
-                    />
-                    <span>Follow Redirects</span>
-                  </label>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="status" className="pt-4">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-muted-foreground">Status:</div>
-                    <div className="font-medium flex items-center">
-                      <Badge variant="outline" className={browserStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'}>
-                        {browserStatus.charAt(0).toUpperCase() + browserStatus.slice(1)}
-                      </Badge>
-                    </div>
-                    
-                    <div className="text-muted-foreground">Target URL:</div>
-                    <div className="font-mono text-xs truncate">{url}</div>
-                    
-                    <div className="text-muted-foreground">Target Field:</div>
-                    <div className="font-medium">
-                      {hasSelectedField ? (
-                        <Badge variant="outline" className="bg-blue-500/10 text-blue-500">Selected</Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-red-500/10 text-red-500">None</Badge>
-                      )}
-                    </div>
-                    
-                    <div className="text-muted-foreground">Exploit Keyword:</div>
-                    <div className="font-mono text-xs">{exploitKeyword || 'Not set'}</div>
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="console" className="pt-4">
-                <div className="font-mono text-xs p-4 bg-black/80 text-green-400 rounded-md h-[150px] overflow-y-auto">
-                  <div className="opacity-70"># Browser Console Output</div>
-                  <div className="opacity-70">{`> Connecting to ${url}`}</div>
-                  <div className="opacity-70">> Connection established</div>
-                  <div className="opacity-70">> Document loaded</div>
-                  <div className="opacity-70">> Waiting for field selection...</div>
-                  {hasSelectedField && <div>> Field selected, monitoring for exploit keyword "{exploitKeyword}"</div>}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <div className="flex gap-2">
-          {browserStatus === 'connected' && (
-            <>
+
+        {/* Field Detection */}
+        {isConnected && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium">Detected Fields</h4>
               <Button
-                onClick={handleStartFuzzing}
-                disabled={isFuzzing || !hasSelectedField || !exploitKeyword}
-                className="bg-green-600 hover:bg-green-700"
+                variant="outline"
+                size="sm"
+                onClick={handleDetectFields}
+                disabled={isDetecting}
               >
-                <Play className="h-4 w-4 mr-2" />
-                Start Fuzzing
+                {isDetecting ? (
+                  <>
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                    Detecting...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Detect Fields
+                  </>
+                )}
               </Button>
-              
-              {isFuzzing && (
-                <Button
-                  onClick={onStopFuzzing}
-                  variant="destructive"
-                >
-                  <StopCircle className="h-4 w-4 mr-2" />
-                  Stop Fuzzing
-                </Button>
-              )}
-            </>
-          )}
+            </div>
+
+            {detectedFields.length > 0 && (
+              <div className="space-y-2">
+                {detectedFields.map((field, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-muted"
+                    onClick={() => handleFieldSelect(field)}
+                  >
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{field.name || field.id || 'Unnamed Field'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Type: {field.type} | Selector: {field.selector}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFieldSelect(field);
+                      }}
+                    >
+                      Select
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Connection Status */}
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div>Target URL: {targetUrl || 'Not set'}</div>
+          <div>Fields Detected: {detectedFields.length}</div>
+          <div>Browser: {browserOptions.headless ? 'Headless' : 'Visible'} Chrome</div>
         </div>
-        
-        <div className="flex items-center">
-          {browserStatus === 'connected' && (
-            <Badge className="bg-green-500 text-white">Browser Ready</Badge>
-          )}
-          {isFuzzing && (
-            <Badge className="bg-purple-500 text-white ml-2 animate-pulse">Fuzzing Active</Badge>
-          )}
-        </div>
-      </CardFooter>
+      </div>
     </Card>
   );
 };
