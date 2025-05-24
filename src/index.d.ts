@@ -41,15 +41,22 @@ declare global {
     type ElementRef<C extends React.ComponentType<any>> = C extends React.ComponentType<infer P> ? P extends { ref?: infer R } ? R : never : never;
     type ComponentPropsWithoutRef<T extends React.ElementType> = React.PropsWithoutRef<React.ComponentProps<T>>;
     type ChangeEvent<T = Element> = React.SyntheticEvent<T>;
-    type KeyboardEvent<T = Element> = React.SyntheticEvent<T>;
+    type KeyboardEvent<T = Element> = React.KeyboardEvent<T>;
     type ComponentType<P = {}> = React.ComponentClass<P> | React.FunctionComponent<P>;
     type CSSProperties = {
       [key: string]: any;
     };
     
-    // Export missing hooks
+    // Export missing hooks and functions
     export const useCallback: typeof import('react').useCallback;
     export const useId: typeof import('react').useId;
+    export const useMemo: typeof import('react').useMemo;
+    export const useState: typeof import('react').useState;
+    export const useEffect: typeof import('react').useEffect;
+    export const useRef: typeof import('react').useRef;
+    export const useContext: typeof import('react').useContext;
+    export const createContext: typeof import('react').createContext;
+    export const forwardRef: typeof import('react').forwardRef;
   }
 }
 
@@ -168,6 +175,7 @@ interface ToastOptions {
 
 interface ToastFunction {
   (options: ToastOptions): void;
+  (message: string, options?: ToastOptions): void;
   success: (message: string, options?: ToastOptions) => void;
   error: (message: string, options?: ToastOptions) => void;
   info: (message: string, options?: ToastOptions) => void;
@@ -179,4 +187,23 @@ declare module '@/hooks/use-toast' {
     toasts: any[];
   };
   export const toast: ToastFunction;
+}
+
+// Fix framer-motion types
+declare module 'framer-motion' {
+  export interface AnimateProps {
+    initial?: any;
+    animate?: any;
+    exit?: any;
+    transition?: any;
+  }
+  
+  export const motion: {
+    div: React.FC<AnimateProps & React.HTMLAttributes<HTMLDivElement>>;
+    path: React.FC<AnimateProps & React.SVGAttributes<SVGPathElement>>;
+    svg: React.FC<AnimateProps & React.SVGAttributes<SVGSVGElement>>;
+    span: React.FC<AnimateProps & React.HTMLAttributes<HTMLSpanElement>>;
+  };
+  
+  export const AnimatePresence: React.FC<{ children: React.ReactNode }>;
 }
