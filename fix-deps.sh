@@ -18,6 +18,9 @@ npm install typescript@^5.0.0
 npm install -D vite@^5.0.0 @vitejs/plugin-react-swc@^3.0.0
 npm install -D @types/node@^20.0.0
 
+# Install Lovable tagger
+npm install -D lovable-tagger@^1.0.0
+
 # Install UI and routing dependencies
 npm install @tanstack/react-query@^5.56.2
 npm install react-router-dom@^6.26.2
@@ -84,5 +87,8 @@ npm install vaul@^0.9.3
 npm install file-saver@^2.0.5
 npm install @types/file-saver@^2.0.7
 npm install jszip@^3.10.1
+
+# Install Tailwind CSS
+npm install -D tailwindcss@^3.4.0 autoprefixer@^10.4.0 postcss@^8.4.0
 
 echo "Dependencies fixed! Now run: ./setup.sh followed by npm run dev"

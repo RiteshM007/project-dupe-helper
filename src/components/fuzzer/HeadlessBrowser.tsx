@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from 'react';
+
+import React, { useState } from 'react';
 import {
   Card,
   Input,
   Button,
 } from "@/components/ui";
 import { Loader, Search, Server, Check } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 interface Field {
   id: string;
@@ -30,9 +31,8 @@ export const HeadlessBrowser = () => {
     headless: true,
     devtools: false,
   });
-  const { toast } = useToast();
 
-  const handleConnect = useCallback(async () => {
+  const handleConnect = async () => {
     setIsConnecting(true);
     try {
       // Simulate connecting to the target URL
@@ -52,9 +52,9 @@ export const HeadlessBrowser = () => {
     } finally {
       setIsConnecting(false);
     }
-  }, [targetUrl, toast]);
+  };
 
-  const handleDetectFields = useCallback(async () => {
+  const handleDetectFields = async () => {
     setIsDetecting(true);
     try {
       // Simulate detecting fields
@@ -79,7 +79,7 @@ export const HeadlessBrowser = () => {
     } finally {
       setIsDetecting(false);
     }
-  }, [toast]);
+  };
 
   const handleFieldSelect = (field: Field) => {
     toast({

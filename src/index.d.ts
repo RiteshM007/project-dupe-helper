@@ -42,9 +42,14 @@ declare global {
     type ComponentPropsWithoutRef<T extends React.ElementType> = React.PropsWithoutRef<React.ComponentProps<T>>;
     type ChangeEvent<T = Element> = React.SyntheticEvent<T>;
     type KeyboardEvent<T = Element> = React.SyntheticEvent<T>;
+    type ComponentType<P = {}> = React.ComponentClass<P> | React.FunctionComponent<P>;
     type CSSProperties = {
       [key: string]: any;
     };
+    
+    // Export missing hooks
+    export const useCallback: typeof import('react').useCallback;
+    export const useId: typeof import('react').useId;
   }
 }
 
@@ -67,6 +72,15 @@ declare module '@/components/ui/chart' {
   }>;
   
   export const ChartTooltipContent: React.FC<any>;
+  export const Chart: React.FC<any>;
+  export const ChartBar: React.FC<any>;
+  export const ChartContent: React.FC<any>;
+  export const ChartDescription: React.FC<any>;
+  export const ChartHeader: React.FC<any>;
+  export const ChartLegend: React.FC<any>;
+  export const ChartLegendItem: React.FC<any>;
+  export const ChartTooltip: React.FC<any>;
+  export const ChartTooltipTrigger: React.FC<any>;
 }
 
 // Add DVWAConnectionContext type
@@ -105,7 +119,7 @@ declare module '@/backend/WebFuzzer' {
   }
 }
 
-// Badge prop types
+// Badge prop types - fix variant issue
 declare interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
@@ -144,7 +158,7 @@ declare module 'lucide-react' {
   export const Zap: React.FC<any>;
 }
 
-// For toast types
+// For toast types - fix missing methods
 interface ToastOptions {
   variant?: 'default' | 'destructive';
   duration?: number;
@@ -152,12 +166,17 @@ interface ToastOptions {
   title?: string;
 }
 
+interface ToastFunction {
+  (options: ToastOptions): void;
+  success: (message: string, options?: ToastOptions) => void;
+  error: (message: string, options?: ToastOptions) => void;
+  info: (message: string, options?: ToastOptions) => void;
+}
+
 declare module '@/hooks/use-toast' {
-  export function toast(options: ToastOptions): void;
-  export const toast: {
-    (options: ToastOptions): void;
-    success(message: string, options?: ToastOptions): void;
-    error(message: string, options?: ToastOptions): void;
-    info(message: string, options?: ToastOptions): void;
-  }
+  export const useToast: () => {
+    toast: ToastFunction;
+    toasts: any[];
+  };
+  export const toast: ToastFunction;
 }
