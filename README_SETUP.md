@@ -42,12 +42,13 @@ To update the project to the latest Lovable version and fix all build issues, pl
 - All Radix UI components properly installed
 - Fixed shadcn/ui component compatibility
 - Proper toast system with all methods (success, error, info)
+- Removed problematic beautifulsoup4 dependency
 
 ✅ **Build System Improvements**
 - Fixed Vite not found errors
 - Proper component tagger plugin integration
 - Enhanced TypeScript definitions
-- Removed problematic beautifulsoup4 dependency
+- Fixed QueryClient instantiation
 
 ## Features Working After Update
 

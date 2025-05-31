@@ -1,9 +1,6 @@
 
 #!/bin/bash
 
-# Remove problematic dependency from package.json
-sed -i '/beautifulsoup4/d' package.json
-
 # Clean install dependencies
 rm -rf node_modules
 rm -f package-lock.json

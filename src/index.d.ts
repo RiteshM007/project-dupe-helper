@@ -47,7 +47,7 @@ declare global {
       [key: string]: any;
     };
     
-    // Export missing hooks and functions
+    // Export missing hooks and functions - make them accessible
     export const useCallback: typeof import('react').useCallback;
     export const useId: typeof import('react').useId;
     export const useMemo: typeof import('react').useMemo;
@@ -149,8 +149,10 @@ declare module 'lucide-react' {
   export const ChevronDown: React.FC<any>;
   export const Clock: React.FC<any>;
   export const Database: React.FC<any>;
+  export const Dot: React.FC<any>;
   export const FileText: React.FC<any>;
   export const FileX: React.FC<any>;
+  export const GripVertical: React.FC<any>;
   export const Link: React.FC<any>;
   export const Loader: React.FC<any>;
   export const MoreHorizontal: React.FC<any>;
