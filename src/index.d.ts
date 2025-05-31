@@ -46,10 +46,11 @@ declare global {
     type CSSProperties = {
       [key: string]: any;
     };
+    
     // Fix missing React hooks
-    const useCallback: <T extends (...args: any[]) => any>(callback: T, deps: React.DependencyList) => T;
-    const useMemo: <T>(factory: () => T, deps: React.DependencyList | undefined) => T;
-    const useId: () => string;
+    export const useCallback: <T extends (...args: any[]) => any>(callback: T, deps: React.DependencyList) => T;
+    export const useMemo: <T>(factory: () => T, deps: React.DependencyList | undefined) => T;
+    export const useId: () => string;
   }
 }
 
@@ -152,13 +153,13 @@ declare interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'secondary' | 'destructive' | 'outline';
 }
 
-// Progress component props
+// Progress component props - fix className issue
 declare interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
   value?: number;
   className?: string;
 }
 
-// ScrollArea component props
+// ScrollArea component props - fix children issue
 declare interface ScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
   children?: React.ReactNode;
@@ -216,6 +217,8 @@ declare module 'lucide-react' {
   export const Upload: React.FC<any>;
   export const X: React.FC<any>;
   export const Zap: React.FC<any>;
+  export const Download: React.FC<any>;
+  export const Brain: React.FC<any>;
 }
 
 // For toast types - fix missing methods

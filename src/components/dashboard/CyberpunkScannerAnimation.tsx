@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -99,27 +100,6 @@ export const CyberpunkScannerAnimation: React.FC = () => {
     };
   };
 
-  const handleThreatDetected = useCallback((e: CustomEvent<{ payload: string; field: string; severity: ThreatLevel | string }>) => {
-    const { payload, severity } = e.detail;
-    
-    // Cast severity to ThreatLevel if it's a string
-    const threatLevel = severity as ThreatLevel;
-    
-    setDetections(prev => [
-      ...prev, 
-      {
-        id: `threat-${Date.now()}`,
-        text: payload,
-        level: threatLevel || 'medium',
-        timestamp: new Date()
-      }
-    ]);
-    
-    // Flash effect
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 1000);
-  }, []);
-
   return (
     <Card className="bg-black/90 text-white border-white/10 overflow-hidden">
       <CardHeader className="pb-2">
@@ -149,7 +129,7 @@ export const CyberpunkScannerAnimation: React.FC = () => {
 
         {/* Progress Bar */}
         <div className="absolute bottom-4 left-4 w-[calc(100%-2rem)]">
-          <Progress value={scanProgress} className="h-1 bg-gray-800" />
+          <Progress value={scanProgress} />
           <p className="text-xs text-right mt-1 text-gray-400">{Math.round(scanProgress)}%</p>
         </div>
 

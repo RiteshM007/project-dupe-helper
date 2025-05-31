@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -70,17 +71,13 @@ export const LiveFuzzingAnalytics: React.FC = () => {
     setThreats(prev => [threat, ...prev]);
   };
 
-  const updateChartData = useCallback(() => {
+  useEffect(() => {
     setChartData([
       { name: "Payloads", value: payloadCount },
       { name: "Responses", value: responseCount },
       { name: "Threats", value: threatCount },
     ]);
   }, [payloadCount, responseCount, threatCount]);
-
-  useEffect(() => {
-    updateChartData();
-  }, [updateChartData]);
 
   useEffect(() => {
     // Start updating stats periodically
@@ -103,13 +100,11 @@ export const LiveFuzzingAnalytics: React.FC = () => {
           timestamp: new Date()
         });
       }
-      
-      updateChartData();
     }, 3000);
     
     // Cast interval to number to fix TS error
     return () => window.clearInterval(interval as unknown as number);
-  }, [updateChartData]);
+  }, []);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader, Bug, Shield, Zap, AlertCircle } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { WebFuzzer } from '@/backend/WebFuzzer';
 import { DVWAConfig } from './DVWAConnection';
 
@@ -66,16 +66,13 @@ export const DVWATargetedFuzzing: React.FC<DVWATargetedFuzzingProps> = ({
           );
           
           addLog('Successfully connected to DVWA');
-          toast({
-            title: "DVWA Connection Established",
+          toast("DVWA Connection Established", {
             description: "Connected to DVWA successfully. Ready for targeted fuzzing.",
           });
         } catch (error) {
           addLog(`Error connecting to DVWA: ${error}`);
-          toast({
-            title: "Connection Error",
+          toast("Connection Error", {
             description: "Failed to connect to DVWA. Please check your credentials.",
-            variant: "destructive",
           });
         }
       };
@@ -139,8 +136,7 @@ export const DVWATargetedFuzzing: React.FC<DVWATargetedFuzzingProps> = ({
         addLog(`Detected vulnerability page: ${detectedPage.name} (${detectedPage.url})`);
         addLog(`Vulnerable parameters: ${detectedPage.parameters.join(", ")}`);
         
-        toast({
-          title: "Page Detected",
+        toast("Page Detected", {
           description: `Now targeting: ${detectedPage.name}`,
         });
       }
@@ -151,10 +147,8 @@ export const DVWATargetedFuzzing: React.FC<DVWATargetedFuzzingProps> = ({
   
   const startFuzzing = async () => {
     if (!fuzzer || !currentPage) {
-      toast({
-        title: "Cannot Start Fuzzing",
+      toast("Cannot Start Fuzzing", {
         description: "No vulnerability page detected to fuzz",
-        variant: "destructive",
       });
       return;
     }
@@ -185,8 +179,7 @@ export const DVWATargetedFuzzing: React.FC<DVWATargetedFuzzingProps> = ({
           clearInterval(progressInterval);
           setIsFuzzing(false);
           addLog("Fuzzing process completed!");
-          toast({
-            title: "Fuzzing Complete",
+          toast("Fuzzing Complete", {
             description: `Completed fuzzing ${currentPage.name}`,
           });
           return 100;
@@ -207,10 +200,8 @@ export const DVWATargetedFuzzing: React.FC<DVWATargetedFuzzingProps> = ({
           const threatType = vulnerabilityType.toUpperCase();
           addLog(`⚠️ ALERT: Potential ${threatType} vulnerability detected!`);
           
-          toast({
-            title: "Threat Detected!",
+          toast("Threat Detected!", {
             description: `A potential ${threatType} vulnerability was found`,
-            variant: "destructive",
           });
         }
       }, 300);
@@ -264,8 +255,7 @@ export const DVWATargetedFuzzing: React.FC<DVWATargetedFuzzingProps> = ({
     setIsFuzzing(false);
     addLog("Fuzzing process stopped by user");
     
-    toast({
-      title: "Fuzzing Stopped",
+    toast("Fuzzing Stopped", {
       description: "The fuzzing process has been stopped",
     });
   };
@@ -404,16 +394,16 @@ export const DVWATargetedFuzzing: React.FC<DVWATargetedFuzzingProps> = ({
           <CardDescription>Live targeted fuzzing output</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea 
-            ref={logContainerRef}
-            className="h-[300px] w-full rounded-lg border bg-muted/50 p-4 font-mono text-sm"
-          >
+          <ScrollArea className="h-[300px] w-full rounded-lg border bg-muted/50 p-4 font-mono text-sm">
             {logs.length === 0 ? (
               <div className="flex h-full items-center justify-center text-muted-foreground">
                 Waiting for fuzzing activity...
               </div>
             ) : (
-              <div className="space-y-2">
+              <div 
+                ref={logContainerRef}
+                className="space-y-2"
+              >
                 {logs.map((log, index) => (
                   <div 
                     key={index}
