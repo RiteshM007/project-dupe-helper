@@ -46,17 +46,6 @@ declare global {
     type CSSProperties = {
       [key: string]: any;
     };
-    
-    // Export missing hooks and functions - make them accessible
-    export const useCallback: typeof import('react').useCallback;
-    export const useId: typeof import('react').useId;
-    export const useMemo: typeof import('react').useMemo;
-    export const useState: typeof import('react').useState;
-    export const useEffect: typeof import('react').useEffect;
-    export const useRef: typeof import('react').useRef;
-    export const useContext: typeof import('react').useContext;
-    export const createContext: typeof import('react').createContext;
-    export const forwardRef: typeof import('react').forwardRef;
   }
 }
 

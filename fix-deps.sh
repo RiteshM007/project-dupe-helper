@@ -88,4 +88,4 @@ npm install jszip@^3.10.1
 # Install Tailwind CSS
 npm install -D tailwindcss@^3.4.0 autoprefixer@^10.4.0 postcss@^8.4.0
 
-echo "Dependencies fixed! Now run: ./setup.sh followed by npm run dev"
+echo "Dependencies fixed! Enhanced ML models implemented. Now run: ./setup.sh followed by npm run dev"

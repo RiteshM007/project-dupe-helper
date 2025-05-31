@@ -15,7 +15,7 @@ import NotFound from "./pages/NotFound";
 import MLAnalysis from "./pages/MLAnalysis";
 import { DVWAConnectionProvider } from "./context/DVWAConnectionContext";
 
-// Create a client with proper instantiation
+// Create a client instance properly
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
