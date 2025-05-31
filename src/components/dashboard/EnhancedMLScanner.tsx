@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,19 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Brain, BarChart2, AlertTriangle, CheckCircle2, FileText, BookOpen, Server, Database } from 'lucide-react';
+import { Brain, BarChart2, AlertTriangle, CheckCircle2, FileText, BookOpen, Server, Database, Zap } from 'lucide-react';
 import { EnhancedScannerAnimation } from "./EnhancedScannerAnimation";
-import { trainIsolationForest, trainRandomForest, generateReport, performClustering } from "@/backend/enhanced_ml_models";
+import { trainIsolationForest, trainRandomForest, generateReport, performClustering, EnhancedPayloadGenerator } from "@/backend/enhanced_ml_models";
 import { toast } from 'sonner';
 
-interface MachineLearningProps {
+interface EnhancedMLScannerProps {
   scanActive: boolean;
   scanCompleted: boolean;
   dataset: any[];
   threatLevel: 'none' | 'low' | 'medium' | 'high' | 'critical';
 }
 
-export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
+export const EnhancedMLScanner: React.FC<EnhancedMLScannerProps> = ({
   scanActive,
   scanCompleted,
   dataset,
@@ -29,25 +30,45 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
   const [clusterAnalysisDone, setClusterAnalysisDone] = useState(false);
   const [anomalyModelTrained, setAnomalyModelTrained] = useState(false);
   const [classificationModelTrained, setClassificationModelTrained] = useState(false);
+  const [payloadGeneratorReady, setPayloadGeneratorReady] = useState(false);
   const [collectedDataset, setCollectedDataset] = useState<any[]>([]);
+  const [payloadGenerator, setPayloadGenerator] = useState<EnhancedPayloadGenerator | null>(null);
   const [modelInsights, setModelInsights] = useState<{
     accuracy: number;
     precision: number;
     recall: number;
     f1: number;
+    anomalyRate: number;
     payloadPatterns: string[];
     vulnerabilityTypes: { type: string; count: number; probability: number }[];
     recommendations: string[];
     clusters?: any[];
+    generatedPayloads: string[];
   }>({
     accuracy: 0,
     precision: 0,
     recall: 0,
     f1: 0,
+    anomalyRate: 0,
     payloadPatterns: [],
     vulnerabilityTypes: [],
-    recommendations: []
+    recommendations: [],
+    generatedPayloads: []
   });
+
+  // Initialize payload generator
+  useEffect(() => {
+    const initGenerator = async () => {
+      try {
+        const generator = new EnhancedPayloadGenerator();
+        setPayloadGenerator(generator);
+        setPayloadGeneratorReady(true);
+      } catch (error) {
+        console.error("Failed to initialize payload generator:", error);
+      }
+    };
+    initGenerator();
+  }, []);
 
   // Listen for dataset entries from fuzzer
   useEffect(() => {
@@ -55,12 +76,10 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
       setCollectedDataset(prev => [...prev, event.detail]);
     };
 
-    // Listen for scan completion event
     const handleScanComplete = () => {
-      // Wait a moment for any final dataset entries
       setTimeout(() => {
         if (collectedDataset.length > 0) {
-          trainModel();
+          trainEnhancedModels();
         }
       }, 500);
     };
@@ -76,11 +95,10 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
 
   // Start training when scan completes and there's data
   useEffect(() => {
-    // Combine provided dataset with collected dataset
     const combinedDataset = [...dataset, ...collectedDataset];
     
     if (scanCompleted && combinedDataset.length > 0 && !modelTrained && !trainingActive) {
-      trainModel();
+      trainEnhancedModels();
     }
   }, [scanCompleted, dataset, collectedDataset, modelTrained]);
 
@@ -89,67 +107,72 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
     if (trainingActive) {
       const interval = setInterval(() => {
         setTrainingProgress(prev => {
-          const newProgress = prev + Math.random() * 5;
+          const newProgress = prev + Math.random() * 3 + 1;
           if (newProgress >= 100) {
             clearInterval(interval);
             setTrainingActive(false);
             setModelTrained(true);
-            generateInsights();
+            generateEnhancedInsights();
             return 100;
           }
           return newProgress;
         });
-      }, 300);
+      }, 400);
 
       return () => clearInterval(interval);
     }
   }, [trainingActive]);
 
-  const trainModel = async () => {
+  const trainEnhancedModels = async () => {
     setTrainingActive(true);
     setTrainingProgress(0);
-    toast.info("Starting ML model training with scan results...");
+    toast.info("Starting enhanced ML model training with scan results...");
     
-    // Use the combined dataset
     const combinedDataset = [...dataset, ...collectedDataset];
     
-    // Actual ML training would happen here in a real application
     try {
       // Train isolation forest for anomaly detection
-      const isolationForestModel = await trainIsolationForest(combinedDataset);
+      const isolationResult = await trainIsolationForest(combinedDataset);
       setAnomalyModelTrained(true);
       
       // Train random forest for classification
-      const randomForestModel = await trainRandomForest(combinedDataset);
+      const randomForestResult = await trainRandomForest(combinedDataset);
       setClassificationModelTrained(true);
       
       // Perform clustering analysis
       const clusteringResults = await performClustering(combinedDataset, 3);
       setClusterAnalysisDone(true);
       
-      // Store results for UI display
-      if (randomForestModel.metrics) {
+      // Train payload generator
+      if (payloadGenerator) {
+        await payloadGenerator.analyzeDataset(combinedDataset);
+        const generatedPayloads = await payloadGenerator.generatePayloads(5);
+        
         setModelInsights(prev => ({
           ...prev,
-          accuracy: randomForestModel.metrics.accuracy,
-          precision: randomForestModel.metrics.precision,
-          recall: randomForestModel.metrics.recall,
-          f1: randomForestModel.metrics.f1,
-          clusters: clusteringResults.clusters
+          accuracy: randomForestResult.metrics.accuracy,
+          precision: randomForestResult.metrics.precision,
+          recall: randomForestResult.metrics.recall,
+          f1: randomForestResult.metrics.f1,
+          anomalyRate: isolationResult.metrics.anomalyRate,
+          clusters: clusteringResults.clusters,
+          generatedPayloads
         }));
       }
       
-      toast.success("ML models trained successfully with fuzzing results!");
+      toast.success("Enhanced ML models trained successfully!");
     } catch (error) {
-      console.error("Error during ML training:", error);
-      toast.error("Error training ML models");
+      console.error("Error during enhanced ML training:", error);
+      toast.error("Error training enhanced ML models");
     }
   };
 
-  const generateInsights = async () => {
+  const generateEnhancedInsights = async () => {
     try {
+      const combinedDataset = [...dataset, ...collectedDataset];
+      
       // Extract patterns from payloads that were flagged as threats
-      const threatPayloads = dataset.filter(item => 
+      const threatPayloads = combinedDataset.filter(item => 
         item.label === 'malicious' || item.label === 'suspicious'
       );
       
@@ -160,98 +183,95 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
         vulnTypes[type] = (vulnTypes[type] || 0) + 1;
       });
       
-      // Convert to format expected by UI
       const vulnerabilityTypes = Object.entries(vulnTypes).map(([type, count]) => ({
         type,
         count,
         probability: Math.min(0.95, 0.6 + (count / threatPayloads.length) * 0.3)
       }));
       
-      // For demonstration, create some patterns based on actual payloads
+      // Enhanced pattern detection
       const patterns: string[] = [];
       
       if (vulnTypes['sql_injection'] > 0) {
-        patterns.push('SQL injection attempts using OR 1=1');
+        patterns.push('SQL injection with OR/UNION operators');
+        patterns.push('Database enumeration attempts');
       }
       
       if (vulnTypes['xss'] > 0) {
-        patterns.push('XSS attempts with <script> tags');
+        patterns.push('XSS with script injection');
+        patterns.push('DOM manipulation attempts');
       }
       
       if (vulnTypes['path_traversal'] > 0) {
-        patterns.push('Path traversal using ../ sequences');
+        patterns.push('Directory traversal patterns');
+        patterns.push('File inclusion attempts');
       }
       
       if (vulnTypes['command_injection'] > 0) {
-        patterns.push('Command injection with semicolons');
+        patterns.push('Command execution via shell metacharacters');
+        patterns.push('System command chaining');
       }
       
-      // Add general patterns if we don't have specifics
-      if (patterns.length < 2) {
-        patterns.push('Suspicious input parameter manipulation');
-        patterns.push('Potential security bypass attempts');
+      // Enhanced recommendations
+      const recommendations: string[] = [
+        'Implement parameterized queries to prevent SQL injection',
+        'Use Content Security Policy (CSP) headers',
+        'Sanitize and validate all user inputs',
+        'Implement proper file path validation',
+        'Use whitelist-based input validation',
+        'Deploy Web Application Firewall (WAF)',
+        'Regular security code reviews and testing',
+        'Implement rate limiting and anomaly detection'
+      ];
+      
+      // Generate contextual payloads for different vulnerability types
+      if (payloadGenerator) {
+        const contextualPayloads: string[] = [];
+        for (const vulnType of Object.keys(vulnTypes)) {
+          const typePayloads = await payloadGenerator.generateContextualPayloads(vulnType, 2);
+          contextualPayloads.push(...typePayloads);
+        }
+        
+        setModelInsights(prev => ({
+          ...prev,
+          payloadPatterns: patterns,
+          vulnerabilityTypes,
+          recommendations,
+          generatedPayloads: [...prev.generatedPayloads, ...contextualPayloads]
+        }));
+      } else {
+        setModelInsights(prev => ({
+          ...prev,
+          payloadPatterns: patterns,
+          vulnerabilityTypes,
+          recommendations
+        }));
       }
-      
-      // Generate recommendations based on findings
-      const recommendations: string[] = [];
-      
-      if (vulnerabilityTypes.some(v => v.type === 'sql_injection')) {
-        recommendations.push('Implement prepared statements for all database queries');
-      }
-      
-      if (vulnerabilityTypes.some(v => v.type === 'xss')) {
-        recommendations.push('Apply context-specific output encoding');
-        recommendations.push('Implement Content Security Policy (CSP)');
-      }
-      
-      if (vulnerabilityTypes.some(v => v.type === 'path_traversal')) {
-        recommendations.push('Validate and sanitize file paths');
-      }
-      
-      if (vulnerabilityTypes.some(v => v.type === 'command_injection')) {
-        recommendations.push('Avoid using system commands with user input');
-      }
-      
-      // Add general recommendations
-      recommendations.push('Implement proper input validation');
-      recommendations.push('Use security headers and secure configurations');
-      recommendations.push('Regularly update and patch dependencies');
-      
-      setModelInsights(prev => ({
-        ...prev,
-        payloadPatterns: patterns,
-        vulnerabilityTypes,
-        recommendations
-      }));
       
     } catch (error) {
-      console.error("Error generating insights:", error);
+      console.error("Error generating enhanced insights:", error);
       toast.error("Error analyzing vulnerability patterns");
     }
   };
 
-  // Calculate threat distribution for UI
-  const calculateThreatDistribution = () => {
-    if (!dataset || dataset.length === 0) return [];
+  const generateNewPayloads = async () => {
+    if (!payloadGenerator) return;
     
-    const counts: Record<string, number> = {
-      malicious: 0,
-      suspicious: 0,
-      safe: 0
-    };
-    
-    dataset.forEach(item => {
-      counts[item.label] = (counts[item.label] || 0) + 1;
-    });
-    
-    return [
-      { name: 'Malicious', value: counts.malicious || 0, color: '#ff2d55' },
-      { name: 'Suspicious', value: counts.suspicious || 0, color: '#ffcc00' },
-      { name: 'Safe', value: counts.safe || 0, color: '#34c759' }
-    ];
+    try {
+      toast.info("Generating new payloads...");
+      const newPayloads = await payloadGenerator.generatePayloads(10);
+      
+      setModelInsights(prev => ({
+        ...prev,
+        generatedPayloads: [...prev.generatedPayloads, ...newPayloads]
+      }));
+      
+      toast.success(`Generated ${newPayloads.length} new payloads!`);
+    } catch (error) {
+      console.error("Error generating payloads:", error);
+      toast.error("Failed to generate new payloads");
+    }
   };
-
-  const threatDistribution = calculateThreatDistribution();
 
   return (
     <Card className="border-white/5 bg-white/5 text-white shadow-lg hover:shadow-xl transition-all duration-300">
@@ -259,17 +279,22 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-medium flex items-center">
             <Brain className="w-5 h-5 mr-2 text-purple-400" />
-            Machine Learning Analysis
+            Enhanced ML Analysis
           </CardTitle>
           <div className="flex gap-2">
             {anomalyModelTrained && (
               <Badge variant="outline" className="bg-blue-900/30 text-blue-300 border-blue-700">
-                <Database className="w-3 h-3 mr-1" /> Anomaly Model
+                <Database className="w-3 h-3 mr-1" /> Anomaly
               </Badge>
             )}
             {classificationModelTrained && (
               <Badge variant="outline" className="bg-green-900/30 text-green-300 border-green-700">
                 <Server className="w-3 h-3 mr-1" /> Classification
+              </Badge>
+            )}
+            {payloadGeneratorReady && (
+              <Badge variant="outline" className="bg-orange-900/30 text-orange-300 border-orange-700">
+                <Zap className="w-3 h-3 mr-1" /> Generator
               </Badge>
             )}
             {modelTrained && (
@@ -280,7 +305,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
           </div>
         </div>
         <CardDescription className="text-white/70">
-          Analyzes patterns from scan data using advanced ML algorithms
+          Advanced ML analysis with enhanced payload generation capabilities
         </CardDescription>
       </CardHeader>
       
@@ -290,20 +315,20 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
           {trainingActive ? (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-white/80">Training ML Models...</span>
+                <span className="text-sm text-white/80">Training Enhanced ML Models...</span>
                 <span className="text-sm font-mono text-white/80">{Math.floor(trainingProgress)}%</span>
               </div>
-              <Progress value={trainingProgress} />
+              <Progress value={trainingProgress} className="h-2 bg-white/10" />
               <p className="text-xs text-white/60 italic">
-                Training on {collectedDataset.length + dataset.length} data points from scan results
+                Training on {collectedDataset.length + dataset.length} data points with enhanced algorithms
               </p>
             </div>
           ) : scanActive ? (
             <div className="bg-black/20 rounded-md p-4 border border-white/10">
               <div className="flex items-center">
                 <div className="w-full text-center">
-                  <p className="text-white/80 text-sm">Collecting data for ML training...</p>
-                  <p className="text-xs text-white/60 mt-1">Models will be trained after scan completion</p>
+                  <p className="text-white/80 text-sm">Collecting data for enhanced ML training...</p>
+                  <p className="text-xs text-white/60 mt-1">Enhanced models will be trained after scan completion</p>
                 </div>
               </div>
             </div>
@@ -311,20 +336,20 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
             <div className="bg-black/20 rounded-md p-4 border border-white/10">
               <div className="flex items-center">
                 <div className="w-full text-center">
-                  <p className="text-white/80 text-sm">Start a scan to collect data for ML analysis</p>
+                  <p className="text-white/80 text-sm">Start a scan to collect data for enhanced ML analysis</p>
                 </div>
               </div>
             </div>
           ) : null}
           
-          {/* ML Insights after training */}
+          {/* Enhanced ML Insights */}
           {modelTrained && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-black/20 rounded-md p-4 border border-white/10">
                   <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center">
                     <BarChart2 className="w-4 h-4 mr-1 text-blue-400" />
-                    Model Metrics
+                    Enhanced Model Metrics
                   </h3>
                   <div className="space-y-2">
                     <div>
@@ -350,10 +375,10 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
                     </div>
                     <div>
                       <div className="flex justify-between items-center text-xs">
-                        <span>F1 Score</span>
-                        <span>{(modelInsights.f1 * 100).toFixed(1)}%</span>
+                        <span>Anomaly Rate</span>
+                        <span>{(modelInsights.anomalyRate * 100).toFixed(1)}%</span>
                       </div>
-                      <Progress value={modelInsights.f1 * 100} className="h-1.5 bg-white/10" />
+                      <Progress value={modelInsights.anomalyRate * 100} className="h-1.5 bg-white/10" />
                     </div>
                   </div>
                 </div>
@@ -361,7 +386,7 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
                 <div className="bg-black/20 rounded-md p-4 border border-white/10">
                   <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center">
                     <AlertTriangle className="w-4 h-4 mr-1 text-yellow-400" />
-                    Detected Patterns
+                    Enhanced Pattern Detection
                   </h3>
                   <ScrollArea className="h-[120px]">
                     <ul className="space-y-1 text-xs">
@@ -374,24 +399,32 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
               </div>
               
               <div className="bg-black/20 rounded-md p-4 border border-white/10">
-                <h3 className="text-sm font-medium text-white/80 mb-2">Vulnerability Probabilities</h3>
-                <div className="space-y-2">
-                  {modelInsights.vulnerabilityTypes.map((vuln, index) => (
-                    <div key={index}>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-white/80">{vuln.type} ({vuln.count})</span>
-                        <span className="text-xs font-mono text-white/80">{(vuln.probability * 100).toFixed(1)}%</span>
-                      </div>
-                      <Progress value={vuln.probability * 100} className="h-1.5 bg-white/10" />
-                    </div>
-                  ))}
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-sm font-medium text-white/80">Generated Payloads</h3>
+                  <Button 
+                    onClick={generateNewPayloads}
+                    size="sm"
+                    className="bg-orange-700 hover:bg-orange-600 text-white"
+                  >
+                    <Zap className="w-3 h-3 mr-1" />
+                    Generate More
+                  </Button>
                 </div>
+                <ScrollArea className="h-32">
+                  <div className="space-y-1">
+                    {modelInsights.generatedPayloads.map((payload, index) => (
+                      <div key={index} className="text-xs font-mono text-white/80 bg-black/30 p-2 rounded">
+                        {payload}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               </div>
               
               <div className="bg-black/20 rounded-md p-4 border border-white/10">
                 <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center">
                   <BookOpen className="w-4 h-4 mr-1 text-green-400" />
-                  ML-Based Recommendations
+                  Enhanced Recommendations
                 </h3>
                 <ScrollArea className="h-28">
                   <ul className="space-y-1 text-xs">
@@ -401,34 +434,17 @@ export const MachineLearningScanner: React.FC<MachineLearningProps> = ({
                   </ul>
                 </ScrollArea>
               </div>
-              
-              {clusterAnalysisDone && (
-                <div className="bg-black/20 rounded-md p-4 border border-white/10">
-                  <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center">
-                    <FileText className="w-4 h-4 mr-1 text-purple-400" />
-                    Cluster Analysis Summary
-                  </h3>
-                  <div className="text-xs text-white/80">
-                    <p>The data has been grouped into 3 clusters based on response patterns:</p>
-                    <ul className="mt-2 space-y-1 pl-4">
-                      <li>• Cluster 1: Likely malicious payloads ({threatDistribution[0]?.value || 0})</li>
-                      <li>• Cluster 2: Suspicious but inconclusive ({threatDistribution[1]?.value || 0})</li>
-                      <li>• Cluster 3: Likely benign inputs ({threatDistribution[2]?.value || 0})</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
             </div>
           )}
           
           {/* Manual Training */}
           {!modelTrained && !trainingActive && (collectedDataset.length > 0 || dataset.length > 0) && (
             <Button 
-              onClick={trainModel}
+              onClick={trainEnhancedModels}
               className="bg-purple-700 hover:bg-purple-600 text-white"
             >
               <Brain className="w-4 h-4 mr-2" />
-              Train ML Models with {collectedDataset.length + dataset.length} Data Points
+              Train Enhanced ML Models with {collectedDataset.length + dataset.length} Data Points
             </Button>
           )}
           

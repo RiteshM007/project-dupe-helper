@@ -46,6 +46,10 @@ declare global {
     type CSSProperties = {
       [key: string]: any;
     };
+    // Fix missing React hooks
+    const useCallback: <T extends (...args: any[]) => any>(callback: T, deps: React.DependencyList) => T;
+    const useMemo: <T>(factory: () => T, deps: React.DependencyList | undefined) => T;
+    const useId: () => string;
   }
 }
 
@@ -97,21 +101,47 @@ declare module '@/context/DVWAConnectionContext' {
   }>;
 }
 
-// WebFuzzer type
-declare module '@/backend/WebFuzzer' {
-  export interface WebFuzzerOptions {
-    headless?: boolean;
-    targetField?: string;
-    exploitKeyword?: string;
+// Enhanced WebFuzzer type
+declare module '@/backend/enhanced_ml_models' {
+  export interface MLModel {
+    train(data: any[]): Promise<{ accuracy: number; precision: number; recall: number; f1: number }>;
+    predict(data: any): Promise<{ prediction: string; confidence: number }>;
+    generatePayloads(context: string, count?: number): Promise<string[]>;
   }
   
-  export class WebFuzzer {
-    constructor(baseUrl: string, wordlistPath: string, options?: WebFuzzerOptions);
-    connectToDVWA(url: string, username: string, password: string, securityLevel: string): Promise<void>;
-    setTargetField(fieldId: string): void;
-    setExploitKeyword(keyword: string): void;
-    startHeadlessBrowser(): Promise<void>;
-    // Add other WebFuzzer methods as needed
+  export interface PayloadGenerator {
+    analyzeDataset(dataset: any[]): Promise<void>;
+    generatePayloads(count?: number): Promise<string[]>;
+    fineTune(payloadData: Record<string, number>): Promise<boolean>;
+  }
+  
+  export function trainIsolationForest(dataset: any[]): Promise<{
+    model: any;
+    metrics: { accuracy: number; anomalyRate: number };
+  }>;
+  
+  export function trainRandomForest(dataset: any[]): Promise<{
+    model: any;
+    metrics: { accuracy: number; precision: number; recall: number; f1: number };
+  }>;
+  
+  export function performClustering(dataset: any[], clusters: number): Promise<{
+    clusters: any[];
+    labels: number[];
+  }>;
+  
+  export function generateReport(models: any[], dataset: any[]): Promise<{
+    summary: string;
+    recommendations: string[];
+    patterns: string[];
+  }>;
+  
+  export class EnhancedPayloadGenerator {
+    constructor();
+    analyzeDataset(dataset: any[]): Promise<void>;
+    generatePayloads(count?: number): Promise<string[]>;
+    generateContextualPayloads(vulnerabilityType: string, count?: number): Promise<string[]>;
+    fineTune(payloadData: Record<string, number>): Promise<boolean>;
   }
 }
 
@@ -120,6 +150,38 @@ declare interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
   variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+}
+
+// Progress component props
+declare interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
+  value?: number;
+  className?: string;
+}
+
+// ScrollArea component props
+declare interface ScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
+  className?: string;
+  children?: React.ReactNode;
+}
+
+// Label component props
+declare interface LabelProps extends React.LabelHTMLAttributes<HTMLLabelElement> {
+  children?: React.ReactNode;
+  htmlFor?: string;
+}
+
+// Select component props
+declare interface SelectTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  children?: React.ReactNode;
+}
+
+declare interface SelectContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  children?: React.ReactNode;
+}
+
+declare interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {
+  children?: React.ReactNode;
+  value?: string;
 }
 
 // For lucide-react icons
@@ -165,11 +227,10 @@ interface ToastOptions {
 }
 
 interface ToastFunction {
-  (options: ToastOptions): void;
-  (message: string, options?: ToastOptions): void;
-  success: (message: string, options?: ToastOptions) => void;
-  error: (message: string, options?: ToastOptions) => void;
-  info: (message: string, options?: ToastOptions) => void;
+  (message: React.ReactNode, options?: ToastOptions): void;
+  success: (message: React.ReactNode, options?: ToastOptions) => void;
+  error: (message: React.ReactNode, options?: ToastOptions) => void;
+  info: (message: React.ReactNode, options?: ToastOptions) => void;
 }
 
 declare module '@/hooks/use-toast' {
