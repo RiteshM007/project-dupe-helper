@@ -1,48 +1,73 @@
 
-declare global {
-  type ThreatLevel = 'low' | 'medium' | 'high' | 'critical';
-  
-  interface Window {
-    addEventListener(type: string, listener: EventListener): void;
-    removeEventListener(type: string, listener: EventListener): void;
-    dispatchEvent(event: Event): boolean;
+declare module "@/components/ui/scroll-area" {
+  interface ScrollAreaProps {
+    className?: string;
+    children?: React.ReactNode;
   }
+  export const ScrollArea: React.FC<ScrollAreaProps>;
 }
 
-// Toast function type that matches sonner
+declare module "@/components/ui/tabs" {
+  interface TabsProps {
+    defaultValue?: string;
+    value?: string;
+    onValueChange?: (value: string) => void;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  interface TabsListProps {
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  interface TabsTriggerProps {
+    value: string;
+    disabled?: boolean;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  interface TabsContentProps {
+    value: string;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const Tabs: React.FC<TabsProps>;
+  export const TabsList: React.FC<TabsListProps>;
+  export const TabsTrigger: React.FC<TabsTriggerProps>;
+  export const TabsContent: React.FC<TabsContentProps>;
+}
+
+declare module "@/components/ui/progress" {
+  interface ProgressProps {
+    value: number;
+    max?: number;
+    className?: string;
+  }
+  export const Progress: React.FC<ProgressProps>;
+}
+
 declare module 'sonner' {
-  export function toast(message: string, options?: {
-    description?: string;
-    action?: {
-      label: string;
-      onClick: () => void;
-    };
+  interface ToastOptions {
     duration?: number;
-  }): void;
-  
-  namespace toast {
-    export function success(message: string, options?: {
-      description?: string;
-      duration?: number;
-    }): void;
-    
-    export function error(message: string, options?: {
-      description?: string;
-      duration?: number;
-    }): void;
-    
-    export function info(message: string, options?: {
-      description?: string;
-      duration?: number;
-    }): void;
-    
-    export function warning(message: string, options?: {
-      description?: string;
-      duration?: number;
-    }): void;
+    position?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+    richColors?: boolean;
   }
   
-  export const Toaster: React.FC<{ position?: string; theme?: 'light' | 'dark' }>;
+  export function toast(message: React.ReactNode, options?: ToastOptions): void;
+  export namespace toast {
+    function success(message: React.ReactNode, options?: ToastOptions): void;
+    function error(message: React.ReactNode, options?: ToastOptions): void;
+    function info(message: React.ReactNode, options?: ToastOptions): void;
+    function warning(message: React.ReactNode, options?: ToastOptions): void;
+  }
+  
+  interface ToasterProps {
+    position?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+    richColors?: boolean;
+  }
+  
+  export const Toaster: React.FC<ToasterProps>;
 }
-
-export {};

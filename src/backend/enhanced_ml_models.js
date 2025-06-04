@@ -2,9 +2,7 @@
 // Enhanced ML Models implementation based on the new Python ML code
 // This provides classifier training on fuzzing payloads with comprehensive metrics
 
-import { getSampleDataset } from './ml_models.js';
-
-// Configuration constants
+// Configuration constants matching Python version
 const Config = {
   MIN_SAMPLES_PER_CLASS: 5,
   MAX_PAYLOAD_LENGTH: 100,
@@ -15,7 +13,7 @@ const Config = {
   MAX_PAYLOADS: 7
 };
 
-// Enhanced Payload Generator class
+// Enhanced Payload Generator class matching Python implementation
 class PayloadGenerator {
   constructor() {
     this.forbiddenCommands = [
@@ -27,7 +25,7 @@ class PayloadGenerator {
     this.commonPatterns = [];
     this.mlPayloads = [];
     
-    // Payload templates by category
+    // Payload templates by category matching Python version
     this.payloadTemplates = {
       'SQL injection': [
         "' OR 1=1 --",
@@ -429,52 +427,6 @@ const calculateAccuracy = (dataset) => {
   return Math.min(0.98, Math.max(0.75, 0.92 - complexity * 0.1 + Math.random() * 0.1));
 };
 
-// Enhanced report generation matching the new API structure
-export const generateAnalysisReport = async (trainingResults) => {
-  console.log("Generating enhanced analysis report...");
-  
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  try {
-    return {
-      title: "Enhanced ML Classifier Analysis Report",
-      timestamp: new Date().toISOString(),
-      model_info: {
-        type: trainingResults.type,
-        accuracy: trainingResults.accuracy,
-        last_trained: trainingResults.last_trained,
-        features_used: trainingResults.features
-      },
-      classification_report: trainingResults.classification_report,
-      confusion_matrix: trainingResults.confusion_matrix,
-      summary: {
-        total_classes: Object.keys(trainingResults.classification_report).length,
-        overall_accuracy: (trainingResults.accuracy * 100).toFixed(1) + '%',
-        training_status: 'completed'
-      },
-      recommendations: [
-        "Model shows good performance across all classes",
-        "Consider gathering more suspicious samples if precision is low",
-        "Regular retraining recommended as new attack patterns emerge",
-        "Implement real-time monitoring of model predictions",
-        "Consider ensemble methods for improved accuracy"
-      ]
-    };
-  } catch (error) {
-    console.error("Error generating analysis report:", error);
-    return {
-      title: "Enhanced ML Classifier Analysis Report",
-      timestamp: new Date().toISOString(),
-      error: error.message,
-      summary: {
-        total_classes: 3,
-        overall_accuracy: "85.0%",
-        training_status: 'error'
-      }
-    };
-  }
-};
-
 // Export the PayloadGenerator class as EnhancedPayloadGenerator
 export const EnhancedPayloadGenerator = PayloadGenerator;
 
@@ -486,6 +438,5 @@ export default {
   EnhancedPayloadGenerator,
   trainClassifier,
   preprocessData,
-  parseUploadedDataset,
-  generateAnalysisReport
+  parseUploadedDataset
 };
