@@ -11,6 +11,16 @@ import requests
 from bs4 import BeautifulSoup
 from web_fuzzer import WebFuzzer
 from flask_socketio import SocketIO
+
+# Import the new enhanced ML models
+from enhanced_ml_models import (
+    PayloadGenerator,
+    parse_uploaded_dataset,
+    train_classifier,
+    preprocess_data
+)
+
+# Import original ML models for backward compatibility
 from ml_models import (
     train_isolation_forest,
     train_random_forest,
@@ -44,6 +54,8 @@ background_tasks = {}
 trained_models = {}
 # Store DVWA session
 dvwa_sessions = {}
+# Enhanced payload generator instance
+payload_generator = None
 
 def get_dvwa_session(base_url="http://localhost:8080", username="admin", password="password"):
     """Get authenticated session for DVWA"""
@@ -624,6 +636,93 @@ def predict_sample():
             'error': str(e)
         }), 500
 
+@app.route('/api/ml/train-and-analyze', methods=['POST'])
+def train_and_analyze():
+    """New endpoint for training classifier and analyzing dataset"""
+    try:
+        # Check if file was uploaded
+        if 'file' in request.files:
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({'success': False, 'error': 'No file selected'}), 400
+            
+            # Read file content
+            file_content = file.read().decode('utf-8')
+            
+            # Parse dataset
+            dataset = parse_uploaded_dataset(file_content)
+            
+            if dataset.empty:
+                return jsonify({'success': False, 'error': 'No valid data found in file'}), 400
+            
+        elif request.json and 'dataset' in request.json:
+            # Dataset provided in JSON format
+            import pandas as pd
+            dataset = pd.DataFrame(request.json['dataset'])
+        else:
+            return jsonify({'success': False, 'error': 'No dataset provided'}), 400
+        
+        logger.info(f"Training classifier on dataset with {len(dataset)} samples")
+        
+        # Train classifier
+        results = train_classifier(dataset)
+        
+        # Initialize payload generator if needed
+        global payload_generator
+        if payload_generator is None:
+            payload_generator = PayloadGenerator()
+        
+        # Analyze dataset for payload generation
+        payload_generator.analyze_dataset(dataset)
+        
+        return jsonify({
+            'success': True,
+            'accuracy': results['accuracy'],
+            'classification_report': results['classification_report'],
+            'confusion_matrix': results['confusion_matrix'],
+            'class_distribution': results['class_distribution'],
+            'last_trained': results['last_trained'],
+            'dataset_size': len(dataset)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in train_and_analyze: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/generate-payloads', methods=['POST'])
+def generate_enhanced_payloads():
+    """Generate payloads using enhanced payload generator"""
+    try:
+        data = request.json or {}
+        vulnerability_type = data.get('vulnerability_type')
+        num_samples = data.get('num_samples', 5)
+        
+        global payload_generator
+        if payload_generator is None:
+            payload_generator = PayloadGenerator()
+        
+        # Generate payloads
+        if vulnerability_type:
+            payloads = payload_generator.generate_contextual_payloads(vulnerability_type, num_samples)
+        else:
+            payloads = payload_generator.generate_payloads(num_samples)
+        
+        return jsonify({
+            'success': True,
+            'payloads': payloads,
+            'count': len(payloads)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating payloads: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/fuzzer/cleanup', methods=['POST'])
 def cleanup_sessions():
     """Clean up inactive fuzzer sessions"""
@@ -695,6 +794,10 @@ if __name__ == '__main__':
     os.makedirs("models", exist_ok=True)
     os.makedirs("results", exist_ok=True)
     os.makedirs("reports", exist_ok=True)
+    
+    # Initialize payload generator
+    payload_generator = PayloadGenerator()
+    logger.info("Enhanced payload generator initialized")
     
     # Run with Socket.IO instead of app.run
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
