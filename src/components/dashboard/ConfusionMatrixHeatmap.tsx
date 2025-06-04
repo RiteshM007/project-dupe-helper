@@ -1,5 +1,5 @@
 
-import React, { Fragment } from 'react';
+import React from 'react';
 
 interface ConfusionMatrixHeatmapProps {
   confusionMatrix: number[][];
@@ -46,7 +46,7 @@ export const ConfusionMatrixHeatmap: React.FC<ConfusionMatrixHeatmapProps> = ({
         
         {/* Matrix rows */}
         {confusionMatrix.map((row, rowIndex) => (
-          <Fragment key={`row-${rowIndex}`}>
+          <React.Fragment key={`row-${rowIndex}`}>
             {/* Row label */}
             <div className="text-xs text-right text-gray-400 p-2">
               {classNames[rowIndex]}
@@ -63,7 +63,7 @@ export const ConfusionMatrixHeatmap: React.FC<ConfusionMatrixHeatmapProps> = ({
                 {value}
               </div>
             ))}
-          </Fragment>
+          </React.Fragment>
         ))}
       </div>
       

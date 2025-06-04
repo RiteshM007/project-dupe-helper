@@ -49,6 +49,91 @@ declare module "@/components/ui/progress" {
   export const Progress: React.FC<ProgressProps>;
 }
 
+declare module "@/components/ui/label" {
+  interface LabelProps {
+    className?: string;
+    htmlFor?: string;
+    children?: React.ReactNode;
+  }
+  export const Label: React.FC<LabelProps>;
+}
+
+declare module "@/components/ui/input" {
+  interface InputProps {
+    className?: string;
+    placeholder?: string;
+    value?: string;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    type?: string;
+  }
+  export const Input: React.FC<InputProps>;
+}
+
+declare module "@/components/ui/dialog" {
+  interface DialogProps {
+    children?: React.ReactNode;
+  }
+  
+  interface DialogTriggerProps {
+    asChild?: boolean;
+    children?: React.ReactNode;
+  }
+  
+  interface DialogContentProps {
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  interface DialogTitleProps {
+    children?: React.ReactNode;
+  }
+  
+  export const Dialog: React.FC<DialogProps>;
+  export const DialogTrigger: React.FC<DialogTriggerProps>;
+  export const DialogContent: React.FC<DialogContentProps>;
+  export const DialogTitle: React.FC<DialogTitleProps>;
+}
+
+declare module "@/components/ui/tooltip" {
+  interface TooltipProps {
+    children?: React.ReactNode;
+  }
+  
+  interface TooltipTriggerProps {
+    asChild?: boolean;
+    children?: React.ReactNode;
+  }
+  
+  interface TooltipContentProps {
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const Tooltip: React.FC<TooltipProps>;
+  export const TooltipTrigger: React.FC<TooltipTriggerProps>;
+  export const TooltipContent: React.FC<TooltipContentProps>;
+  export const TooltipProvider: React.FC<{ children?: React.ReactNode }>;
+}
+
+declare module "@/components/ui/grid" {
+  interface GridProps {
+    cols?: number;
+    colsMd?: number;
+    gap?: number;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  interface GridItemProps {
+    span?: number;
+    className?: string;
+    children?: React.ReactNode;
+  }
+  
+  export const Grid: React.FC<GridProps>;
+  export const GridItem: React.FC<GridItemProps>;
+}
+
 declare module 'sonner' {
   interface ToastOptions {
     duration?: number;
@@ -70,4 +155,24 @@ declare module 'sonner' {
   }
   
   export const Toaster: React.FC<ToasterProps>;
+}
+
+declare module 'lucide-react' {
+  interface IconProps {
+    size?: number;
+    color?: string;
+    className?: string;
+  }
+  
+  export const Search: React.FC<IconProps>;
+  export const Upload: React.FC<IconProps>;
+  export const Download: React.FC<IconProps>;
+  export const Brain: React.FC<IconProps>;
+  export const Database: React.FC<IconProps>;
+  export const BarChart2: React.FC<IconProps>;
+  export const Zap: React.FC<IconProps>;
+  export const FileText: React.FC<IconProps>;
+  export const Cpu: React.FC<IconProps>;
+  export const ArrowLeft: React.FC<IconProps>;
+  export const AlertTriangle: React.FC<IconProps>;
 }
