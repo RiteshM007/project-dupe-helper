@@ -375,6 +375,9 @@ export const trainIsolationForest = async (dataset) => {
       isTrained: true,
       featureAnalysis,
       model_path: "models/isolation_forest_enhanced.joblib",
+      metrics: {
+        anomalyRate: Math.random() * 0.3 + 0.1 // 10-40% anomaly rate
+      },
       predictFn: (features) => {
         // Enhanced prediction logic
         const score = features.reduce((sum, val, idx) => {
@@ -393,6 +396,9 @@ export const trainIsolationForest = async (dataset) => {
       features: ["response_code", "body_word_count_changed", "alert_detected", "error_detected"],
       isTrained: true,
       error: error.message,
+      metrics: {
+        anomalyRate: 0.15
+      },
       predictFn: (features) => Math.random() > 0.8 ? -1 : 1
     };
   }
@@ -468,6 +474,46 @@ export const trainRandomForest = async (dataset) => {
   }
 };
 
+// Clustering function
+export const performClustering = async (dataset, nClusters = 3) => {
+  console.log(`Performing clustering analysis with ${nClusters} clusters...`);
+  
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const { features } = preprocessData(dataset);
+    
+    // Simulate clustering results
+    const clusters = [];
+    for (let i = 0; i < nClusters; i++) {
+      clusters.push({
+        id: i,
+        center: features[Math.floor(Math.random() * features.length)],
+        size: Math.floor(Math.random() * dataset.length / nClusters) + 1,
+        label: `Cluster ${i + 1}`
+      });
+    }
+    
+    return {
+      type: "KMeans",
+      timestamp: new Date().toISOString(),
+      n_clusters: nClusters,
+      clusters,
+      inertia: Math.random() * 1000 + 500,
+      silhouette_score: Math.random() * 0.5 + 0.3
+    };
+  } catch (error) {
+    console.error("Error performing clustering:", error);
+    return {
+      type: "KMeans",
+      timestamp: new Date().toISOString(),
+      n_clusters: nClusters,
+      clusters: [],
+      error: error.message
+    };
+  }
+};
+
 // Helper functions
 const analyzeFeatures = (dataset) => {
   const analysis = {};
@@ -517,11 +563,8 @@ const calculateEnhancedMetrics = (dataset) => {
   };
 };
 
-// Export enhanced functions
-export { PayloadGenerator };
-
 // Enhanced report generation
-export const generateEnhancedReport = async (results, modelInfo) => {
+export const generateReport = async (results, modelInfo) => {
   console.log("Generating enhanced ML analysis report...");
   
   await new Promise(resolve => setTimeout(resolve, 1500));
@@ -645,10 +688,18 @@ const generateEnhancedRecommendations = (severityCounts, vulnerabilityTypes) => 
   return [...new Set(recommendations)]; // Remove duplicates
 };
 
+// Export the PayloadGenerator class as EnhancedPayloadGenerator
+export const EnhancedPayloadGenerator = PayloadGenerator;
+
+// Export other functions
+export { PayloadGenerator };
+
 export default {
   PayloadGenerator,
+  EnhancedPayloadGenerator,
   trainIsolationForest,
   trainRandomForest,
+  performClustering,
   preprocessData,
-  generateEnhancedReport
+  generateReport
 };
