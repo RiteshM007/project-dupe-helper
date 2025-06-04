@@ -11,23 +11,38 @@ declare global {
 
 // Toast function type that matches sonner
 declare module 'sonner' {
-  interface ToastFunction {
-    (message: string, options?: any): void;
-    success: (message: string, options?: any) => void;
-    error: (message: string, options?: any) => void;
-    info: (message: string, options?: any) => void;
-    warning: (message: string, options?: any) => void;
+  export function toast(message: string, options?: {
+    description?: string;
+    action?: {
+      label: string;
+      onClick: () => void;
+    };
+    duration?: number;
+  }): void;
+  
+  namespace toast {
+    export function success(message: string, options?: {
+      description?: string;
+      duration?: number;
+    }): void;
+    
+    export function error(message: string, options?: {
+      description?: string;
+      duration?: number;
+    }): void;
+    
+    export function info(message: string, options?: {
+      description?: string;
+      duration?: number;
+    }): void;
+    
+    export function warning(message: string, options?: {
+      description?: string;
+      duration?: number;
+    }): void;
   }
   
-  export const toast: ToastFunction;
-}
-
-// React import augmentation
-declare module 'react' {
-  export function useCallback<T extends (...args: any[]) => any>(
-    callback: T,
-    deps: React.DependencyList,
-  ): T;
+  export const Toaster: React.FC<{ position?: string; theme?: 'light' | 'dark' }>;
 }
 
 export {};

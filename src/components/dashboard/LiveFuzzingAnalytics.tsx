@@ -4,18 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BarChart2, Bug, Shield, Zap } from 'lucide-react';
-import {
-  Chart,
-  ChartBar,
-  ChartContent,
-  ChartDescription,
-  ChartHeader,
-  ChartLegend,
-  ChartLegendItem,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartTooltipTrigger,
-} from "@/components/ui/chart"
 
 interface Threat {
   id: string;
@@ -117,29 +105,14 @@ export const LiveFuzzingAnalytics: React.FC = () => {
           <CardDescription>Real-time statistics from the ongoing fuzzing process</CardDescription>
         </CardHeader>
         <CardContent>
-          <Chart className="h-[300px]">
-            <ChartHeader>
-              <ChartDescription>
-                Overview of payloads sent, responses received, and threats detected.
-              </ChartDescription>
-            </ChartHeader>
-            <ChartContent>
-              {chartData.map((item) => (
-                <ChartBar key={item.name} dataKey={item.name} value={item.value} />
-              ))}
-            </ChartContent>
-            <ChartLegend>
-              {chartData.map((item) => (
-                <ChartLegendItem key={item.name} dataKey={item.name} label={item.name} />
-              ))}
-            </ChartLegend>
-            <ChartTooltip>
-              <ChartTooltipTrigger>
-                <rect width="100%" height="100%" fill="transparent" />
-              </ChartTooltipTrigger>
-              <ChartTooltipContent />
-            </ChartTooltip>
-          </Chart>
+          <div className="grid grid-cols-3 gap-4">
+            {chartData.map((item) => (
+              <div key={item.name} className="text-center p-4 bg-muted/50 rounded-lg">
+                <h3 className="text-2xl font-bold">{item.value}</h3>
+                <p className="text-sm text-muted-foreground">{item.name}</p>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

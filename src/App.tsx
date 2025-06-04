@@ -15,7 +15,7 @@ import NotFound from "./pages/NotFound";
 import MLAnalysis from "./pages/MLAnalysis";
 import { DVWAConnectionProvider } from "./context/DVWAConnectionContext";
 
-// Create a client instance properly
+// Create a client instance properly without 'new' keyword
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

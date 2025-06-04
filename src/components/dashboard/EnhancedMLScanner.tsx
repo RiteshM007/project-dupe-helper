@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -318,7 +317,7 @@ export const EnhancedMLScanner: React.FC<EnhancedMLScannerProps> = ({
                 <span className="text-sm text-white/80">Training Enhanced ML Models...</span>
                 <span className="text-sm font-mono text-white/80">{Math.floor(trainingProgress)}%</span>
               </div>
-              <Progress value={trainingProgress} className="h-2 bg-white/10" />
+              <Progress value={trainingProgress} />
               <p className="text-xs text-white/60 italic">
                 Training on {collectedDataset.length + dataset.length} data points with enhanced algorithms
               </p>
@@ -357,28 +356,28 @@ export const EnhancedMLScanner: React.FC<EnhancedMLScannerProps> = ({
                         <span>Accuracy</span>
                         <span>{(modelInsights.accuracy * 100).toFixed(1)}%</span>
                       </div>
-                      <Progress value={modelInsights.accuracy * 100} className="h-1.5 bg-white/10" />
+                      <Progress value={modelInsights.accuracy * 100} />
                     </div>
                     <div>
                       <div className="flex justify-between items-center text-xs">
                         <span>Precision</span>
                         <span>{(modelInsights.precision * 100).toFixed(1)}%</span>
                       </div>
-                      <Progress value={modelInsights.precision * 100} className="h-1.5 bg-white/10" />
+                      <Progress value={modelInsights.precision * 100} />
                     </div>
                     <div>
                       <div className="flex justify-between items-center text-xs">
                         <span>Recall</span>
                         <span>{(modelInsights.recall * 100).toFixed(1)}%</span>
                       </div>
-                      <Progress value={modelInsights.recall * 100} className="h-1.5 bg-white/10" />
+                      <Progress value={modelInsights.recall * 100} />
                     </div>
                     <div>
                       <div className="flex justify-between items-center text-xs">
                         <span>Anomaly Rate</span>
                         <span>{(modelInsights.anomalyRate * 100).toFixed(1)}%</span>
                       </div>
-                      <Progress value={modelInsights.anomalyRate * 100} className="h-1.5 bg-white/10" />
+                      <Progress value={modelInsights.anomalyRate * 100} />
                     </div>
                   </div>
                 </div>
