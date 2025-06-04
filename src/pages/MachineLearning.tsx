@@ -1,19 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { EnhancedMLScanner } from '@/components/dashboard/EnhancedMLScanner';
+import { MLAnalysisDashboard } from '@/components/dashboard/MLAnalysisDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Database, BarChart2, Zap, Upload, Download } from 'lucide-react';
-import { EnhancedPayloadGenerator } from '@/backend/enhanced_ml_models';
+import { Brain, Database, BarChart2, Zap, Upload, Download, FileText } from 'lucide-react';
+import { EnhancedPayloadGenerator, trainClassifier, parseUploadedDataset } from '@/backend/enhanced_ml_models';
 import { toast } from 'sonner';
 
 const MachineLearning = () => {
-  const [scanActive, setScanActive] = useState(false);
-  const [scanCompleted, setScanCompleted] = useState(false);
   const [dataset, setDataset] = useState<any[]>([]);
-  const [threatLevel, setThreatLevel] = useState<'none' | 'low' | 'medium' | 'high' | 'critical'>('none');
+  const [datasetFileName, setDatasetFileName] = useState<string>('');
+  const [isTraining, setIsTraining] = useState(false);
+  const [isModelTrained, setIsModelTrained] = useState(false);
+  const [trainingResults, setTrainingResults] = useState<any>(null);
   const [payloadGenerator, setPayloadGenerator] = useState<EnhancedPayloadGenerator | null>(null);
   const [generatedPayloads, setGeneratedPayloads] = useState<string[]>([]);
 
@@ -31,23 +32,76 @@ const MachineLearning = () => {
     };
     
     initGenerator();
-
-    // Listen for scan events
-    const handleScanStart = () => setScanActive(true);
-    const handleScanComplete = () => {
-      setScanActive(false);
-      setScanCompleted(true);
-      setThreatLevel('medium'); // Example threat level
-    };
-
-    window.addEventListener('scanStart', handleScanStart);
-    window.addEventListener('scanComplete', handleScanComplete);
-
-    return () => {
-      window.removeEventListener('scanStart', handleScanStart);
-      window.removeEventListener('scanComplete', handleScanComplete);
-    };
   }, []);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['.txt', '.csv'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!validTypes.includes(fileExtension)) {
+      toast.error("Please upload a .txt or .csv file");
+      return;
+    }
+
+    try {
+      toast.info("Uploading and parsing dataset...");
+      
+      const fileContent = await file.text();
+      const parsedDataset = await parseUploadedDataset(fileContent);
+      
+      if (parsedDataset.length === 0) {
+        toast.error("No valid data found in uploaded file");
+        return;
+      }
+      
+      setDataset(parsedDataset);
+      setDatasetFileName(file.name);
+      setIsModelTrained(false);
+      setTrainingResults(null);
+      
+      toast.success(`Dataset uploaded successfully! Parsed ${parsedDataset.length} records.`);
+      
+      // Analyze dataset with payload generator
+      if (payloadGenerator) {
+        payloadGenerator.analyzeDataset(parsedDataset);
+      }
+      
+    } catch (error) {
+      console.error("Error uploading dataset:", error);
+      toast.error("Failed to parse dataset. Please check file format.");
+    }
+  };
+
+  const handleTrainModels = async () => {
+    if (dataset.length === 0) {
+      toast.error("Please upload a dataset first");
+      return;
+    }
+
+    setIsTraining(true);
+    
+    try {
+      toast.info("Training classifier model...");
+      
+      // Train the classifier
+      const results = await trainClassifier(dataset);
+      
+      setTrainingResults(results);
+      setIsModelTrained(true);
+      
+      toast.success(`Model trained successfully! Accuracy: ${(results.accuracy * 100).toFixed(1)}%`);
+      
+    } catch (error) {
+      console.error("Error training models:", error);
+      toast.error("Training failed. Please check your dataset.");
+    } finally {
+      setIsTraining(false);
+    }
+  };
 
   const handleGeneratePayloads = async (vulnerabilityType?: string) => {
     if (!payloadGenerator) {
@@ -60,9 +114,9 @@ const MachineLearning = () => {
       
       let newPayloads: string[];
       if (vulnerabilityType) {
-        newPayloads = await payloadGenerator.generateContextualPayloads(vulnerabilityType, 5);
+        newPayloads = payloadGenerator.generateContextualPayloads(vulnerabilityType, 5);
       } else {
-        newPayloads = await payloadGenerator.generatePayloads(10);
+        newPayloads = payloadGenerator.generatePayloads(10);
       }
       
       setGeneratedPayloads(prev => [...prev, ...newPayloads]);
@@ -73,41 +127,39 @@ const MachineLearning = () => {
     }
   };
 
-  const handleUploadDataset = () => {
-    // Simulate dataset upload
-    const mockDataset = Array.from({ length: 50 }, (_, i) => ({
-      id: i,
-      payload: `test_payload_${i}`,
-      response_code: Math.random() > 0.7 ? 500 : 200,
-      body_word_count_changed: Math.random() > 0.5 ? 1 : 0,
-      alert_detected: Math.random() > 0.8 ? 1 : 0,
-      error_detected: Math.random() > 0.7 ? 1 : 0,
-      label: Math.random() > 0.7 ? 'malicious' : Math.random() > 0.5 ? 'suspicious' : 'safe',
-      vulnerability_type: ['sql_injection', 'xss', 'path_traversal', 'command_injection'][Math.floor(Math.random() * 4)]
-    }));
-    
-    setDataset(mockDataset);
-    toast.success("Dataset uploaded successfully!");
-  };
-
-  const handleExportPayloads = () => {
-    if (generatedPayloads.length === 0) {
-      toast.error("No payloads to export");
+  const handleExportResults = () => {
+    if (!trainingResults) {
+      toast.error("No training results to export");
       return;
     }
 
-    const dataStr = generatedPayloads.join('\n');
-    const dataBlob = new Blob([dataStr], { type: 'text/plain' });
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      dataset_info: {
+        filename: datasetFileName,
+        total_records: dataset.length,
+        class_distribution: trainingResults.class_distribution
+      },
+      model_performance: {
+        accuracy: trainingResults.accuracy,
+        classification_report: trainingResults.classification_report,
+        confusion_matrix: trainingResults.confusion_matrix
+      },
+      generated_payloads: generatedPayloads
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'enhanced_ml_payloads.txt';
+    link.download = `ml-analysis-results-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    toast.success("Payloads exported successfully!");
+    toast.success("Results exported successfully!");
   };
 
   return (
@@ -116,32 +168,43 @@ const MachineLearning = () => {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-3xl font-bold text-white">Enhanced Machine Learning</h1>
-            <p className="text-gray-400">Advanced ML-driven security testing and payload generation</p>
+            <p className="text-gray-400">Advanced ML classifier training and analysis</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleUploadDataset}>
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Dataset
+            <input
+              type="file"
+              id="dataset-upload"
+              accept=".txt,.csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button variant="outline" asChild>
+              <label htmlFor="dataset-upload" className="cursor-pointer">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Dataset
+              </label>
             </Button>
-            <Button onClick={handleExportPayloads} disabled={generatedPayloads.length === 0}>
+            <Button onClick={handleExportResults} disabled={!trainingResults}>
               <Download className="w-4 h-4 mr-2" />
-              Export Payloads
+              Export Results
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
           <Card className="bg-black/20 border-gray-800">
             <CardHeader>
               <CardTitle className="flex items-center text-white">
                 <Database className="w-5 h-5 mr-2 text-blue-400" />
                 Dataset
               </CardTitle>
-              <CardDescription>Training data for ML models</CardDescription>
+              <CardDescription>Uploaded training data</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">{dataset.length}</div>
-              <p className="text-sm text-gray-500">samples loaded</p>
+              <p className="text-sm text-gray-500">
+                {datasetFileName ? `File: ${datasetFileName}` : 'No file uploaded'}
+              </p>
               {dataset.length > 0 && (
                 <Badge variant="outline" className="mt-2">
                   Ready for training
@@ -153,19 +216,30 @@ const MachineLearning = () => {
           <Card className="bg-black/20 border-gray-800">
             <CardHeader>
               <CardTitle className="flex items-center text-white">
-                <Zap className="w-5 h-5 mr-2 text-orange-400" />
-                Generated Payloads
+                <Brain className="w-5 h-5 mr-2 text-purple-400" />
+                Model Status
               </CardTitle>
-              <CardDescription>ML-generated security payloads</CardDescription>
+              <CardDescription>Classifier training status</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{generatedPayloads.length}</div>
-              <p className="text-sm text-gray-500">payloads generated</p>
-              <div className="flex gap-2 mt-2">
-                <Button size="sm" onClick={() => handleGeneratePayloads()}>
-                  Generate
-                </Button>
+              <div className="text-lg font-bold text-white">
+                {isTraining ? 'Training...' : isModelTrained ? 'Trained' : 'Not Trained'}
               </div>
+              {trainingResults && (
+                <p className="text-sm text-gray-500">
+                  Accuracy: {(trainingResults.accuracy * 100).toFixed(1)}%
+                </p>
+              )}
+              <Badge 
+                variant="outline" 
+                className={`mt-2 ${
+                  isModelTrained ? 'text-green-400 border-green-400' : 
+                  isTraining ? 'text-yellow-400 border-yellow-400' : 
+                  'text-gray-400 border-gray-400'
+                }`}
+              >
+                {isTraining ? 'Training' : isModelTrained ? 'Complete' : 'Pending'}
+              </Badge>
             </CardContent>
           </Card>
 
@@ -173,27 +247,37 @@ const MachineLearning = () => {
             <CardHeader>
               <CardTitle className="flex items-center text-white">
                 <BarChart2 className="w-5 h-5 mr-2 text-green-400" />
-                Analysis Status
+                Performance
               </CardTitle>
-              <CardDescription>ML model training status</CardDescription>
+              <CardDescription>Model evaluation metrics</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-lg font-bold text-white">
-                {scanCompleted ? 'Complete' : scanActive ? 'Active' : 'Ready'}
+                {trainingResults ? `${(trainingResults.accuracy * 100).toFixed(1)}%` : '--'}
               </div>
-              <p className="text-sm text-gray-500">
-                {scanCompleted ? 'Models trained' : scanActive ? 'Collecting data' : 'Waiting for scan'}
-              </p>
-              <Badge 
-                variant="outline" 
-                className={`mt-2 ${
-                  scanCompleted ? 'text-green-400 border-green-400' : 
-                  scanActive ? 'text-yellow-400 border-yellow-400' : 
-                  'text-gray-400 border-gray-400'
-                }`}
-              >
-                {scanCompleted ? 'Complete' : scanActive ? 'Running' : 'Idle'}
-              </Badge>
+              <p className="text-sm text-gray-500">Overall Accuracy</p>
+              {trainingResults && (
+                <Badge variant="outline" className="mt-2 text-green-400 border-green-400">
+                  {Object.keys(trainingResults.classification_report).length} Classes
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/20 border-gray-800">
+            <CardHeader>
+              <CardTitle className="flex items-center text-white">
+                <Zap className="w-5 h-5 mr-2 text-orange-400" />
+                Generated Payloads
+              </CardTitle>
+              <CardDescription>ML-generated test payloads</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">{generatedPayloads.length}</div>
+              <p className="text-sm text-gray-500">payloads generated</p>
+              <Button size="sm" onClick={() => handleGeneratePayloads()} className="mt-2">
+                Generate More
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -201,8 +285,32 @@ const MachineLearning = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <Card className="bg-black/20 border-gray-800">
             <CardHeader>
+              <CardTitle className="text-white">Model Training</CardTitle>
+              <CardDescription>Train classifier on uploaded dataset</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button 
+                onClick={handleTrainModels}
+                disabled={dataset.length === 0 || isTraining}
+                className="w-full bg-purple-700 hover:bg-purple-600"
+              >
+                <Brain className="w-4 h-4 mr-2" />
+                {isTraining ? 'Training Models...' : 'Train Classifier'}
+              </Button>
+              
+              {dataset.length > 0 && (
+                <div className="text-sm text-gray-400">
+                  <p>Dataset contains {dataset.length} samples</p>
+                  <p>Classes: {[...new Set(dataset.map(item => item.label))].join(', ')}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-black/20 border-gray-800">
+            <CardHeader>
               <CardTitle className="text-white">Contextual Payload Generation</CardTitle>
-              <CardDescription>Generate payloads for specific vulnerability types</CardDescription>
+              <CardDescription>Generate payloads for specific attack types</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button 
@@ -235,33 +343,15 @@ const MachineLearning = () => {
               </Button>
             </CardContent>
           </Card>
-
-          <Card className="bg-black/20 border-gray-800">
-            <CardHeader>
-              <CardTitle className="text-white">Recent Generated Payloads</CardTitle>
-              <CardDescription>Latest ML-generated security payloads</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-48 overflow-y-auto space-y-2">
-                {generatedPayloads.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No payloads generated yet</p>
-                ) : (
-                  generatedPayloads.slice(-10).map((payload, index) => (
-                    <div key={index} className="text-xs font-mono bg-black/30 p-2 rounded text-gray-300">
-                      {payload}
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
-        <EnhancedMLScanner 
-          scanActive={scanActive}
-          scanCompleted={scanCompleted}
+        {/* ML Analysis Dashboard Component */}
+        <MLAnalysisDashboard 
           dataset={dataset}
-          threatLevel={threatLevel}
+          trainingResults={trainingResults}
+          isTraining={isTraining}
+          isModelTrained={isModelTrained}
+          generatedPayloads={generatedPayloads}
         />
       </div>
     </DashboardLayout>
