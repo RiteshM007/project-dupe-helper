@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -258,15 +257,15 @@ export const RealTimeFuzzing: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-black/95 border-gray-800 text-white">
+      <Card className="cyberpunk-card">
         <CardHeader>
-          <CardTitle className="text-2xl">Web Application Fuzzer</CardTitle>
-          <p className="text-gray-400">Configure and test fuzzing on web applications</p>
+          <CardTitle className="text-2xl text-gradient">Web Application Fuzzer</CardTitle>
+          <p className="text-muted-foreground">Configure and test fuzzing on web applications</p>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Target URL */}
           <div className="space-y-2">
-            <Label htmlFor="targetUrl" className="text-white flex items-center gap-2">
+            <Label htmlFor="targetUrl" className="flex items-center gap-2">
               <Link className="h-4 w-4" />
               Target URL
             </Label>
@@ -276,7 +275,7 @@ export const RealTimeFuzzing: React.FC = () => {
               onChange={(e) => setTargetUrl(e.target.value)}
               placeholder="http://localhost:8080"
               disabled={isFuzzing}
-              className="bg-gray-900 border-gray-700 text-white"
+              className="bg-background/50"
             />
           </div>
 
@@ -284,14 +283,14 @@ export const RealTimeFuzzing: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Payload Set */}
             <div className="space-y-2">
-              <Label className="text-white">Payload Set</Label>
+              <Label>Payload Set</Label>
               <Select value={payloadSet} onValueChange={setPayloadSet} disabled={isFuzzing}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectContent className="bg-background border-border z-50">
                   {payloadOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value} className="text-white">
+                    <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
                   ))}
@@ -301,14 +300,14 @@ export const RealTimeFuzzing: React.FC = () => {
 
             {/* Fuzzing Mode */}
             <div className="space-y-2">
-              <Label className="text-white">Fuzzing Mode</Label>
+              <Label>Fuzzing Mode</Label>
               <Select value={fuzzingMode} onValueChange={setFuzzingMode} disabled={isFuzzing}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectContent className="bg-background border-border z-50">
                   {fuzzingModeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value} className="text-white">
+                    <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
                   ))}
@@ -318,14 +317,14 @@ export const RealTimeFuzzing: React.FC = () => {
 
             {/* DVWA Module */}
             <div className="space-y-2">
-              <Label className="text-white">DVWA Module</Label>
+              <Label>DVWA Module</Label>
               <Select value={dvwaModule} onValueChange={setDvwaModule} disabled={isFuzzing}>
-                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectContent className="bg-background border-border z-50">
                   {dvwaModuleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value} className="text-white">
+                    <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
                   ))}
@@ -338,11 +337,11 @@ export const RealTimeFuzzing: React.FC = () => {
           {isFuzzing && (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <Label className="text-white">Progress</Label>
+                <Label>Progress</Label>
                 <Badge variant="destructive">Fuzzing Active</Badge>
               </div>
-              <Progress value={progress} className="w-full bg-gray-800 [&>*]:bg-purple-600" />
-              <p className="text-sm text-gray-400">{Math.round(progress)}% complete</p>
+              <Progress value={progress} className="w-full" />
+              <p className="text-sm text-muted-foreground">{Math.round(progress)}% complete</p>
             </div>
           )}
 
@@ -352,7 +351,7 @@ export const RealTimeFuzzing: React.FC = () => {
               onClick={connectToDVWA}
               variant="outline"
               disabled={isFuzzing}
-              className="flex-1 bg-gray-900 border-gray-700 text-white hover:bg-gray-800"
+              className="flex-1"
             >
               Connect to DVWA
             </Button>
@@ -361,7 +360,7 @@ export const RealTimeFuzzing: React.FC = () => {
               onClick={uploadCustomPayloads}
               variant="outline"
               disabled={isFuzzing}
-              className="flex-1 bg-gray-900 border-gray-700 text-white hover:bg-gray-800 flex items-center gap-2"
+              className="flex-1 flex items-center gap-2"
             >
               <Upload className="h-4 w-4" />
               Upload Custom Payloads
@@ -370,7 +369,7 @@ export const RealTimeFuzzing: React.FC = () => {
             <Button
               onClick={startFuzzing}
               disabled={!targetUrl || isFuzzing}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+              className="flex-1"
             >
               {isFuzzing ? 'Fuzzing...' : 'Start Fuzzing'}
             </Button>
@@ -380,14 +379,14 @@ export const RealTimeFuzzing: React.FC = () => {
 
       {/* Live Logs */}
       {logs.length > 0 && (
-        <Card className="bg-black/95 border-gray-800 text-white">
+        <Card className="cyberpunk-card">
           <CardHeader>
             <CardTitle>Live Fuzzing Logs</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[300px] w-full rounded-md border border-gray-700 bg-gray-900 p-4">
+            <ScrollArea className="h-[300px] w-full rounded-md border p-4 bg-background/20">
               {logs.length === 0 ? (
-                <div className="text-center text-gray-400">
+                <div className="text-center text-muted-foreground">
                   No logs yet. Start fuzzing to see live output.
                 </div>
               ) : (
@@ -396,10 +395,10 @@ export const RealTimeFuzzing: React.FC = () => {
                     <div 
                       key={index}
                       className={`text-sm font-mono ${
-                        log.includes('ERROR') ? 'text-red-400' :
+                        log.includes('ERROR') ? 'text-destructive' :
                         log.includes('THREAT') ? 'text-orange-400' :
                         log.includes('completed') ? 'text-green-400' :
-                        'text-gray-300'
+                        'text-foreground'
                       }`}
                     >
                       {log}

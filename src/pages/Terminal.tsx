@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { 
@@ -29,6 +28,7 @@ const Terminal = () => {
     { id: 'main', name: 'Main Terminal', active: true }
   ]);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   
   const scrollToBottom = () => {
     if (terminalRef.current) {
@@ -39,6 +39,13 @@ const Terminal = () => {
   useEffect(() => {
     scrollToBottom();
   }, [history]);
+
+  useEffect(() => {
+    // Focus input when component mounts
+    if (inputRef.current && activeTab === 'terminal') {
+      inputRef.current.focus();
+    }
+  }, [activeTab]);
   
   // Simulated terminal commands
   const commands: Record<string, (args: string[]) => string> = {
@@ -284,11 +291,11 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col h-full">
-        <Card className="flex-1 bg-card/50 backdrop-blur-sm border-purple-900/30 shadow-lg shadow-purple-500/5 flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between py-2 px-4 border-b border-white/10">
+      <div className="flex flex-col h-full max-h-[calc(100vh-6rem)]">
+        <Card className="flex-1 cyberpunk-card flex flex-col">
+          <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b border-border/20">
             <div className="flex items-center">
-              <CardTitle className="text-lg font-bold flex items-center">
+              <CardTitle className="text-lg font-bold flex items-center text-gradient">
                 <TerminalIcon className="h-5 w-5 mr-2" />
                 Terminal
               </CardTitle>
@@ -333,16 +340,16 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
             </div>
           </CardHeader>
           
-          <CardContent className="p-0 flex-1 flex flex-col">
+          <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
             <Tabs value={activeTab} className="flex-1 flex flex-col">
-              <TabsContent value="terminal" className="m-0 flex-1 flex flex-col">
-                <div className="bg-black/50 text-xs font-mono flex overflow-hidden">
-                  <div className="border-r border-white/10 shrink-0">
+              <TabsContent value="terminal" className="m-0 flex-1 flex flex-col overflow-hidden">
+                <div className="bg-black/50 text-xs font-mono flex overflow-hidden flex-1">
+                  <div className="border-r border-border/20 shrink-0">
                     {sessions.map((session) => (
                       <div 
                         key={session.id}
                         className={`px-3 py-1.5 flex items-center cursor-pointer ${
-                          session.active ? 'bg-purple-900/30 text-white' : 'hover:bg-white/5 text-white/70'
+                          session.active ? 'bg-primary/20 text-primary' : 'hover:bg-background/10 text-muted-foreground'
                         }`}
                         onClick={() => setActiveSession(session.id)}
                       >
@@ -350,7 +357,7 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                         <span>{session.name}</span>
                         {sessions.length > 1 && (
                           <button
-                            className="ml-2 text-white/50 hover:text-white"
+                            className="ml-2 text-muted-foreground hover:text-foreground"
                             onClick={(e) => {
                               e.stopPropagation();
                               removeTerminalSession(session.id);
@@ -362,36 +369,37 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                       </div>
                     ))}
                     <button
-                      className="px-3 py-1.5 text-white/50 hover:text-white hover:bg-white/5 w-full text-left"
+                      className="px-3 py-1.5 text-muted-foreground hover:text-foreground hover:bg-background/10 w-full text-left"
                       onClick={addTerminalSession}
                     >
                       + New Terminal
                     </button>
                   </div>
                   
-                  <div className="flex-1 flex flex-col h-full">
+                  <div className="flex-1 flex flex-col h-full overflow-hidden">
                     <div 
                       ref={terminalRef}
-                      className="bg-black flex-1 p-4 text-sm font-mono text-green-400 overflow-y-auto"
+                      className="bg-black/80 flex-1 p-4 text-sm font-mono text-green-400 overflow-y-auto"
                     >
                       <div className="text-blue-400 mb-2">CyberFuzz Terminal v1.0.0</div>
-                      <div className="text-gray-400 mb-2">Type 'help' to see available commands</div>
-                      <Separator className="my-2 bg-white/10" />
+                      <div className="text-muted-foreground mb-2">Type 'help' to see available commands</div>
+                      <Separator className="my-2 bg-border/20" />
                       
                       {history.map((line, i) => (
-                        <div key={i} className={line.startsWith('$') ? 'text-white' : ''}>
+                        <div key={i} className={line.startsWith('$') ? 'text-white' : 'text-green-400'}>
                           {line}
                         </div>
                       ))}
                     </div>
                     
-                    <div className="p-2 bg-black/80 border-t border-white/10 flex items-center">
+                    <div className="p-2 bg-black/90 border-t border-border/20 flex items-center">
                       <span className="text-green-500 mr-2">$</span>
                       <Input
+                        ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        className="bg-transparent border-none text-white font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-6 py-0 placeholder:text-gray-500"
+                        className="bg-transparent border-none text-white font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-6 py-0 placeholder:text-muted-foreground"
                         placeholder="Type a command..."
                       />
                     </div>
@@ -401,7 +409,7 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
               
               <TabsContent value="scripts" className="m-0 p-6 overflow-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="bg-white/5 border-white/10">
+                  <Card className="cyberpunk-card">
                     <CardHeader className="p-4 pb-2">
                       <CardTitle className="text-sm flex items-center justify-between">
                         <span>Web Vulnerability Scan</span>
@@ -419,7 +427,7 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-white/5 border-white/10">
+                  <Card className="cyberpunk-card">
                     <CardHeader className="p-4 pb-2">
                       <CardTitle className="text-sm flex items-center justify-between">
                         <span>Network Port Scan</span>
@@ -437,7 +445,7 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-white/5 border-white/10">
+                  <Card className="cyberpunk-card">
                     <CardHeader className="p-4 pb-2">
                       <CardTitle className="text-sm flex items-center justify-between">
                         <span>Directory Bruteforce</span>
@@ -455,7 +463,7 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-white/5 border-white/10">
+                  <Card className="cyberpunk-card">
                     <CardHeader className="p-4 pb-2">
                       <CardTitle className="text-sm flex items-center justify-between">
                         <span>Database Audit</span>
@@ -479,15 +487,15 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-lg font-medium mb-2">Terminal Commands</h3>
-                    <div className="bg-white/5 rounded-md border border-white/10 overflow-hidden">
-                      <div className="border-b border-white/10 text-xs">
+                    <div className="cyberpunk-card overflow-hidden">
+                      <div className="border-b border-border/20 text-xs">
                         <div className="grid grid-cols-3 gap-4 p-3 font-medium">
                           <div>Command</div>
                           <div>Description</div>
                           <div>Example</div>
                         </div>
                       </div>
-                      <div className="text-xs divide-y divide-white/10">
+                      <div className="text-xs divide-y divide-border/20">
                         {[
                           {
                             command: 'help',
@@ -547,14 +555,14 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                   
                   <div>
                     <h3 className="text-lg font-medium mb-2">Keyboard Shortcuts</h3>
-                    <div className="bg-white/5 rounded-md border border-white/10 overflow-hidden">
-                      <div className="border-b border-white/10 text-xs">
+                    <div className="cyberpunk-card overflow-hidden">
+                      <div className="border-b border-border/20 text-xs">
                         <div className="grid grid-cols-2 gap-4 p-3 font-medium">
                           <div>Shortcut</div>
                           <div>Action</div>
                         </div>
                       </div>
-                      <div className="text-xs divide-y divide-white/10">
+                      <div className="text-xs divide-y divide-border/20">
                         {[
                           { shortcut: 'Up Arrow', action: 'Navigate to previous command in history' },
                           { shortcut: 'Down Arrow', action: 'Navigate to next command in history' },
