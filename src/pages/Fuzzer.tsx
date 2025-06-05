@@ -208,6 +208,12 @@ const Fuzzer = () => {
           ? Math.round((1 - (vulnerabilities / payloadsTested)) * 100)
           : 100
       });
+
+      // Forward the event to other parts of the application (Dashboard, Reports)
+      console.log('Forwarding scan complete event to global listeners');
+      window.dispatchEvent(new CustomEvent('globalScanComplete', {
+        detail: event.detail
+      }));
     };
     
     const handleScanStop = () => {
@@ -236,7 +242,7 @@ const Fuzzer = () => {
       }));
     };
     
-    const handleThreatDetected = () => {
+    const handleThreatDetected = (event: CustomEvent) => {
       setStatsData(prev => {
         const newVulns = prev.vulnerabilitiesFound + 1;
         return {
@@ -245,6 +251,11 @@ const Fuzzer = () => {
           successRate: Math.max(70, 100 - (newVulns / prev.requestsSent * 100))
         };
       });
+
+      // Forward threat detection to global listeners
+      window.dispatchEvent(new CustomEvent('globalThreatDetected', {
+        detail: event.detail
+      }));
     };
     
     // Add event listeners with proper type casting

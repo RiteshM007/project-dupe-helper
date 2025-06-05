@@ -37,19 +37,21 @@ const Reports = () => {
   useEffect(() => {
     // Listen for scan completion to generate reports
     const handleScanComplete = (event: CustomEvent) => {
-      const { sessionId, vulnerabilities = 0, payloadsTested = 0 } = event.detail || {};
+      console.log('Reports: Received scan complete event', event.detail);
+      const { sessionId, vulnerabilities = 0, payloadsTested = 0, targetUrl, duration, severity } = event.detail || {};
       
       const newReport: ScanReport = {
         id: sessionId || `scan-${Date.now()}`,
         timestamp: new Date(),
-        targetUrl: 'http://localhost:8080',
+        targetUrl: targetUrl || 'http://localhost:8080',
         vulnerabilitiesFound: vulnerabilities,
         payloadsTested,
-        duration: `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
+        duration: duration || `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
         status: 'completed',
-        severity: vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low'
+        severity: severity || (vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low')
       };
 
+      console.log('Reports: Adding new report', newReport);
       setScanReports(prev => [newReport, ...prev].slice(0, 20));
       setTotalScans(prev => prev + 1);
       setTotalVulnerabilities(prev => prev + vulnerabilities);
@@ -57,26 +59,33 @@ const Reports = () => {
 
     // Listen for threat detection to generate threat reports
     const handleThreatDetected = (event: CustomEvent) => {
-      const { payload, vulnerabilityType, severity = 'medium', field } = event.detail;
+      console.log('Reports: Received threat detected event', event.detail);
+      const { payload, vulnerabilityType, severity = 'medium', field, timestamp } = event.detail;
 
       const newThreatReport: ThreatReport = {
         id: `threat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        timestamp: new Date(),
+        timestamp: timestamp || new Date(),
         threatType: vulnerabilityType || 'Unknown',
         payload: payload || 'N/A',
         severity: severity.toLowerCase(),
         target: field || 'General'
       };
 
+      console.log('Reports: Adding new threat report', newThreatReport);
       setThreatReports(prev => [newThreatReport, ...prev].slice(0, 50));
     };
 
+    // Listen for both local and global events
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
+    window.addEventListener('globalScanComplete', handleScanComplete as EventListener);
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+    window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
 
     return () => {
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
+      window.removeEventListener('globalScanComplete', handleScanComplete as EventListener);
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+      window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
     };
   }, []);
 

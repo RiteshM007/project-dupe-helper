@@ -41,9 +41,30 @@ const Terminal = () => {
   }, [history]);
 
   useEffect(() => {
-    // Focus input when component mounts
-    if (inputRef.current && activeTab === 'terminal') {
-      inputRef.current.focus();
+    // Focus input when component mounts and when switching tabs
+    const focusInput = () => {
+      if (inputRef.current && activeTab === 'terminal') {
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
+      }
+    };
+    
+    focusInput();
+    
+    // Also focus when clicking anywhere in the terminal area
+    const terminalArea = terminalRef.current?.parentElement;
+    if (terminalArea) {
+      const handleTerminalClick = () => {
+        if (activeTab === 'terminal') {
+          inputRef.current?.focus();
+        }
+      };
+      
+      terminalArea.addEventListener('click', handleTerminalClick);
+      return () => {
+        terminalArea.removeEventListener('click', handleTerminalClick);
+      };
     }
   }, [activeTab]);
   
@@ -194,6 +215,8 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && input.trim()) {
+      e.preventDefault();
+      
       // Add command to history
       const newHistory = [...history, `$ ${input}`];
       
@@ -215,6 +238,11 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
       setCommandHistory(prev => [input, ...prev].slice(0, 50));
       setInput('');
       setHistoryIndex(-1);
+      
+      // Ensure input stays focused
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 10);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (commandHistory.length > 0) {
@@ -292,10 +320,10 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full max-h-[calc(100vh-6rem)]">
-        <Card className="flex-1 cyberpunk-card flex flex-col">
+        <Card className="flex-1 bg-card/60 backdrop-blur-sm border-border/40 flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b border-border/20">
             <div className="flex items-center">
-              <CardTitle className="text-lg font-bold flex items-center text-gradient">
+              <CardTitle className="text-lg font-bold flex items-center bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 <TerminalIcon className="h-5 w-5 mr-2" />
                 Terminal
               </CardTitle>
@@ -376,10 +404,14 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                     </button>
                   </div>
                   
-                  <div className="flex-1 flex flex-col h-full overflow-hidden">
+                  <div 
+                    className="flex-1 flex flex-col h-full overflow-hidden cursor-text"
+                    onClick={() => inputRef.current?.focus()}
+                  >
                     <div 
                       ref={terminalRef}
                       className="bg-black/80 flex-1 p-4 text-sm font-mono text-green-400 overflow-y-auto"
+                      onClick={() => inputRef.current?.focus()}
                     >
                       <div className="text-blue-400 mb-2">CyberFuzz Terminal v1.0.0</div>
                       <div className="text-muted-foreground mb-2">Type 'help' to see available commands</div>
@@ -401,6 +433,7 @@ Nmap done: 1 IP address (1 host up) scanned in 3.21 seconds
                         onKeyDown={handleKeyDown}
                         className="bg-transparent border-none text-white font-mono text-sm focus-visible:ring-0 focus-visible:ring-offset-0 h-6 py-0 placeholder:text-muted-foreground"
                         placeholder="Type a command..."
+                        autoFocus
                       />
                     </div>
                   </div>

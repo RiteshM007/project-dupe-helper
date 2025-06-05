@@ -198,18 +198,26 @@ export const RealTimeFuzzing: React.FC = () => {
         const vulnerabilities = Math.floor(Math.random() * 5);
         const payloadsTested = Math.floor(Math.random() * 50) + 20;
         
-        // Dispatch completion event with proper report format
+        // Dispatch completion event with proper report format for Reports page
+        const reportData = {
+          sessionId,
+          vulnerabilities,
+          payloadsTested,
+          targetUrl,
+          timestamp: new Date(),
+          status: 'completed',
+          duration: `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
+          severity: vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low'
+        };
+        
+        // Dispatch for Reports page
         window.dispatchEvent(new CustomEvent('scanComplete', {
-          detail: {
-            sessionId,
-            vulnerabilities,
-            payloadsTested,
-            targetUrl,
-            timestamp: new Date(),
-            status: 'completed',
-            duration: `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
-            severity: vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low'
-          }
+          detail: reportData
+        }));
+        
+        // Also dispatch for Dashboard and other components
+        window.dispatchEvent(new CustomEvent('scanReportGenerated', {
+          detail: reportData
         }));
         
         clearInterval(interval);
@@ -231,7 +239,8 @@ export const RealTimeFuzzing: React.FC = () => {
                 payload: threat.payload,
                 severity: threat.severity,
                 vulnerabilityType: getVulnerabilityTypeFromPayload(threat.payload),
-                field: dvwaModule
+                field: dvwaModule,
+                timestamp: new Date()
               }
             }));
           }
