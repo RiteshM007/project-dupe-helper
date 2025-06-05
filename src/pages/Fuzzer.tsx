@@ -275,17 +275,11 @@ const Fuzzer = () => {
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-6">Web Application Fuzzer</h1>
         
-        <div className="mb-4">
-          {dvwaStatus === 'online' ? (
-            <Badge className="bg-green-500 text-white">DVWA Connected</Badge>
-          ) : dvwaStatus === 'offline' ? (
-            <Badge className="bg-red-500 text-white">DVWA Offline</Badge>
-          ) : (
-            <Badge className="bg-yellow-500 text-white">Checking DVWA...</Badge>
-          )}
-          
+        <div className="mb-4 flex gap-2">
           {socketConnected && (
-            <Badge className="bg-blue-500 text-white ml-2">Socket.IO Connected</Badge>
+            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+              Socket.IO Connected
+            </Badge>
           )}
         </div>
         

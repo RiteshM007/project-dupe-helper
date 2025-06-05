@@ -10,8 +10,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Upload, Link } from 'lucide-react';
 import { toast } from 'sonner';
 import { fuzzerApi } from '@/services/api';
+import { useDVWAConnection } from '@/context/DVWAConnectionContext';
 
 export const RealTimeFuzzing: React.FC = () => {
+  const { isConnected: dvwaConnected } = useDVWAConnection();
   const [targetUrl, setTargetUrl] = useState('http://localhost:8080');
   const [payloadSet, setPayloadSet] = useState('custom-payloads');
   const [fuzzingMode, setFuzzingMode] = useState('thorough-scan');
@@ -192,12 +194,21 @@ export const RealTimeFuzzing: React.FC = () => {
         setIsFuzzing(false);
         addLog('Fuzzing process completed');
         
-        // Dispatch completion event
+        // Generate final report data
+        const vulnerabilities = Math.floor(Math.random() * 5);
+        const payloadsTested = Math.floor(Math.random() * 50) + 20;
+        
+        // Dispatch completion event with proper report format
         window.dispatchEvent(new CustomEvent('scanComplete', {
           detail: {
             sessionId,
-            vulnerabilities: Math.floor(Math.random() * 5),
-            payloadsTested: Math.floor(Math.random() * 50) + 20
+            vulnerabilities,
+            payloadsTested,
+            targetUrl,
+            timestamp: new Date(),
+            status: 'completed',
+            duration: `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
+            severity: vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low'
           }
         }));
         
@@ -218,7 +229,9 @@ export const RealTimeFuzzing: React.FC = () => {
             window.dispatchEvent(new CustomEvent('threatDetected', {
               detail: {
                 payload: threat.payload,
-                severity: threat.severity
+                severity: threat.severity,
+                vulnerabilityType: getVulnerabilityTypeFromPayload(threat.payload),
+                field: dvwaModule
               }
             }));
           }
@@ -230,6 +243,14 @@ export const RealTimeFuzzing: React.FC = () => {
         }));
       }
     }, 1000);
+  };
+
+  const getVulnerabilityTypeFromPayload = (payload: string) => {
+    if (payload.includes('<script>') || payload.includes('alert')) return 'XSS';
+    if (payload.includes('OR 1=1') || payload.includes('DROP')) return 'SQL Injection';
+    if (payload.includes('../') || payload.includes('passwd')) return 'Path Traversal';
+    if (payload.includes('rm -rf') || payload.includes('cat')) return 'Command Injection';
+    return 'Unknown';
   };
 
   const getRandomPayload = () => {
@@ -257,15 +278,30 @@ export const RealTimeFuzzing: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="cyberpunk-card">
+      {/* Connection Status Display */}
+      <div className="mb-4">
+        {dvwaConnected ? (
+          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+            DVWA Connected
+          </Badge>
+        ) : (
+          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+            DVWA Offline
+          </Badge>
+        )}
+      </div>
+
+      <Card className="bg-card/60 backdrop-blur-sm border-border/40">
         <CardHeader>
-          <CardTitle className="text-2xl text-gradient">Web Application Fuzzer</CardTitle>
+          <CardTitle className="text-2xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            Web Application Fuzzer
+          </CardTitle>
           <p className="text-muted-foreground">Configure and test fuzzing on web applications</p>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Target URL */}
           <div className="space-y-2">
-            <Label htmlFor="targetUrl" className="flex items-center gap-2">
+            <Label htmlFor="targetUrl" className="flex items-center gap-2 text-foreground">
               <Link className="h-4 w-4" />
               Target URL
             </Label>
@@ -275,7 +311,7 @@ export const RealTimeFuzzing: React.FC = () => {
               onChange={(e) => setTargetUrl(e.target.value)}
               placeholder="http://localhost:8080"
               disabled={isFuzzing}
-              className="bg-background/50"
+              className="bg-background/50 border-border"
             />
           </div>
 
@@ -283,12 +319,12 @@ export const RealTimeFuzzing: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Payload Set */}
             <div className="space-y-2">
-              <Label>Payload Set</Label>
+              <Label className="text-foreground">Payload Set</Label>
               <Select value={payloadSet} onValueChange={setPayloadSet} disabled={isFuzzing}>
-                <SelectTrigger className="bg-background/50">
+                <SelectTrigger className="bg-background/50 border-border">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-background border-border z-50">
+                <SelectContent className="bg-background border-border">
                   {payloadOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -300,12 +336,12 @@ export const RealTimeFuzzing: React.FC = () => {
 
             {/* Fuzzing Mode */}
             <div className="space-y-2">
-              <Label>Fuzzing Mode</Label>
+              <Label className="text-foreground">Fuzzing Mode</Label>
               <Select value={fuzzingMode} onValueChange={setFuzzingMode} disabled={isFuzzing}>
-                <SelectTrigger className="bg-background/50">
+                <SelectTrigger className="bg-background/50 border-border">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-background border-border z-50">
+                <SelectContent className="bg-background border-border">
                   {fuzzingModeOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -317,12 +353,12 @@ export const RealTimeFuzzing: React.FC = () => {
 
             {/* DVWA Module */}
             <div className="space-y-2">
-              <Label>DVWA Module</Label>
+              <Label className="text-foreground">DVWA Module</Label>
               <Select value={dvwaModule} onValueChange={setDvwaModule} disabled={isFuzzing}>
-                <SelectTrigger className="bg-background/50">
+                <SelectTrigger className="bg-background/50 border-border">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-background border-border z-50">
+                <SelectContent className="bg-background border-border">
                   {dvwaModuleOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -337,8 +373,10 @@ export const RealTimeFuzzing: React.FC = () => {
           {isFuzzing && (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <Label>Progress</Label>
-                <Badge variant="destructive">Fuzzing Active</Badge>
+                <Label className="text-foreground">Progress</Label>
+                <Badge variant="destructive" className="animate-pulse">
+                  Fuzzing Active
+                </Badge>
               </div>
               <Progress value={progress} className="w-full" />
               <p className="text-sm text-muted-foreground">{Math.round(progress)}% complete</p>
@@ -351,7 +389,7 @@ export const RealTimeFuzzing: React.FC = () => {
               onClick={connectToDVWA}
               variant="outline"
               disabled={isFuzzing}
-              className="flex-1"
+              className="flex-1 border-border"
             >
               Connect to DVWA
             </Button>
@@ -360,7 +398,7 @@ export const RealTimeFuzzing: React.FC = () => {
               onClick={uploadCustomPayloads}
               variant="outline"
               disabled={isFuzzing}
-              className="flex-1 flex items-center gap-2"
+              className="flex-1 flex items-center gap-2 border-border"
             >
               <Upload className="h-4 w-4" />
               Upload Custom Payloads
@@ -379,12 +417,12 @@ export const RealTimeFuzzing: React.FC = () => {
 
       {/* Live Logs */}
       {logs.length > 0 && (
-        <Card className="cyberpunk-card">
+        <Card className="bg-card/60 backdrop-blur-sm border-border/40">
           <CardHeader>
-            <CardTitle>Live Fuzzing Logs</CardTitle>
+            <CardTitle className="text-foreground">Live Fuzzing Logs</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[300px] w-full rounded-md border p-4 bg-background/20">
+            <ScrollArea className="h-[300px] w-full rounded-md border border-border p-4 bg-background/20">
               {logs.length === 0 ? (
                 <div className="text-center text-muted-foreground">
                   No logs yet. Start fuzzing to see live output.
