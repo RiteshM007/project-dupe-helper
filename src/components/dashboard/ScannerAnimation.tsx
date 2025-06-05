@@ -3,9 +3,10 @@ import React, { useEffect, useRef } from 'react';
 
 interface ScannerAnimationProps {
   active: boolean;
+  threatLevel?: 'none' | 'low' | 'medium' | 'high' | 'critical';
 }
 
-export const ScannerAnimation: React.FC<ScannerAnimationProps> = ({ active }) => {
+export const ScannerAnimation: React.FC<ScannerAnimationProps> = ({ active, threatLevel = 'none' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -32,6 +33,17 @@ export const ScannerAnimation: React.FC<ScannerAnimationProps> = ({ active }) =>
     let scanLine = 0;
     let scanDirection = 1;
     let particlePoints: { x: number; y: number; size: number; opacity: number; speed: number }[] = [];
+
+    // Get threat level color
+    const getThreatColor = () => {
+      switch (threatLevel) {
+        case 'critical': return 'rgba(255, 0, 0, 0.8)';
+        case 'high': return 'rgba(255, 165, 0, 0.8)';
+        case 'medium': return 'rgba(255, 255, 0, 0.8)';
+        case 'low': return 'rgba(0, 255, 255, 0.8)';
+        default: return 'rgba(64, 224, 208, 0.8)';
+      }
+    };
 
     // Create initial particles
     const createParticles = () => {
@@ -104,10 +116,11 @@ export const ScannerAnimation: React.FC<ScannerAnimationProps> = ({ active }) =>
     const drawScanLine = () => {
       if (!active) return;
       
-      // Create gradient
+      // Create gradient with threat level color
+      const threatColor = getThreatColor();
       const gradient = ctx.createLinearGradient(0, scanLine - 10, 0, scanLine + 10);
       gradient.addColorStop(0, 'rgba(64, 224, 208, 0)');
-      gradient.addColorStop(0.5, 'rgba(64, 224, 208, 0.8)');
+      gradient.addColorStop(0.5, threatColor);
       gradient.addColorStop(1, 'rgba(64, 224, 208, 0)');
       
       ctx.fillStyle = gradient;
@@ -163,7 +176,7 @@ export const ScannerAnimation: React.FC<ScannerAnimationProps> = ({ active }) =>
       window.removeEventListener('resize', setCanvasDimensions);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [active]);
+  }, [active, threatLevel]);
 
   return (
     <canvas 
