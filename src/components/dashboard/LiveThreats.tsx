@@ -9,6 +9,7 @@ interface Threat {
   title: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   detectedAt: Date;
+  source: 'fuzzer' | 'scanner';
 }
 
 const severityColors = {
@@ -21,112 +22,112 @@ const severityColors = {
 export const LiveThreats = () => {
   const [threats, setThreats] = useState<Threat[]>([]);
   const threatsRef = useRef<Threat[]>([]);
-  const pendingThreatsRef = useRef<Threat[]>([]);
 
   useEffect(() => {
-    // Simulate initial threats
-    const initialThreats: Threat[] = [
-      {
-        id: '1',
-        title: 'SQL Injection Attempt',
-        severity: 'high',
-        detectedAt: new Date(),
-      },
-      {
-        id: '2',
-        title: 'XSS Vulnerability',
-        severity: 'medium',
-        detectedAt: new Date(Date.now() - 1000 * 60 * 5),
-      },
-    ];
-    setThreats(initialThreats);
-    threatsRef.current = initialThreats;
-
     // Listen for threat detection events during scanning
     const handleThreatDetected = (event: CustomEvent) => {
       const { 
         payload, 
         vulnerabilityType, 
-        severity = 'medium'  // Default severity if not provided
+        severity = 'medium',
+        field
       } = event.detail;
       
       // Map vulnerability type to a threat title
       const threatTitles: Record<string, string> = {
-        'xss': 'XSS Vulnerability',
-        'sqli': 'SQL Injection Attempt',
-        'csrf': 'CSRF Attack',
-        'lfi': 'File Inclusion Attempt',
-        'rce': 'Command Injection',
+        'xss': 'XSS Vulnerability Detected',
+        'sqli': 'SQL Injection Detected',
+        'csrf': 'CSRF Vulnerability Found',
+        'lfi': 'Local File Inclusion Detected',
+        'rce': 'Command Injection Found',
         'upload': 'File Upload Vulnerability',
       };
       
       // Get threat title based on vulnerability type or use a generic one
       const title = threatTitles[vulnerabilityType?.toLowerCase()] || 
-                   `${vulnerabilityType || 'Unknown'} Vulnerability`;
+                   `Security Issue Detected`;
       
       // Map severity string to our threat severity levels
       let threatSeverity: 'low' | 'medium' | 'high' | 'critical' = 'medium';
       if (typeof severity === 'string') {
-        if (severity.toLowerCase().includes('low')) threatSeverity = 'low';
-        if (severity.toLowerCase().includes('medium')) threatSeverity = 'medium';
-        if (severity.toLowerCase().includes('high')) threatSeverity = 'high';
-        if (severity.toLowerCase().includes('critical')) threatSeverity = 'critical';
+        const sev = severity.toLowerCase();
+        if (sev.includes('low')) threatSeverity = 'low';
+        if (sev.includes('medium')) threatSeverity = 'medium';
+        if (sev.includes('high')) threatSeverity = 'high';
+        if (sev.includes('critical')) threatSeverity = 'critical';
       }
       
       // Create new threat
       const newThreat: Threat = {
-        id: Math.random().toString(36).substr(2, 9),
-        title: payload ? `${title}: ${payload.substring(0, 30)}` : title,
+        id: `threat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        title: field ? `${title} in ${field}` : title,
         severity: threatSeverity,
         detectedAt: new Date(),
+        source: 'fuzzer'
       };
       
-      // Instead of updating immediately, store in pending threats
-      pendingThreatsRef.current = [newThreat, ...pendingThreatsRef.current];
+      // Update threats list immediately
+      setThreats(prevThreats => {
+        const updatedThreats = [newThreat, ...prevThreats].slice(0, 10);
+        threatsRef.current = updatedThreats;
+        return updatedThreats;
+      });
     };
 
-    // Listen for scan completion to update the threats list
-    const handleScanComplete = () => {
-      if (pendingThreatsRef.current.length > 0) {
-        const updatedThreats = [...pendingThreatsRef.current, ...threatsRef.current].slice(0, 10);
-        setThreats(updatedThreats);
-        threatsRef.current = updatedThreats;
-        pendingThreatsRef.current = []; // Clear pending threats
-      }
+    // Listen for scan start to clear old threats
+    const handleScanStart = () => {
+      setThreats([]);
+      threatsRef.current = [];
     };
 
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
-    window.addEventListener('scanComplete', handleScanComplete as EventListener);
+    window.addEventListener('scanStart', handleScanStart as EventListener);
     
     return () => {
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
-      window.removeEventListener('scanComplete', handleScanComplete as EventListener);
+      window.removeEventListener('scanStart', handleScanStart as EventListener);
     };
   }, []);
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-blue-900/30 shadow-lg shadow-blue-500/5">
       <CardHeader>
-        <CardTitle className="text-xl font-bold">Live Threats</CardTitle>
+        <CardTitle className="text-xl font-bold flex items-center justify-between">
+          Live Threats
+          <Badge variant="outline" className="ml-2">
+            {threats.length}
+          </Badge>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[300px] w-full rounded-md">
-          {threats.map((threat) => (
-            <div
-              key={threat.id}
-              className="flex items-center justify-between p-4 border-b border-border/50 animate-in slide-in-from-right duration-300"
-            >
-              <div className="flex flex-col space-y-1">
-                <span className="font-medium">{threat.title}</span>
-                <span className="text-sm text-muted-foreground">
-                  {threat.detectedAt.toLocaleString()}
-                </span>
+          {threats.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <div className="text-center">
+                <div className="text-sm">No threats detected</div>
+                <div className="text-xs mt-1">Start fuzzing to monitor for security threats</div>
               </div>
-              <Badge variant="outline" className={severityColors[threat.severity]}>
-                {threat.severity}
-              </Badge>
             </div>
-          ))}
+          ) : (
+            threats.map((threat) => (
+              <div
+                key={threat.id}
+                className="flex items-center justify-between p-4 border-b border-border/50 last:border-b-0 animate-in slide-in-from-right duration-300"
+              >
+                <div className="flex flex-col space-y-1">
+                  <span className="font-medium">{threat.title}</span>
+                  <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                    <span>{threat.detectedAt.toLocaleString()}</span>
+                    <span>•</span>
+                    <span className="capitalize">{threat.source}</span>
+                  </div>
+                </div>
+                <Badge variant="outline" className={severityColors[threat.severity]}>
+                  {threat.severity}
+                </Badge>
+              </div>
+            ))
+          )}
         </ScrollArea>
       </CardContent>
     </Card>

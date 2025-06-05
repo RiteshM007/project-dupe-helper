@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
-import { TargetedFuzzing } from '@/components/dashboard/TargetedFuzzing';
 import { Grid, GridItem } from '@/components/ui/grid';
 import { FuzzerStats } from '@/components/fuzzer/FuzzerStats';
 import { useDVWAConnection } from '@/context/DVWAConnectionContext';
@@ -13,7 +12,6 @@ import { useNavigate } from 'react-router-dom';
 import { useSocket } from '@/hooks/use-socket';
 import { ScanningStatus } from '@/components/fuzzer/ScanningStatus';
 import { fuzzerApi } from '@/services/api';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Fuzzer = () => {
   const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
@@ -29,7 +27,6 @@ const Fuzzer = () => {
   const [progress, setProgress] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('realtime');
 
   // Log component mount and current state
   useEffect(() => {
@@ -180,7 +177,7 @@ const Fuzzer = () => {
     };
   }, [addEventListener, navigate, socketConnected]);
 
-  // Handle external start/stop events (from RealTimeFuzzing component)
+  // Handle external start/stop events
   useEffect(() => {
     const handleScanStart = (event: CustomEvent) => {
       console.log('Scan started event received', event.detail);
@@ -307,20 +304,8 @@ const Fuzzer = () => {
           />
         </div>
         
-        <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full mb-6">
-            <TabsTrigger value="realtime">Standard Fuzzing</TabsTrigger>
-            <TabsTrigger value="targeted">Field-Targeted Fuzzing</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="realtime" className="pt-2">
-            <RealTimeFuzzing />
-          </TabsContent>
-          
-          <TabsContent value="targeted" className="pt-2">
-            <TargetedFuzzing />
-          </TabsContent>
-        </Tabs>
+        {/* Main fuzzing component */}
+        <RealTimeFuzzing />
       </div>
     </DashboardLayout>
   );
