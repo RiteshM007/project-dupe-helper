@@ -37,7 +37,7 @@ function App() {
               <Route path="/machine-learning" element={<MachineLearning />} />
               <Route path="/ml-analysis" element={<MLAnalysis />} />
             </Routes>
-            <Toaster position="top-right" richColors />
+            <Toaster position="top-right" />
           </div>
         </Router>
       </DVWAConnectionProvider>

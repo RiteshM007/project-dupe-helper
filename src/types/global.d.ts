@@ -2,35 +2,60 @@
 /// <reference types="react" />
 
 // Declare modules that don't have type definitions
-declare module 'react' {
-  // Re-export all types from React
-  export * from 'react';
+declare global {
+  type ThreatLevel = 'none' | 'low' | 'medium' | 'high' | 'critical';
   
-  // Add missing React exports
-  export const StrictMode: React.FC<{ children: React.ReactNode }>;
-  export const useState: <T>(initialState: T | (() => T)) => [T, (newState: T | ((prevState: T) => T)) => void];
-  export const useEffect: (effect: () => (void | (() => void)), deps?: readonly any[]) => void;
-  export const useRef: <T>(initialValue: T) => { current: T };
-  export const useContext: <T>(context: React.Context<T>) => T;
-  export const createContext: <T>(defaultValue: T) => React.Context<T>;
-  export const forwardRef: <T, P = {}>(render: React.ForwardRefRenderFunction<T, P>) => React.ForwardRefExoticComponent<React.PropsWithoutRef<P> & React.RefAttributes<T>>;
-  
-  // Add missing React types
-  export type FC<P = {}> = React.FunctionComponent<P>;
-  export type FunctionComponent<P = {}> = React.ComponentType<P>;
-  export type ElementRef<T> = React.ElementRef<T>;
-  export type ComponentPropsWithoutRef<T> = React.ComponentPropsWithoutRef<T>;
-  export type HTMLAttributes<T = any> = React.HTMLAttributes<T>;
-  export type ButtonHTMLAttributes<T = any> = React.ButtonHTMLAttributes<T>;
-  export type ComponentProps<T> = React.ComponentProps<T>;
-  export type ReactNode = React.ReactNode;
-  export type ChangeEvent<T = Element> = React.ChangeEvent<T>;
-  export type Context<T> = React.Context<T>;
-  export type RefAttributes<T> = React.RefAttributes<T>;
-  export type ForwardRefRenderFunction<T, P = {}> = React.ForwardRefRenderFunction<T, P>;
-  export type ForwardRefExoticComponent<P> = React.ForwardRefExoticComponent<P>;
-  export type PropsWithoutRef<P> = React.PropsWithoutRef<P>;
-  export type CSSProperties = React.CSSProperties;
+  interface Window {
+    dispatchEvent(event: CustomEvent): boolean;
+  }
+}
+
+// UI Component Props
+export interface InputProps {
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+export interface ButtonProps {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: 'default' | 'outline' | 'destructive' | 'secondary' | 'ghost' | 'link';
+  size?: 'default' | 'sm' | 'lg' | 'icon';
+  className?: string;
+}
+
+export interface CardProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export interface ScrollAreaProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export interface DialogProps {
+  children: React.ReactNode;
+}
+
+export interface TooltipProps {
+  children: React.ReactNode;
+}
+
+export interface GridProps {
+  children: React.ReactNode;
+  cols?: number;
+  gap?: number;
+  className?: string;
+}
+
+export interface GridItemProps {
+  children: React.ReactNode;
+  className?: string;
 }
 
 // Fix for 'react/jsx-runtime' missing
@@ -496,6 +521,16 @@ declare module 'sonner' {
     };
   }
 
-  export function toast(message: string | React.ReactNode, options?: ToastOptions): void;
+  export interface ToastFunction {
+    (message: string | React.ReactNode, options?: ToastOptions): void;
+    success: (message: string | React.ReactNode, options?: ToastOptions) => void;
+    error: (message: string | React.ReactNode, options?: ToastOptions) => void;
+    info: (message: string | React.ReactNode, options?: ToastOptions) => void;
+    warning: (message: string | React.ReactNode, options?: ToastOptions) => void;
+  }
+
+  export const toast: ToastFunction;
   export const Toaster: React.FC<{ position?: ToastOptions['position']; theme?: 'light' | 'dark' }>;
 }
+
+export {};
