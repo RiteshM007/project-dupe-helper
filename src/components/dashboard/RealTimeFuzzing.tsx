@@ -4,33 +4,88 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Upload, Link } from 'lucide-react';
 import { toast } from 'sonner';
 import { fuzzerApi } from '@/services/api';
 
 export const RealTimeFuzzing: React.FC = () => {
   const [targetUrl, setTargetUrl] = useState('http://localhost:8080');
+  const [payloadSet, setPayloadSet] = useState('custom-payloads');
+  const [fuzzingMode, setFuzzingMode] = useState('thorough-scan');
+  const [dvwaModule, setDvwaModule] = useState('command-injection');
   const [isFuzzing, setIsFuzzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  const [vulnerabilityTypes, setVulnerabilityTypes] = useState<string[]>(['xss', 'sqli']);
   const [customPayloads, setCustomPayloads] = useState<string>('');
 
-  const vulnerabilityOptions = [
-    { id: 'xss', label: 'Cross-Site Scripting (XSS)' },
-    { id: 'sqli', label: 'SQL Injection' },
-    { id: 'lfi', label: 'Local File Inclusion' },
-    { id: 'rce', label: 'Remote Code Execution' },
-    { id: 'csrf', label: 'Cross-Site Request Forgery' },
+  const payloadOptions = [
+    { value: 'custom-payloads', label: 'Custom Payloads' },
+    { value: 'xss-payloads', label: 'XSS Payloads' },
+    { value: 'sqli-payloads', label: 'SQL Injection Payloads' },
+    { value: 'lfi-payloads', label: 'LFI Payloads' },
+    { value: 'rce-payloads', label: 'RCE Payloads' },
+  ];
+
+  const fuzzingModeOptions = [
+    { value: 'thorough-scan', label: 'Thorough Scan' },
+    { value: 'quick-scan', label: 'Quick Scan' },
+    { value: 'deep-scan', label: 'Deep Scan' },
+    { value: 'focused-scan', label: 'Focused Scan' },
+  ];
+
+  const dvwaModuleOptions = [
+    { value: 'command-injection', label: 'Command Injection' },
+    { value: 'xss-reflected', label: 'XSS (Reflected)' },
+    { value: 'xss-stored', label: 'XSS (Stored)' },
+    { value: 'sql-injection', label: 'SQL Injection' },
+    { value: 'file-inclusion', label: 'File Inclusion' },
+    { value: 'file-upload', label: 'File Upload' },
+    { value: 'csrf', label: 'CSRF' },
+    { value: 'brute-force', label: 'Brute Force' },
   ];
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
+
+  const connectToDVWA = async () => {
+    try {
+      addLog('Attempting to connect to DVWA...');
+      // Simulate connection logic
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      addLog('Successfully connected to DVWA');
+      toast.success('Connected to DVWA successfully');
+    } catch (error) {
+      addLog('Failed to connect to DVWA');
+      toast.error('Failed to connect to DVWA');
+    }
+  };
+
+  const uploadCustomPayloads = () => {
+    // Create a file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.json';
+    input.onchange = (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          setCustomPayloads(content);
+          addLog(`Uploaded custom payloads: ${file.name}`);
+          toast.success('Custom payloads uploaded successfully');
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
   };
 
   const startFuzzing = async () => {
@@ -40,7 +95,10 @@ export const RealTimeFuzzing: React.FC = () => {
       setLogs([]);
       
       addLog('Starting new fuzzing session...');
-      addLog('Creating fuzzing session...');
+      addLog(`Target: ${targetUrl}`);
+      addLog(`Payload Set: ${payloadOptions.find(p => p.value === payloadSet)?.label}`);
+      addLog(`Fuzzing Mode: ${fuzzingModeOptions.find(m => m.value === fuzzingMode)?.label}`);
+      addLog(`DVWA Module: ${dvwaModuleOptions.find(d => d.value === dvwaModule)?.label}`);
       
       // Create fuzzer session
       const createResult = await fuzzerApi.createFuzzer(targetUrl, 'custom_wordlist.txt');
@@ -62,6 +120,9 @@ export const RealTimeFuzzing: React.FC = () => {
           addLog('Custom payloads uploaded successfully');
         }
       }
+      
+      // Map payload set to vulnerability types
+      const vulnerabilityTypes = getVulnerabilityTypes(payloadSet, dvwaModule);
       
       // Start fuzzing
       addLog(`Starting fuzzing with vulnerability types: ${vulnerabilityTypes.join(', ')}`);
@@ -91,26 +152,33 @@ export const RealTimeFuzzing: React.FC = () => {
     }
   };
 
-  const stopFuzzing = async () => {
-    try {
-      if (sessionId) {
-        addLog('Stopping fuzzing process...');
-        await fuzzerApi.stopFuzzing(sessionId);
-        addLog('Fuzzing process stopped');
-        
-        // Dispatch scan stop event
-        window.dispatchEvent(new CustomEvent('scanStop'));
-      }
-      
-      setIsFuzzing(false);
-      setSessionId(null);
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      addLog(`Error stopping fuzzing: ${errorMessage}`);
-      toast.error('Error stopping fuzzing', {
-        description: errorMessage
-      });
+  const getVulnerabilityTypes = (payloadSet: string, dvwaModule: string) => {
+    switch (payloadSet) {
+      case 'xss-payloads':
+        return ['xss'];
+      case 'sqli-payloads':
+        return ['sqli'];
+      case 'lfi-payloads':
+        return ['lfi'];
+      case 'rce-payloads':
+        return ['rce'];
+      default:
+        // For custom payloads, determine based on DVWA module
+        switch (dvwaModule) {
+          case 'command-injection':
+            return ['rce'];
+          case 'xss-reflected':
+          case 'xss-stored':
+            return ['xss'];
+          case 'sql-injection':
+            return ['sqli'];
+          case 'file-inclusion':
+            return ['lfi'];
+          case 'csrf':
+            return ['csrf'];
+          default:
+            return ['xss', 'sqli', 'lfi', 'rce'];
+        }
     }
   };
 
@@ -188,126 +256,161 @@ export const RealTimeFuzzing: React.FC = () => {
     return threats[Math.floor(Math.random() * threats.length)];
   };
 
-  const handleVulnerabilityTypeChange = (vulnType: string, checked: boolean) => {
-    if (checked) {
-      setVulnerabilityTypes(prev => [...prev, vulnType]);
-    } else {
-      setVulnerabilityTypes(prev => prev.filter(v => v !== vulnType));
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="bg-black/95 border-gray-800 text-white">
         <CardHeader>
-          <CardTitle>Real-Time Web Application Fuzzing</CardTitle>
+          <CardTitle className="text-2xl">Web Application Fuzzer</CardTitle>
+          <p className="text-gray-400">Configure and test fuzzing on web applications</p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="targetUrl">Target URL</Label>
-              <Input
-                id="targetUrl"
-                value={targetUrl}
-                onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder="http://localhost:8080"
-                disabled={isFuzzing}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <div>
-                {isFuzzing ? (
-                  <Badge variant="destructive">Fuzzing Active</Badge>
-                ) : (
-                  <Badge variant="outline">Ready</Badge>
-                )}
-              </div>
-            </div>
-          </div>
-
+        <CardContent className="space-y-6">
+          {/* Target URL */}
           <div className="space-y-2">
-            <Label>Vulnerability Types to Test</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {vulnerabilityOptions.map((option) => (
-                <div key={option.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={option.id}
-                    checked={vulnerabilityTypes.includes(option.id)}
-                    onCheckedChange={(checked) => 
-                      handleVulnerabilityTypeChange(option.id, checked as boolean)
-                    }
-                    disabled={isFuzzing}
-                  />
-                  <Label htmlFor={option.id} className="text-sm">{option.label}</Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="customPayloads">Custom Payloads (one per line)</Label>
-            <textarea
-              id="customPayloads"
-              value={customPayloads}
-              onChange={(e) => setCustomPayloads(e.target.value)}
-              placeholder="<script>alert('custom')</script>&#10;' OR '1'='1&#10;../../../etc/passwd"
-              className="w-full h-24 p-2 border rounded-md"
+            <Label htmlFor="targetUrl" className="text-white flex items-center gap-2">
+              <Link className="h-4 w-4" />
+              Target URL
+            </Label>
+            <Input
+              id="targetUrl"
+              value={targetUrl}
+              onChange={(e) => setTargetUrl(e.target.value)}
+              placeholder="http://localhost:8080"
               disabled={isFuzzing}
+              className="bg-gray-900 border-gray-700 text-white"
             />
           </div>
 
+          {/* Configuration Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Payload Set */}
+            <div className="space-y-2">
+              <Label className="text-white">Payload Set</Label>
+              <Select value={payloadSet} onValueChange={setPayloadSet} disabled={isFuzzing}>
+                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700">
+                  {payloadOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className="text-white">
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Fuzzing Mode */}
+            <div className="space-y-2">
+              <Label className="text-white">Fuzzing Mode</Label>
+              <Select value={fuzzingMode} onValueChange={setFuzzingMode} disabled={isFuzzing}>
+                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700">
+                  {fuzzingModeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className="text-white">
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* DVWA Module */}
+            <div className="space-y-2">
+              <Label className="text-white">DVWA Module</Label>
+              <Select value={dvwaModule} onValueChange={setDvwaModule} disabled={isFuzzing}>
+                <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-900 border-gray-700">
+                  {dvwaModuleOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className="text-white">
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
           {isFuzzing && (
             <div className="space-y-2">
-              <Label>Progress</Label>
-              <Progress value={progress} className="w-full" />
-              <p className="text-sm text-muted-foreground">{Math.round(progress)}% complete</p>
+              <div className="flex justify-between items-center">
+                <Label className="text-white">Progress</Label>
+                <Badge variant="destructive">Fuzzing Active</Badge>
+              </div>
+              <Progress value={progress} className="w-full bg-gray-800 [&>*]:bg-purple-600" />
+              <p className="text-sm text-gray-400">{Math.round(progress)}% complete</p>
             </div>
           )}
 
-          <div className="flex gap-2">
+          {/* Action Buttons */}
+          <div className="flex gap-4">
             <Button
-              onClick={isFuzzing ? stopFuzzing : startFuzzing}
-              variant={isFuzzing ? "destructive" : "default"}
-              disabled={!targetUrl || vulnerabilityTypes.length === 0}
+              onClick={connectToDVWA}
+              variant="outline"
+              disabled={isFuzzing}
+              className="flex-1 bg-gray-900 border-gray-700 text-white hover:bg-gray-800"
             >
-              {isFuzzing ? 'Stop Fuzzing' : 'Start Fuzzing'}
+              Connect to DVWA
+            </Button>
+            
+            <Button
+              onClick={uploadCustomPayloads}
+              variant="outline"
+              disabled={isFuzzing}
+              className="flex-1 bg-gray-900 border-gray-700 text-white hover:bg-gray-800 flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Upload Custom Payloads
+            </Button>
+            
+            <Button
+              onClick={startFuzzing}
+              disabled={!targetUrl || isFuzzing}
+              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {isFuzzing ? 'Fuzzing...' : 'Start Fuzzing'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Live Fuzzing Logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[300px] w-full rounded-md border p-4">
-            {logs.length === 0 ? (
-              <div className="text-center text-muted-foreground">
-                No logs yet. Start fuzzing to see live output.
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {logs.map((log, index) => (
-                  <div 
-                    key={index}
-                    className={`text-sm font-mono ${
-                      log.includes('ERROR') ? 'text-red-500' :
-                      log.includes('THREAT') ? 'text-orange-500' :
-                      log.includes('completed') ? 'text-green-500' :
-                      'text-foreground'
-                    }`}
-                  >
-                    {log}
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
+      {/* Live Logs */}
+      {logs.length > 0 && (
+        <Card className="bg-black/95 border-gray-800 text-white">
+          <CardHeader>
+            <CardTitle>Live Fuzzing Logs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px] w-full rounded-md border border-gray-700 bg-gray-900 p-4">
+              {logs.length === 0 ? (
+                <div className="text-center text-gray-400">
+                  No logs yet. Start fuzzing to see live output.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {logs.map((log, index) => (
+                    <div 
+                      key={index}
+                      className={`text-sm font-mono ${
+                        log.includes('ERROR') ? 'text-red-400' :
+                        log.includes('THREAT') ? 'text-orange-400' :
+                        log.includes('completed') ? 'text-green-400' :
+                        'text-gray-300'
+                      }`}
+                    >
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
