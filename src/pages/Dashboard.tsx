@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,59 +68,42 @@ const Dashboard = () => {
       setScanActive(false);
       const results = event.detail;
       
+      if (!results) {
+        console.warn('Dashboard: No results in scan complete event');
+        return;
+      }
+      
       setStats(prev => ({
         ...prev,
         totalScans: prev.totalScans + 1,
-        vulnerabilitiesFound: prev.vulnerabilitiesFound + (results?.vulnerabilities || 0),
-        criticalThreats: prev.criticalThreats + (results?.criticalCount || 0),
+        vulnerabilitiesFound: prev.vulnerabilitiesFound + (results.vulnerabilities || 0),
+        criticalThreats: prev.criticalThreats + (results.severity === 'critical' ? 1 : 0),
         lastScanTime: new Date().toLocaleString()
       }));
 
       const newScan: RecentScan = {
-        id: results?.sessionId || Date.now().toString(),
-        target: results?.target || results?.targetUrl || 'Unknown Target',
+        id: results.sessionId || Date.now().toString(),
+        target: results.target || results.targetUrl || 'Unknown Target',
         timestamp: new Date().toLocaleString(),
         status: 'completed',
-        vulnerabilities: results?.vulnerabilities || 0,
-        riskLevel: results?.riskLevel || results?.severity || 'low',
-        type: results?.type || 'fuzzing'
+        vulnerabilities: results.vulnerabilities || 0,
+        riskLevel: results.severity || 'low',
+        type: results.type || 'fuzzing'
       };
 
+      console.log('Dashboard: Adding new scan to recent scans:', newScan);
       setRecentScans(prev => [newScan, ...prev.slice(0, 4)]);
       
-      if (results?.criticalCount > 0) {
+      // Update threat level based on results
+      if (results.severity === 'critical') {
         setThreatLevel('critical');
-      } else if (results?.vulnerabilities > 5) {
+      } else if (results.vulnerabilities > 3) {
         setThreatLevel('high');
-      } else if (results?.vulnerabilities > 0) {
+      } else if (results.vulnerabilities > 0) {
         setThreatLevel('medium');
       } else {
         setThreatLevel('low');
       }
-    };
-
-    const handleMLComplete = (event: CustomEvent) => {
-      console.log('Dashboard: ML Analysis completed', event.detail);
-      setScanActive(false);
-      const results = event.detail;
-      
-      setStats(prev => ({
-        ...prev,
-        totalScans: prev.totalScans + 1,
-        lastScanTime: new Date().toLocaleString()
-      }));
-
-      const newScan: RecentScan = {
-        id: results?.sessionId || `ml-${Date.now()}`,
-        target: 'ML Analysis',
-        timestamp: new Date().toLocaleString(),
-        status: 'completed',
-        vulnerabilities: results?.patterns || 0,
-        riskLevel: results?.riskLevel || 'medium',
-        type: 'machine-learning'
-      };
-
-      setRecentScans(prev => [newScan, ...prev.slice(0, 4)]);
     };
 
     const handleThreatDetected = (event: CustomEvent) => {
@@ -138,12 +120,12 @@ const Dashboard = () => {
       console.log('Dashboard: Threat detected', threat);
     };
 
-    // Listen to multiple event types
+    // Listen to all relevant events
     window.addEventListener('scanStart', handleScanStart as EventListener);
     window.addEventListener('scanStarted', handleScanStart as EventListener);
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
     window.addEventListener('globalScanComplete', handleScanComplete as EventListener);
-    window.addEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
+    window.addEventListener('mlAnalysisComplete', handleScanComplete as EventListener);
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
     window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
 
@@ -152,7 +134,7 @@ const Dashboard = () => {
       window.removeEventListener('scanStarted', handleScanStart as EventListener);
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
       window.removeEventListener('globalScanComplete', handleScanComplete as EventListener);
-      window.removeEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
+      window.removeEventListener('mlAnalysisComplete', handleScanComplete as EventListener);
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
       window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
     };

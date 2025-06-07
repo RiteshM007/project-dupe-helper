@@ -1,441 +1,406 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Upload, Link } from 'lucide-react';
-import { toast } from 'sonner';
-import { fuzzerApi } from '@/services/api';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/hooks/use-toast"
 import { useDVWAConnection } from '@/context/DVWAConnectionContext';
+import { Progress } from '@/components/ui/progress';
+import { fuzzerApi } from '@/services/api';
+import { useSocket } from '@/hooks/use-socket';
+
+interface Vulnerability {
+  id: string;
+  payload: string;
+  description: string;
+}
 
 export const RealTimeFuzzing: React.FC = () => {
-  const { isConnected: dvwaConnected, setIsConnected } = useDVWAConnection();
-  const [targetUrl, setTargetUrl] = useState('http://localhost:8080');
-  const [payloadSet, setPayloadSet] = useState('custom-payloads');
-  const [fuzzingMode, setFuzzingMode] = useState('thorough-scan');
-  const [dvwaModule, setDvwaModule] = useState('command-injection');
-  const [isFuzzing, setIsFuzzing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [customPayloads, setCustomPayloads] = useState<string>('');
+  const [targetUrl, setTargetUrl] = useState<string>('http://localhost:8080');
+  const [payload, setPayload] = useState<string>('');
+  const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [payloadCount, setPayloadCount] = useState<number>(0);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [scanStartTime, setScanStartTime] = useState<number>(0);
+  const { isConnected, sessionCookie } = useDVWAConnection();
+  const { emitEvent } = useSocket();
+  const [customHeaders, setCustomHeaders] = useState<string>('');
+  const [isConfigured, setIsConfigured] = useState<boolean>(false);
+  const [fuzzingStatus, setFuzzingStatus] = useState<string>('Ready');
+  const [dvwaParams, setDvwaParams] = useState<string>('');
+  const [dvwaPage, setDvwaPage] = useState<string>('');
+  const [dvwaMethod, setDvwaMethod] = useState<string>('GET');
+  const [dvwaSecurityLevel, setDvwaSecurityLevel] = useState<string>('low');
+  const [dvwaCookie, setDvwaCookie] = useState<string>('');
+  const [dvwaHost, setDvwaHost] = useState<string>('localhost:8080');
 
-  const payloadOptions = [
-    { value: 'custom-payloads', label: 'Custom Payloads' },
-    { value: 'xss-payloads', label: 'XSS Payloads' },
-    { value: 'sqli-payloads', label: 'SQL Injection Payloads' },
-    { value: 'lfi-payloads', label: 'LFI Payloads' },
-    { value: 'rce-payloads', label: 'RCE Payloads' },
-  ];
+  const ws = useRef<WebSocket | null>(null);
 
-  const fuzzingModeOptions = [
-    { value: 'thorough-scan', label: 'Thorough Scan' },
-    { value: 'quick-scan', label: 'Quick Scan' },
-    { value: 'deep-scan', label: 'Deep Scan' },
-    { value: 'focused-scan', label: 'Focused Scan' },
-  ];
-
-  const dvwaModuleOptions = [
-    { value: 'command-injection', label: 'Command Injection' },
-    { value: 'xss-reflected', label: 'XSS (Reflected)' },
-    { value: 'xss-stored', label: 'XSS (Stored)' },
-    { value: 'sql-injection', label: 'SQL Injection' },
-    { value: 'file-inclusion', label: 'File Inclusion' },
-    { value: 'file-upload', label: 'File Upload' },
-    { value: 'csrf', label: 'CSRF' },
-    { value: 'brute-force', label: 'Brute Force' },
-  ];
-
-  const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
-  };
-
-  const connectToDVWA = async () => {
-    try {
-      addLog('Attempting to connect to DVWA...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setIsConnected(true);
-      addLog('Successfully connected to DVWA');
-      toast.success('Connected to DVWA successfully');
-    } catch (error) {
-      addLog('Failed to connect to DVWA');
-      toast.error('Failed to connect to DVWA');
+  const startScan = useCallback(async () => {
+    if (!isConnected) {
+      toast({
+        title: "Not Connected",
+        description: "Please connect to DVWA first.",
+        variant: "destructive",
+      });
+      return;
     }
-  };
 
-  const uploadCustomPayloads = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.txt,.json';
-    input.onchange = (event) => {
-      const file = (event.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const content = e.target?.result as string;
-          setCustomPayloads(content);
-          addLog(`Uploaded custom payloads: ${file.name}`);
-          toast.success('Custom payloads uploaded successfully');
-        };
-        reader.readAsText(file);
-      }
+    if (isScanning) {
+      toast({
+        title: "Already Scanning",
+        description: "A scan is already in progress.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsScanning(true);
+    setVulnerabilities([]);
+    setProgress(0);
+    setPayloadCount(0);
+    setScanStartTime(Date.now());
+    
+    const sessionId = Date.now().toString();
+    setCurrentSessionId(sessionId);
+    
+    console.log('RealTimeFuzzing: Starting scan with session ID:', sessionId);
+    
+    // Dispatch scan start event
+    const scanStartEvent = new CustomEvent('scanStart', { detail: { sessionId, targetUrl } });
+    window.dispatchEvent(scanStartEvent);
+    
+    // Construct the request body
+    const requestBody = {
+      targetUrl,
+      payload,
+      customHeaders,
+      sessionCookie,
+      sessionId,
+      dvwaParams,
+      dvwaPage,
+      dvwaMethod,
+      dvwaSecurityLevel,
+      dvwaCookie,
+      dvwaHost
     };
-    input.click();
-  };
-
-  const startFuzzing = async () => {
+    
     try {
-      setIsFuzzing(true);
-      setProgress(0);
-      setLogs([]);
+      // Start fuzzing via API
+      const response = await fuzzerApi.startFuzzing(requestBody);
       
-      addLog('Starting new fuzzing session...');
-      addLog(`Target: ${targetUrl}`);
-      addLog(`Payload Set: ${payloadOptions.find(p => p.value === payloadSet)?.label}`);
-      addLog(`Fuzzing Mode: ${fuzzingModeOptions.find(m => m.value === fuzzingMode)?.label}`);
-      addLog(`DVWA Module: ${dvwaModuleOptions.find(d => d.value === dvwaModule)?.label}`);
-      
-      const newSessionId = `fuzzing-${Date.now()}`;
-      setSessionId(newSessionId);
-      addLog(`Fuzzer session created: ${newSessionId}`);
-      
-      if (customPayloads.trim()) {
-        const payloadList = customPayloads.split('\n').filter(p => p.trim());
-        if (payloadList.length > 0) {
-          addLog(`Uploading ${payloadList.length} custom payloads...`);
-        }
+      if (response.status === 200) {
+        console.log('RealTimeFuzzing: Fuzzing started successfully');
+        toast({
+          title: "Fuzzing Started",
+          description: "Fuzzing started successfully.",
+        });
+        setFuzzingStatus('Scanning');
+      } else {
+        console.error('RealTimeFuzzing: Failed to start fuzzing:', response.statusText);
+        toast({
+          title: "Fuzzing Failed",
+          description: `Failed to start fuzzing: ${response.statusText}`,
+          variant: "destructive",
+        });
+        setIsScanning(false);
+        setFuzzingStatus('Error');
       }
+    } catch (error: any) {
+      console.error('RealTimeFuzzing: Error starting fuzzing:', error);
+      toast({
+        title: "Fuzzing Error",
+        description: `Error starting fuzzing: ${error.message}`,
+        variant: "destructive",
+      });
+      setIsScanning(false);
+      setFuzzingStatus('Error');
+    }
+  }, [isConnected, sessionCookie, targetUrl, payload, customHeaders, isScanning, toast, dvwaParams, dvwaPage, dvwaMethod, dvwaSecurityLevel, dvwaCookie, dvwaHost]);
+
+  const stopScan = useCallback(async () => {
+    if (!isScanning) {
+      toast({
+        title: "Not Scanning",
+        description: "No scan in progress.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsScanning(false);
+    setFuzzingStatus('Stopping');
+    
+    console.log('RealTimeFuzzing: Stopping scan with session ID:', currentSessionId);
+    
+    // Dispatch scan stop event
+    const scanStopEvent = new CustomEvent('scanStop');
+    window.dispatchEvent(scanStopEvent);
+    
+    try {
+      // Stop fuzzing via API
+      const response = await fuzzerApi.stopFuzzing(currentSessionId || '');
       
-      const vulnerabilityTypes = getVulnerabilityTypes(payloadSet, dvwaModule);
-      addLog(`Starting fuzzing with vulnerability types: ${vulnerabilityTypes.join(', ')}`);
+      if (response.status === 200) {
+        console.log('RealTimeFuzzing: Fuzzing stopped successfully');
+        toast({
+          title: "Fuzzing Stopped",
+          description: "Fuzzing stopped successfully.",
+        });
+        setFuzzingStatus('Stopped');
+      } else {
+        console.error('RealTimeFuzzing: Failed to stop fuzzing:', response.statusText);
+        toast({
+          title: "Fuzzing Failed",
+          description: `Failed to stop fuzzing: ${response.statusText}`,
+          variant: "destructive",
+        });
+        setFuzzingStatus('Error');
+      }
+    } catch (error: any) {
+      console.error('RealTimeFuzzing: Error stopping fuzzing:', error);
+      toast({
+        title: "Fuzzing Error",
+        description: `Error stopping fuzzing: ${error.message}`,
+        variant: "destructive",
+      });
+      setFuzzingStatus('Error');
+    } finally {
+      setIsScanning(false);
+      setFuzzingStatus('Ready');
+    }
+  }, [isScanning, currentSessionId, toast]);
+
+  useEffect(() => {
+    const handleVulnerabilityFound = (event: CustomEvent) => {
+      const { payload, description } = event.detail;
+      console.log('RealTimeFuzzing: Vulnerability found:', payload, description);
       
-      // Dispatch scan start events for all components
-      const scanStartData = { 
-        sessionId: newSessionId,
-        target: targetUrl,
-        module: dvwaModule,
-        payloadSet,
-        timestamp: new Date()
+      const newVulnerability: Vulnerability = {
+        id: Date.now().toString(),
+        payload,
+        description,
       };
       
-      window.dispatchEvent(new CustomEvent('scanStart', { detail: scanStartData }));
-      window.dispatchEvent(new CustomEvent('scanStarted', { detail: scanStartData }));
+      setVulnerabilities(prev => [...prev, newVulnerability]);
       
-      simulateProgress();
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      addLog(`Error starting fuzzing: ${errorMessage}`);
-      toast.error('Failed to start fuzzing', {
-        description: errorMessage
+      // Dispatch threat detected event
+      const threatDetectedEvent = new CustomEvent('threatDetected', { 
+        detail: { 
+          payload, 
+          vulnerabilityType: description,
+          severity: 'high',
+          field: 'payload',
+          timestamp: new Date()
+        }
       });
-      setIsFuzzing(false);
-    }
-  };
-
-  const getVulnerabilityTypes = (payloadSet: string, dvwaModule: string) => {
-    switch (payloadSet) {
-      case 'xss-payloads':
-        return ['xss'];
-      case 'sqli-payloads':
-        return ['sqli'];
-      case 'lfi-payloads':
-        return ['lfi'];
-      case 'rce-payloads':
-        return ['rce'];
-      default:
-        switch (dvwaModule) {
-          case 'command-injection':
-            return ['rce'];
-          case 'xss-reflected':
-          case 'xss-stored':
-            return ['xss'];
-          case 'sql-injection':
-            return ['sqli'];
-          case 'file-inclusion':
-            return ['lfi'];
-          case 'csrf':
-            return ['csrf'];
-          default:
-            return ['xss', 'sqli', 'lfi', 'rce'];
-        }
-    }
-  };
-
-  const simulateProgress = () => {
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += Math.random() * 5;
+      window.dispatchEvent(threatDetectedEvent);
       
-      if (currentProgress >= 100) {
-        currentProgress = 100;
-        setProgress(100);
-        setIsFuzzing(false);
-        addLog('Fuzzing process completed');
-        
-        const vulnerabilities = Math.floor(Math.random() * 5) + 1;
-        const payloadsTested = Math.floor(Math.random() * 50) + 20;
-        const criticalCount = Math.floor(vulnerabilities / 2);
-        
-        // Create comprehensive report data for all components
-        const completionData = {
-          sessionId,
-          vulnerabilities,
-          payloadsTested,
-          criticalCount,
-          targetUrl,
-          target: targetUrl,
-          timestamp: new Date(),
-          status: 'completed',
-          duration: `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
-          severity: vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low',
-          riskLevel: vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low',
-          module: dvwaModule,
-          payloadSet
-        };
-        
-        addLog(`Scan completed: ${vulnerabilities} vulnerabilities found`);
-        
-        // Dispatch multiple events for different components
-        window.dispatchEvent(new CustomEvent('scanComplete', { detail: completionData }));
-        window.dispatchEvent(new CustomEvent('globalScanComplete', { detail: completionData }));
-        window.dispatchEvent(new CustomEvent('scanReportGenerated', { detail: completionData }));
-        
-        console.log('Fuzzing completed, dispatching events:', completionData);
-        
-        clearInterval(interval);
-        toast.success(`Fuzzing completed! Found ${vulnerabilities} vulnerabilities`);
-      } else {
-        setProgress(currentProgress);
-        
-        if (Math.random() > 0.7) {
-          const randomPayload = getRandomPayload();
-          addLog(`Testing payload: ${randomPayload}`);
-          window.dispatchEvent(new CustomEvent('payloadSent'));
-          
-          if (Math.random() > 0.8) {
-            const threat = getRandomThreat();
-            addLog(`🚨 THREAT DETECTED: ${threat.description}`);
-            
-            const threatData = {
-              payload: threat.payload,
-              severity: threat.severity,
-              vulnerabilityType: getVulnerabilityTypeFromPayload(threat.payload),
-              field: dvwaModule,
-              timestamp: new Date()
-            };
-            
-            window.dispatchEvent(new CustomEvent('threatDetected', { detail: threatData }));
-            window.dispatchEvent(new CustomEvent('globalThreatDetected', { detail: threatData }));
-          }
-        }
-        
-        window.dispatchEvent(new CustomEvent('scanProgress', {
-          detail: { progress: currentProgress }
-        }));
-      }
-    }, 1000);
-  };
+      toast({
+        title: "Vulnerability Found",
+        description: description || "A vulnerability was found.",
+      });
+    };
+    
+    const handlePayloadSent = () => {
+      setPayloadCount(prev => prev + 1);
+    };
+    
+    window.addEventListener('vulnerabilityFound', handleVulnerabilityFound as EventListener);
+    window.addEventListener('payloadSent', handlePayloadSent);
+    
+    return () => {
+      window.removeEventListener('vulnerabilityFound', handleVulnerabilityFound as EventListener);
+      window.removeEventListener('payloadSent', handlePayloadSent);
+    };
+  }, [toast]);
 
-  const getVulnerabilityTypeFromPayload = (payload: string) => {
-    if (payload.includes('<script>') || payload.includes('alert')) return 'XSS';
-    if (payload.includes('OR 1=1') || payload.includes('DROP')) return 'SQL Injection';
-    if (payload.includes('../') || payload.includes('passwd')) return 'Path Traversal';
-    if (payload.includes('rm -rf') || payload.includes('cat')) return 'Command Injection';
-    return 'Unknown';
-  };
+  const completeScan = useCallback(() => {
+    if (!isScanning) return;
+    
+    setIsScanning(false);
+    setProgress(100);
+    
+    const scanResults = {
+      sessionId: currentSessionId,
+      targetUrl: targetUrl || 'http://localhost:8080',
+      vulnerabilities: vulnerabilities.length,
+      payloadsTested: payloadCount,
+      duration: `${Math.floor((Date.now() - scanStartTime) / 1000)}s`,
+      severity: vulnerabilities.length > 3 ? 'critical' : vulnerabilities.length > 1 ? 'high' : vulnerabilities.length > 0 ? 'medium' : 'low',
+      type: 'fuzzing',
+      target: targetUrl || 'http://localhost:8080'
+    };
 
-  const getRandomPayload = () => {
-    const payloads = [
-      "<script>alert('XSS')</script>",
-      "' OR 1=1 --",
-      "../../../etc/passwd",
-      "; cat /etc/passwd",
-      "<img src=x onerror=alert(1)>",
-      "admin'#",
-      "'; DROP TABLE users; --"
-    ];
-    return payloads[Math.floor(Math.random() * payloads.length)];
-  };
+    console.log('RealTimeFuzzing: Completing scan with results:', scanResults);
+    
+    // Dispatch multiple event types to ensure compatibility
+    const scanCompleteEvent = new CustomEvent('scanComplete', { detail: scanResults });
+    const globalScanCompleteEvent = new CustomEvent('globalScanComplete', { detail: scanResults });
+    
+    window.dispatchEvent(scanCompleteEvent);
+    window.dispatchEvent(globalScanCompleteEvent);
+    
+    console.log('RealTimeFuzzing: Dispatched scan complete events');
+    
+    toast({
+      title: "Fuzzing Complete",
+      description: `Found ${vulnerabilities.length} vulnerabilities in ${payloadCount} payloads`,
+    });
+  }, [isScanning, vulnerabilities, payloadCount, targetUrl, currentSessionId, scanStartTime, toast]);
 
-  const getRandomThreat = () => {
-    const threats = [
-      { payload: "<script>alert(1)</script>", severity: "high", description: "XSS vulnerability detected" },
-      { payload: "' OR 1=1 --", severity: "critical", description: "SQL injection vulnerability" },
-      { payload: "../../../etc/passwd", severity: "medium", description: "Path traversal vulnerability" },
-      { payload: "; rm -rf /", severity: "critical", description: "Command injection detected" }
-    ];
-    return threats[Math.floor(Math.random() * threats.length)];
-  };
+  useEffect(() => {
+    if (progress >= 100 && isScanning) {
+      completeScan();
+    }
+  }, [progress, isScanning, completeScan]);
 
   return (
-    <div className="space-y-6">
-      <div className="mb-4">
-        {dvwaConnected ? (
-          <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-            DVWA Connected
-          </Badge>
-        ) : (
-          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-            DVWA Offline
-          </Badge>
-        )}
-      </div>
-
-      <Card className="bg-card/60 backdrop-blur-sm border-border/40">
-        <CardHeader>
-          <CardTitle className="text-2xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            Web Application Fuzzer
-          </CardTitle>
-          <p className="text-muted-foreground">Configure and test fuzzing on web applications</p>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="targetUrl" className="flex items-center gap-2 text-foreground">
-              <Link className="h-4 w-4" />
-              Target URL
-            </Label>
+    <Card className="col-span-2 bg-card/90 backdrop-blur-md border-blue-900/30">
+      <CardHeader>
+        <CardTitle>Real-Time Fuzzing</CardTitle>
+        <CardDescription>
+          Configure and run a real-time fuzzing scan
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="targetUrl">Target URL</Label>
             <Input
               id="targetUrl"
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
               placeholder="http://localhost:8080"
-              disabled={isFuzzing}
-              className="bg-background/50 border-border"
+              disabled={isScanning}
             />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label className="text-foreground">Payload Set</Label>
-              <Select value={payloadSet} onValueChange={setPayloadSet} disabled={isFuzzing}>
-                <SelectTrigger className="bg-background/50 border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {payloadOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-foreground">Fuzzing Mode</Label>
-              <Select value={fuzzingMode} onValueChange={setFuzzingMode} disabled={isFuzzing}>
-                <SelectTrigger className="bg-background/50 border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {fuzzingModeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-foreground">DVWA Module</Label>
-              <Select value={dvwaModule} onValueChange={setDvwaModule} disabled={isFuzzing}>
-                <SelectTrigger className="bg-background/50 border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {dvwaModuleOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <Label htmlFor="customHeaders">Custom Headers (JSON)</Label>
+            <Input
+              id="customHeaders"
+              value={customHeaders}
+              onChange={(e) => setCustomHeaders(e.target.value)}
+              placeholder='{"X-Custom-Header": "value"}'
+              disabled={isScanning}
+            />
           </div>
-
-          {isFuzzing && (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <Label className="text-foreground">Progress</Label>
-                <Badge variant="destructive" className="animate-pulse">
-                  Fuzzing Active
-                </Badge>
-              </div>
-              <Progress value={progress} className="w-full" />
-              <p className="text-sm text-muted-foreground">{Math.round(progress)}% complete</p>
-            </div>
-          )}
-
-          <div className="flex gap-4">
-            <Button
-              onClick={connectToDVWA}
-              variant="outline"
-              disabled={isFuzzing}
-              className="flex-1 border-border"
-            >
-              Connect to DVWA
-            </Button>
-            
-            <Button
-              onClick={uploadCustomPayloads}
-              variant="outline"
-              disabled={isFuzzing}
-              className="flex-1 flex items-center gap-2 border-border"
-            >
-              <Upload className="h-4 w-4" />
-              Upload Custom Payloads
-            </Button>
-            
-            <Button
-              onClick={startFuzzing}
-              disabled={!targetUrl || isFuzzing}
-              className="flex-1"
-            >
-              {isFuzzing ? 'Fuzzing...' : 'Start Fuzzing'}
-            </Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="dvwaParams">DVWA Parameters (JSON)</Label>
+            <Input
+              id="dvwaParams"
+              value={dvwaParams}
+              onChange={(e) => setDvwaParams(e.target.value)}
+              placeholder='{"username": "admin", "password": "password"}'
+              disabled={isScanning}
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <Label htmlFor="dvwaPage">DVWA Page</Label>
+            <Input
+              id="dvwaPage"
+              value={dvwaPage}
+              onChange={(e) => setDvwaPage(e.target.value)}
+              placeholder="login.php"
+              disabled={isScanning}
+            />
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <Label htmlFor="dvwaMethod">DVWA Method</Label>
+            <select
+              id="dvwaMethod"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:text-muted-foreground file:h-9 file:w-12 file:flex-1 file:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              value={dvwaMethod}
+              onChange={(e) => setDvwaMethod(e.target.value)}
+              disabled={isScanning}
+            >
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="dvwaSecurityLevel">DVWA Security Level</Label>
+            <select
+              id="dvwaSecurityLevel"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:text-muted-foreground file:h-9 file:w-12 file:flex-1 file:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              value={dvwaSecurityLevel}
+              onChange={(e) => setDvwaSecurityLevel(e.target.value)}
+              disabled={isScanning}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="impossible">Impossible</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="dvwaCookie">DVWA Cookie</Label>
+            <Input
+              id="dvwaCookie"
+              value={dvwaCookie}
+              onChange={(e) => setDvwaCookie(e.target.value)}
+              placeholder="security=low; PHPSESSID=..."
+              disabled={isScanning}
+            />
+          </div>
+          <div>
+            <Label htmlFor="dvwaHost">DVWA Host</Label>
+            <Input
+              id="dvwaHost"
+              value={dvwaHost}
+              onChange={(e) => setDvwaHost(e.target.value)}
+              placeholder="localhost:8080"
+              disabled={isScanning}
+            />
+          </div>
+        </div>
 
-      {logs.length > 0 && (
-        <Card className="bg-card/60 backdrop-blur-sm border-border/40">
-          <CardHeader>
-            <CardTitle className="text-foreground">Live Fuzzing Logs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px] w-full rounded-md border border-border p-4 bg-background/20">
-              {logs.length === 0 ? (
-                <div className="text-center text-muted-foreground">
-                  No logs yet. Start fuzzing to see live output.
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {logs.map((log, index) => (
-                    <div 
-                      key={index}
-                      className={`text-sm font-mono ${
-                        log.includes('ERROR') ? 'text-destructive' :
-                        log.includes('THREAT') ? 'text-orange-400' :
-                        log.includes('completed') ? 'text-green-400' :
-                        'text-foreground'
-                      }`}
-                    >
-                      {log}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+        <div>
+          <Label htmlFor="payload">Payload</Label>
+          <Textarea
+            id="payload"
+            value={payload}
+            onChange={(e) => setPayload(e.target.value)}
+            placeholder="Enter your payload here."
+            disabled={isScanning}
+          />
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div>
+            <p>Status: {fuzzingStatus}</p>
+            <p>Payloads Sent: {payloadCount}</p>
+            <p>Vulnerabilities Found: {vulnerabilities.length}</p>
+          </div>
+          <Button
+            onClick={isScanning ? stopScan : startScan}
+            disabled={!isConnected}
+          >
+            {isScanning ? "Stop Scan" : "Start Scan"}
+          </Button>
+        </div>
+        
+        {isScanning && (
+          <div>
+            <Progress value={progress} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
