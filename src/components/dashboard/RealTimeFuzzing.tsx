@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Card,
@@ -100,10 +99,10 @@ export const RealTimeFuzzing: React.FC = () => {
     };
     
     try {
-      // Start fuzzing via API
-      const response = await fuzzerApi.startFuzzing(requestBody);
+      // Fix: Use the correct API method signature - startFuzzing expects sessionId and options
+      const response = await fuzzerApi.startFuzzing(sessionId, ['xss', 'sql_injection'], [payload]);
       
-      if (response.status === 200) {
+      if (response.success) {
         console.log('RealTimeFuzzing: Fuzzing started successfully');
         toast({
           title: "Fuzzing Started",
@@ -111,10 +110,10 @@ export const RealTimeFuzzing: React.FC = () => {
         });
         setFuzzingStatus('Scanning');
       } else {
-        console.error('RealTimeFuzzing: Failed to start fuzzing:', response.statusText);
+        console.error('RealTimeFuzzing: Failed to start fuzzing:', response.message);
         toast({
           title: "Fuzzing Failed",
-          description: `Failed to start fuzzing: ${response.statusText}`,
+          description: `Failed to start fuzzing: ${response.message}`,
           variant: "destructive",
         });
         setIsScanning(false);
@@ -155,7 +154,7 @@ export const RealTimeFuzzing: React.FC = () => {
       // Stop fuzzing via API
       const response = await fuzzerApi.stopFuzzing(currentSessionId || '');
       
-      if (response.status === 200) {
+      if (response.success) {
         console.log('RealTimeFuzzing: Fuzzing stopped successfully');
         toast({
           title: "Fuzzing Stopped",
@@ -163,10 +162,10 @@ export const RealTimeFuzzing: React.FC = () => {
         });
         setFuzzingStatus('Stopped');
       } else {
-        console.error('RealTimeFuzzing: Failed to stop fuzzing:', response.statusText);
+        console.error('RealTimeFuzzing: Failed to stop fuzzing:', response.message);
         toast({
           title: "Fuzzing Failed",
-          description: `Failed to stop fuzzing: ${response.statusText}`,
+          description: `Failed to stop fuzzing: ${response.message}`,
           variant: "destructive",
         });
         setFuzzingStatus('Error');
