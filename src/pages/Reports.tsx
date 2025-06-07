@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,9 +52,23 @@ const Reports = () => {
       };
 
       console.log('Reports: Adding new report', newReport);
-      setScanReports(prev => [newReport, ...prev].slice(0, 20));
-      setTotalScans(prev => prev + 1);
-      setTotalVulnerabilities(prev => prev + vulnerabilities);
+      setScanReports(prev => {
+        const updated = [newReport, ...prev].slice(0, 20);
+        console.log('Reports: Updated scan reports:', updated);
+        return updated;
+      });
+      
+      setTotalScans(prev => {
+        const updated = prev + 1;
+        console.log('Reports: Updated total scans:', updated);
+        return updated;
+      });
+      
+      setTotalVulnerabilities(prev => {
+        const updated = prev + vulnerabilities;
+        console.log('Reports: Updated total vulnerabilities:', updated);
+        return updated;
+      });
     };
 
     const handleMLComplete = (event: CustomEvent) => {
@@ -75,7 +88,12 @@ const Reports = () => {
       };
 
       console.log('Reports: Adding new ML report', newReport);
-      setScanReports(prev => [newReport, ...prev].slice(0, 20));
+      setScanReports(prev => {
+        const updated = [newReport, ...prev].slice(0, 20);
+        console.log('Reports: Updated scan reports with ML:', updated);
+        return updated;
+      });
+      
       setTotalScans(prev => prev + 1);
     };
 
@@ -93,22 +111,36 @@ const Reports = () => {
       };
 
       console.log('Reports: Adding new threat report', newThreatReport);
-      setThreatReports(prev => [newThreatReport, ...prev].slice(0, 50));
+      setThreatReports(prev => {
+        const updated = [newThreatReport, ...prev].slice(0, 50);
+        console.log('Reports: Updated threat reports:', updated);
+        return updated;
+      });
     };
 
+    // Set up event listeners with detailed logging
+    console.log('Reports: Setting up event listeners');
+    
     // Listen for all relevant events
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
     window.addEventListener('globalScanComplete', handleScanComplete as EventListener);
+    window.addEventListener('fuzzingComplete', handleScanComplete as EventListener);
     window.addEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
+    
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
     window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
+    window.addEventListener('vulnerabilityFound', handleThreatDetected as EventListener);
 
     return () => {
+      console.log('Reports: Cleaning up event listeners');
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
       window.removeEventListener('globalScanComplete', handleScanComplete as EventListener);
+      window.removeEventListener('fuzzingComplete', handleScanComplete as EventListener);
       window.removeEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
+      
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
       window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
+      window.removeEventListener('vulnerabilityFound', handleThreatDetected as EventListener);
     };
   }, []);
 
