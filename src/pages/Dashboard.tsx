@@ -58,13 +58,21 @@ const Dashboard = () => {
   const [threatLevel, setThreatLevel] = useState<'none' | 'low' | 'medium' | 'high' | 'critical'>('none');
 
   useEffect(() => {
+    console.log('Dashboard: Setting up comprehensive event listeners');
+
     const handleScanStart = (event: CustomEvent) => {
-      console.log('Dashboard: Scan started', event.detail);
+      console.log('Dashboard: Scan started detected', event.detail);
       setScanActive(true);
+      
+      // Update stats immediately when scan starts
+      setStats(prev => ({
+        ...prev,
+        activeConnections: prev.activeConnections + 1
+      }));
     };
 
     const handleScanComplete = (event: CustomEvent) => {
-      console.log('Dashboard: Scan completed', event.detail);
+      console.log('Dashboard: Scan completed detected', event.detail);
       setScanActive(false);
       const results = event.detail;
       
@@ -73,42 +81,53 @@ const Dashboard = () => {
         return;
       }
       
-      // Force update stats
+      console.log('Dashboard: Processing scan results:', results);
+      
+      // Update stats with scan results
       setStats(prev => {
+        const newVulnerabilities = results.vulnerabilities || 0;
+        const isCritical = results.severity === 'critical' || newVulnerabilities > 3;
+        
         const newStats = {
           ...prev,
           totalScans: prev.totalScans + 1,
-          vulnerabilitiesFound: prev.vulnerabilitiesFound + (results.vulnerabilities || 0),
-          criticalThreats: prev.criticalThreats + (results.severity === 'critical' ? 1 : 0),
-          lastScanTime: new Date().toLocaleString()
+          vulnerabilitiesFound: prev.vulnerabilitiesFound + newVulnerabilities,
+          criticalThreats: prev.criticalThreats + (isCritical ? 1 : 0),
+          lastScanTime: new Date().toLocaleString(),
+          activeConnections: Math.max(0, prev.activeConnections - 1)
         };
+        
         console.log('Dashboard: Updated stats:', newStats);
         return newStats;
       });
 
+      // Add to recent scans
       const newScan: RecentScan = {
-        id: results.sessionId || Date.now().toString(),
+        id: results.sessionId || `scan-${Date.now()}`,
         target: results.target || results.targetUrl || 'Unknown Target',
         timestamp: new Date().toLocaleString(),
         status: 'completed',
         vulnerabilities: results.vulnerabilities || 0,
-        riskLevel: results.severity || 'low',
+        riskLevel: results.severity || (results.vulnerabilities > 3 ? 'critical' : 
+                   results.vulnerabilities > 1 ? 'high' : 
+                   results.vulnerabilities > 0 ? 'medium' : 'low'),
         type: results.type || 'fuzzing'
       };
 
       console.log('Dashboard: Adding new scan to recent scans:', newScan);
       setRecentScans(prev => {
         const updated = [newScan, ...prev.slice(0, 4)];
-        console.log('Dashboard: Updated recent scans:', updated);
+        console.log('Dashboard: Updated recent scans list:', updated);
         return updated;
       });
       
       // Update threat level based on results
-      if (results.severity === 'critical') {
+      const vulnCount = results.vulnerabilities || 0;
+      if (results.severity === 'critical' || vulnCount > 3) {
         setThreatLevel('critical');
-      } else if (results.vulnerabilities > 3) {
+      } else if (vulnCount > 1) {
         setThreatLevel('high');
-      } else if (results.vulnerabilities > 0) {
+      } else if (vulnCount > 0) {
         setThreatLevel('medium');
       } else {
         setThreatLevel('low');
@@ -119,51 +138,53 @@ const Dashboard = () => {
       const threat = event.detail;
       console.log('Dashboard: Threat detected', threat);
       
-      setStats(prev => {
-        const updated = {
-          ...prev,
-          criticalThreats: prev.criticalThreats + 1
-        };
-        console.log('Dashboard: Updated stats after threat:', updated);
-        return updated;
-      });
+      setStats(prev => ({
+        ...prev,
+        criticalThreats: prev.criticalThreats + 1
+      }));
       
       if (threat.severity === 'critical') {
         setThreatLevel('critical');
       }
     };
 
-    // Set up event listeners with detailed logging
-    console.log('Dashboard: Setting up event listeners');
-    
-    // Listen to all relevant events
-    window.addEventListener('scanStart', handleScanStart as EventListener);
-    window.addEventListener('scanStarted', handleScanStart as EventListener);
-    window.addEventListener('fuzzingStarted', handleScanStart as EventListener);
-    
-    window.addEventListener('scanComplete', handleScanComplete as EventListener);
-    window.addEventListener('globalScanComplete', handleScanComplete as EventListener);
-    window.addEventListener('fuzzingComplete', handleScanComplete as EventListener);
-    window.addEventListener('mlAnalysisComplete', handleScanComplete as EventListener);
-    
-    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
-    window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
-    window.addEventListener('vulnerabilityFound', handleThreatDetected as EventListener);
+    // Set up comprehensive event listeners
+    const events = [
+      'scanStart',
+      'scanStarted', 
+      'fuzzingStarted',
+      'scanComplete',
+      'globalScanComplete',
+      'fuzzingComplete',
+      'mlAnalysisComplete',
+      'threatDetected',
+      'globalThreatDetected',
+      'vulnerabilityFound'
+    ];
+
+    events.forEach(eventName => {
+      if (eventName.includes('Start') || eventName.includes('Started')) {
+        window.addEventListener(eventName, handleScanStart as EventListener);
+      } else if (eventName.includes('Complete')) {
+        window.addEventListener(eventName, handleScanComplete as EventListener);
+      } else if (eventName.includes('threat') || eventName.includes('vulnerability')) {
+        window.addEventListener(eventName, handleThreatDetected as EventListener);
+      }
+    });
+
+    console.log('Dashboard: Event listeners set up for events:', events);
 
     return () => {
       console.log('Dashboard: Cleaning up event listeners');
-      window.removeEventListener('scanStart', handleScanStart as EventListener);
-      window.removeEventListener('scanStarted', handleScanStart as EventListener);
-      window.removeEventListener('fuzzingStarted', handleScanStart as EventListener);
-      
-      window.removeEventListener('scanComplete', handleScanComplete as EventListener);
-      window.removeEventListener('globalScanComplete', handleScanComplete as EventListener);
-      window.removeEventListener('fuzzingComplete', handleScanComplete as EventListener);
-      window.removeEventListener('mlAnalysisComplete', handleScanComplete as EventListener);
-      
-      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
-      window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
-      window.removeEventListener('vulnerabilityFound', handleThreatDetected as EventListener);
+      events.forEach(eventName => {
+        if (eventName.includes('Start') || eventName.includes('Started')) {
+          window.removeEventListener(eventName, handleScanStart as EventListener);
+        } else if (eventName.includes('Complete')) {
+          window.removeEventListener(eventName, handleScanComplete as EventListener);
+        } else if (eventName.includes('threat') || eventName.includes('vulnerability')) {
+          window.removeEventListener(eventName, handleThreatDetected as EventListener);
+        }
+      });
     };
   }, []);
 
