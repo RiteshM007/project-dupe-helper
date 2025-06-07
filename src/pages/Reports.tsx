@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, Download, Shield, Bug, AlertTriangle } from 'lucide-react';
+import { CalendarDays, Download, Shield, Bug, AlertTriangle, Brain, Zap } from 'lucide-react';
 
 interface ScanReport {
   id: string;
@@ -17,6 +17,7 @@ interface ScanReport {
   duration: string;
   status: 'completed' | 'failed' | 'in-progress';
   severity: 'low' | 'medium' | 'high' | 'critical';
+  type?: string;
 }
 
 interface ThreatReport {
@@ -35,20 +36,20 @@ const Reports = () => {
   const [totalVulnerabilities, setTotalVulnerabilities] = useState(0);
 
   useEffect(() => {
-    // Listen for scan completion to generate reports
     const handleScanComplete = (event: CustomEvent) => {
       console.log('Reports: Received scan complete event', event.detail);
-      const { sessionId, vulnerabilities = 0, payloadsTested = 0, targetUrl, duration, severity } = event.detail || {};
+      const { sessionId, vulnerabilities = 0, payloadsTested = 0, targetUrl, duration, severity, type, target } = event.detail || {};
       
       const newReport: ScanReport = {
         id: sessionId || `scan-${Date.now()}`,
         timestamp: new Date(),
-        targetUrl: targetUrl || 'http://localhost:8080',
+        targetUrl: targetUrl || target || 'http://localhost:8080',
         vulnerabilitiesFound: vulnerabilities,
-        payloadsTested,
+        payloadsTested: payloadsTested || 0,
         duration: duration || `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
         status: 'completed',
-        severity: severity || (vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low')
+        severity: severity || (vulnerabilities > 3 ? 'critical' : vulnerabilities > 1 ? 'high' : vulnerabilities > 0 ? 'medium' : 'low'),
+        type: type || 'fuzzing'
       };
 
       console.log('Reports: Adding new report', newReport);
@@ -57,7 +58,27 @@ const Reports = () => {
       setTotalVulnerabilities(prev => prev + vulnerabilities);
     };
 
-    // Listen for threat detection to generate threat reports
+    const handleMLComplete = (event: CustomEvent) => {
+      console.log('Reports: Received ML analysis complete event', event.detail);
+      const { sessionId, patterns = 0, accuracy = 0, type = 'machine-learning' } = event.detail || {};
+      
+      const newReport: ScanReport = {
+        id: sessionId || `ml-${Date.now()}`,
+        timestamp: new Date(),
+        targetUrl: 'ML Analysis',
+        vulnerabilitiesFound: patterns,
+        payloadsTested: Math.floor(accuracy * 100),
+        duration: `${Math.floor(Math.random() * 3) + 1}m ${Math.floor(Math.random() * 60)}s`,
+        status: 'completed',
+        severity: patterns > 2 ? 'high' : patterns > 0 ? 'medium' : 'low',
+        type: 'machine-learning'
+      };
+
+      console.log('Reports: Adding new ML report', newReport);
+      setScanReports(prev => [newReport, ...prev].slice(0, 20));
+      setTotalScans(prev => prev + 1);
+    };
+
     const handleThreatDetected = (event: CustomEvent) => {
       console.log('Reports: Received threat detected event', event.detail);
       const { payload, vulnerabilityType, severity = 'medium', field, timestamp } = event.detail;
@@ -75,15 +96,17 @@ const Reports = () => {
       setThreatReports(prev => [newThreatReport, ...prev].slice(0, 50));
     };
 
-    // Listen for both local and global events
+    // Listen for all relevant events
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
     window.addEventListener('globalScanComplete', handleScanComplete as EventListener);
+    window.addEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
     window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
 
     return () => {
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
       window.removeEventListener('globalScanComplete', handleScanComplete as EventListener);
+      window.removeEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
       window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
     };
@@ -108,14 +131,23 @@ const Reports = () => {
     }
   };
 
+  const getScanTypeIcon = (type: string) => {
+    switch (type) {
+      case 'machine-learning':
+        return <Brain className="h-4 w-4 text-purple-400" />;
+      case 'fuzzing':
+      default:
+        return <Zap className="h-4 w-4 text-blue-400" />;
+    }
+  };
+
   const exportReport = (reportId: string) => {
-    // Simulate report export
     const report = scanReports.find(r => r.id === reportId);
     if (report) {
       const reportData = {
         report,
         threats: threatReports.filter(t => 
-          Math.abs(t.timestamp.getTime() - report.timestamp.getTime()) < 60000 // Within 1 minute
+          Math.abs(t.timestamp.getTime() - report.timestamp.getTime()) < 60000
         )
       };
       
@@ -123,7 +155,7 @@ const Reports = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `fuzzer-report-${reportId}.json`;
+      a.download = `security-report-${reportId}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -136,7 +168,6 @@ const Reports = () => {
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-6">Security Reports</h1>
         
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <Card>
             <CardContent className="p-6">
@@ -184,7 +215,7 @@ const Reports = () => {
           <TabsContent value="scans" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Fuzzing Scans</CardTitle>
+                <CardTitle>Recent Security Scans</CardTitle>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[400px]">
@@ -192,7 +223,7 @@ const Reports = () => {
                     <div className="text-center py-8 text-muted-foreground">
                       <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>No scan reports available</p>
-                      <p className="text-sm">Run fuzzing scans to generate reports</p>
+                      <p className="text-sm">Run security scans to generate reports</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -203,6 +234,10 @@ const Reports = () => {
                               <CalendarDays className="h-4 w-4 text-muted-foreground" />
                               <span className="text-sm text-muted-foreground">
                                 {report.timestamp.toLocaleString()}
+                              </span>
+                              {getScanTypeIcon(report.type || 'fuzzing')}
+                              <span className="text-sm font-medium">
+                                {report.type === 'machine-learning' ? 'ML Analysis' : 'Fuzzing Scan'}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
@@ -221,12 +256,18 @@ const Reports = () => {
                               <p className="text-sm font-medium">{report.targetUrl}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Vulnerabilities</p>
+                              <p className="text-xs text-muted-foreground">
+                                {report.type === 'machine-learning' ? 'Patterns' : 'Vulnerabilities'}
+                              </p>
                               <p className="text-sm font-medium">{report.vulnerabilitiesFound}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Payloads Tested</p>
-                              <p className="text-sm font-medium">{report.payloadsTested}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {report.type === 'machine-learning' ? 'Accuracy' : 'Payloads Tested'}
+                              </p>
+                              <p className="text-sm font-medium">
+                                {report.type === 'machine-learning' ? `${report.payloadsTested}%` : report.payloadsTested}
+                              </p>
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Duration</p>

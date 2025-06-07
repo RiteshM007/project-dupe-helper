@@ -41,6 +41,7 @@ interface RecentScan {
   status: 'completed' | 'running' | 'failed';
   vulnerabilities: number;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  type?: string;
 }
 
 const Dashboard = () => {
@@ -57,18 +58,17 @@ const Dashboard = () => {
   const [scanActive, setScanActive] = useState(false);
   const [threatLevel, setThreatLevel] = useState<'none' | 'low' | 'medium' | 'high' | 'critical'>('none');
 
-  // Listen for scan events to update dashboard
   useEffect(() => {
-    const handleScanStart = () => {
+    const handleScanStart = (event: CustomEvent) => {
+      console.log('Dashboard: Scan started', event.detail);
       setScanActive(true);
-      console.log('Dashboard: Scan started');
     };
 
     const handleScanComplete = (event: CustomEvent) => {
+      console.log('Dashboard: Scan completed', event.detail);
       setScanActive(false);
       const results = event.detail;
       
-      // Update stats
       setStats(prev => ({
         ...prev,
         totalScans: prev.totalScans + 1,
@@ -77,19 +77,18 @@ const Dashboard = () => {
         lastScanTime: new Date().toLocaleString()
       }));
 
-      // Add to recent scans
       const newScan: RecentScan = {
-        id: Date.now().toString(),
-        target: results?.target || 'Unknown Target',
+        id: results?.sessionId || Date.now().toString(),
+        target: results?.target || results?.targetUrl || 'Unknown Target',
         timestamp: new Date().toLocaleString(),
         status: 'completed',
         vulnerabilities: results?.vulnerabilities || 0,
-        riskLevel: results?.riskLevel || 'low'
+        riskLevel: results?.riskLevel || results?.severity || 'low',
+        type: results?.type || 'fuzzing'
       };
 
       setRecentScans(prev => [newScan, ...prev.slice(0, 4)]);
       
-      // Update threat level based on results
       if (results?.criticalCount > 0) {
         setThreatLevel('critical');
       } else if (results?.vulnerabilities > 5) {
@@ -99,8 +98,30 @@ const Dashboard = () => {
       } else {
         setThreatLevel('low');
       }
+    };
 
-      console.log('Dashboard: Scan completed', results);
+    const handleMLComplete = (event: CustomEvent) => {
+      console.log('Dashboard: ML Analysis completed', event.detail);
+      setScanActive(false);
+      const results = event.detail;
+      
+      setStats(prev => ({
+        ...prev,
+        totalScans: prev.totalScans + 1,
+        lastScanTime: new Date().toLocaleString()
+      }));
+
+      const newScan: RecentScan = {
+        id: results?.sessionId || `ml-${Date.now()}`,
+        target: 'ML Analysis',
+        timestamp: new Date().toLocaleString(),
+        status: 'completed',
+        vulnerabilities: results?.patterns || 0,
+        riskLevel: results?.riskLevel || 'medium',
+        type: 'machine-learning'
+      };
+
+      setRecentScans(prev => [newScan, ...prev.slice(0, 4)]);
     };
 
     const handleThreatDetected = (event: CustomEvent) => {
@@ -117,14 +138,23 @@ const Dashboard = () => {
       console.log('Dashboard: Threat detected', threat);
     };
 
-    window.addEventListener('scanStarted', handleScanStart);
+    // Listen to multiple event types
+    window.addEventListener('scanStart', handleScanStart as EventListener);
+    window.addEventListener('scanStarted', handleScanStart as EventListener);
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
+    window.addEventListener('globalScanComplete', handleScanComplete as EventListener);
+    window.addEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+    window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
 
     return () => {
-      window.removeEventListener('scanStarted', handleScanStart);
+      window.removeEventListener('scanStart', handleScanStart as EventListener);
+      window.removeEventListener('scanStarted', handleScanStart as EventListener);
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
+      window.removeEventListener('globalScanComplete', handleScanComplete as EventListener);
+      window.removeEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+      window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
     };
   }, []);
 
@@ -147,16 +177,24 @@ const Dashboard = () => {
     }
   };
 
+  const getScanTypeIcon = (type: string) => {
+    switch (type) {
+      case 'machine-learning':
+        return <Brain className="h-4 w-4" />;
+      case 'fuzzing':
+      default:
+        return <Zap className="h-4 w-4" />;
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Security Dashboard</h1>
           <p className="text-gray-400">Real-time monitoring and threat analysis</p>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="bg-card/50 backdrop-blur-sm border-blue-900/30">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -210,12 +248,8 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Live Threats */}
           <LiveThreats />
-
-          {/* ML Scanner */}
           <MachineLearningScanner 
             scanActive={scanActive}
             scanCompleted={!scanActive && stats.totalScans > 0}
@@ -224,9 +258,7 @@ const Dashboard = () => {
           />
         </div>
 
-        {/* Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Recent Scans */}
           <Card className="lg:col-span-2 bg-card/50 backdrop-blur-sm border-gray-700/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -248,9 +280,12 @@ const Dashboard = () => {
                     <div key={scan.id} className="flex items-center justify-between p-3 bg-black/20 rounded-lg border border-gray-700/50">
                       <div className="flex items-center space-x-3">
                         <div className={`w-2 h-2 rounded-full ${getStatusColor(scan.status)}`} />
-                        <div>
-                          <p className="text-sm font-medium text-white">{scan.target}</p>
-                          <p className="text-xs text-gray-400">{scan.timestamp}</p>
+                        <div className="flex items-center space-x-2">
+                          {getScanTypeIcon(scan.type || 'fuzzing')}
+                          <div>
+                            <p className="text-sm font-medium text-white">{scan.target}</p>
+                            <p className="text-xs text-gray-400">{scan.timestamp}</p>
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -266,7 +301,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Scanner Visualization */}
           <Card className="bg-card/50 backdrop-blur-sm border-purple-900/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -289,7 +323,6 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Quick Actions */}
         <Card className="bg-card/50 backdrop-blur-sm border-gray-700/30">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
