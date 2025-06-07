@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Card,
@@ -79,6 +80,10 @@ export const RealTimeFuzzing: React.FC = () => {
     const scanStartEvent = new CustomEvent('scanStart', { detail: { sessionId, targetUrl } });
     window.dispatchEvent(scanStartEvent);
     
+    // Also dispatch fuzzing started event for better compatibility
+    const fuzzingStartedEvent = new CustomEvent('fuzzingStarted', { detail: { sessionId, targetUrl } });
+    window.dispatchEvent(fuzzingStartedEvent);
+    
     // Construct the request body
     const requestBody = {
       targetUrl,
@@ -125,7 +130,7 @@ export const RealTimeFuzzing: React.FC = () => {
       setIsScanning(false);
       setFuzzingStatus('Error');
     }
-  }, [isConnected, sessionCookie, targetUrl, payload, customHeaders, isScanning, toast, dvwaParams, dvwaPage, dvwaMethod, dvwaSecurityLevel, dvwaCookie, dvwaHost]);
+  }, [isConnected, sessionCookie, targetUrl, payload, customHeaders, isScanning, dvwaParams, dvwaPage, dvwaMethod, dvwaSecurityLevel, dvwaCookie, dvwaHost]);
 
   const stopScan = useCallback(async () => {
     if (!isScanning) {
@@ -178,7 +183,7 @@ export const RealTimeFuzzing: React.FC = () => {
       setIsScanning(false);
       setFuzzingStatus('Ready');
     }
-  }, [isScanning, currentSessionId, toast]);
+  }, [isScanning, currentSessionId]);
 
   useEffect(() => {
     const handleVulnerabilityFound = (event: CustomEvent) => {
@@ -222,7 +227,7 @@ export const RealTimeFuzzing: React.FC = () => {
       window.removeEventListener('vulnerabilityFound', handleVulnerabilityFound as EventListener);
       window.removeEventListener('payloadSent', handlePayloadSent);
     };
-  }, [toast]);
+  }, []);
 
   const completeScan = useCallback(() => {
     if (!isScanning) return;
@@ -246,9 +251,11 @@ export const RealTimeFuzzing: React.FC = () => {
     // Dispatch multiple event types to ensure compatibility
     const scanCompleteEvent = new CustomEvent('scanComplete', { detail: scanResults });
     const globalScanCompleteEvent = new CustomEvent('globalScanComplete', { detail: scanResults });
+    const fuzzingCompleteEvent = new CustomEvent('fuzzingComplete', { detail: scanResults });
     
     window.dispatchEvent(scanCompleteEvent);
     window.dispatchEvent(globalScanCompleteEvent);
+    window.dispatchEvent(fuzzingCompleteEvent);
     
     console.log('RealTimeFuzzing: Dispatched scan complete events');
     
@@ -256,7 +263,7 @@ export const RealTimeFuzzing: React.FC = () => {
       title: "Fuzzing Complete",
       description: `Found ${vulnerabilities.length} vulnerabilities in ${payloadCount} payloads`,
     });
-  }, [isScanning, vulnerabilities, payloadCount, targetUrl, currentSessionId, scanStartTime, toast]);
+  }, [isScanning, vulnerabilities, payloadCount, targetUrl, currentSessionId, scanStartTime]);
 
   useEffect(() => {
     if (progress >= 100 && isScanning) {
