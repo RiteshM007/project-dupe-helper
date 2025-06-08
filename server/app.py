@@ -367,40 +367,37 @@ def upload_payloads(session_id):
             'error': str(e)
         }), 500
 
-@app.route('/api/fuzzer/<session_id>/results', methods=['POST'])
-def save_results(session_id):
-    """Save results from a fuzzing session"""
+@app.route('/api/fuzzer/<session_id>/results', methods=['GET'])
+def get_fuzzer_results(session_id):
+    """Get results from a fuzzing session"""
     if session_id not in active_fuzzers:
         return jsonify({'success': False, 'error': 'Invalid session ID'}), 404
     
     fuzzer = active_fuzzers[session_id]
-    data = request.json
-    
-    if not data or 'results' not in data:
-        return jsonify({'success': False, 'error': 'No results provided'}), 400
-    
-    results = data['results']
     
     try:
-        # Save results to file
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        save_path = f"results/fuzzing-results-{timestamp}.json"
+        # Get results from the fuzzer
+        dataset = fuzzer.getDataset()
+        logs = fuzzer.getLogs()
+        reports = fuzzer.getReports()
         
-        # Create results directory if it doesn't exist
-        os.makedirs("results", exist_ok=True)
-        
-        with open(save_path, 'w') as f:
-            json.dump(results, f, indent=2)
-        
-        fuzzer.logActivity(f"Saved results to {save_path}")
+        # Calculate some summary statistics
+        vulnerabilities_found = len([d for d in dataset if d.get('label') != 'safe'])
+        total_payloads = fuzzer.total_payloads or len(dataset)
         
         return jsonify({
             'success': True,
-            'message': f"Results saved to {save_path}",
-            'file_path': save_path
+            'results': {
+                'vulnerabilitiesFound': vulnerabilities_found,
+                'totalPayloads': total_payloads,
+                'threats': [d for d in dataset if d.get('label') in ['malicious', 'suspicious']],
+                'dataset': dataset,
+                'logs': logs,
+                'reports': reports
+            }
         })
     except Exception as e:
-        logger.error(f"Error saving results: {traceback.format_exc()}")
+        logger.error(f"Error getting fuzzing results: {traceback.format_exc()}")
         return jsonify({
             'success': False,
             'error': str(e)

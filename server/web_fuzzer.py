@@ -23,7 +23,13 @@ class WebFuzzer:
         self.dvwa_url = None
         self.dvwa_cookie = None
         self.security_level = "low"
-        self.custom_payloads = []  # Added to store custom payloads
+        self.custom_payloads = []
+        self.vulnerability_types = []  # Added to store vulnerability types
+
+    def setVulnerabilityTypes(self, vuln_types):
+        """Set the vulnerability types to test for"""
+        self.vulnerability_types = vuln_types
+        self.logActivity(f"Set vulnerability types: {', '.join(vuln_types) if vuln_types else 'all'}")
 
     def logActivity(self, message):
         log_entry = {
