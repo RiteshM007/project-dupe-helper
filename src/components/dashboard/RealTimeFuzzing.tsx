@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Card,
@@ -33,11 +32,33 @@ export const RealTimeFuzzing: React.FC = () => {
   const [scanStartTime, setScanStartTime] = useState<number>(0);
   const { isConnected } = useDVWAConnection();
   const [fuzzingStatus, setFuzzingStatus] = useState<string>('Ready');
+  const [backendConnected, setBackendConnected] = useState<boolean>(false);
 
-  const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check backend connection on mount
+  useEffect(() => {
+    const checkBackendConnection = async () => {
+      try {
+        await fuzzerApi.checkHealth();
+        setBackendConnected(true);
+        console.log('Backend connection established');
+      } catch (error) {
+        setBackendConnected(false);
+        console.error('Backend connection failed:', error);
+        toast({
+          title: "Backend Connection Failed",
+          description: "Please ensure the Python backend server is running on port 5000",
+          variant: "destructive",
+        });
+      }
+    };
+
+    checkBackendConnection();
+  }, []);
 
   const startScan = useCallback(async () => {
-    console.log('=== STARTING FUZZING SCAN ===');
+    console.log('=== STARTING REAL FUZZING SCAN ===');
     
     if (isScanning) {
       toast({
@@ -47,11 +68,20 @@ export const RealTimeFuzzing: React.FC = () => {
       });
       return;
     }
+
+    if (!backendConnected) {
+      toast({
+        title: "Backend Not Available",
+        description: "Please ensure the Python backend server is running on port 5000",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    // Clear any existing simulation
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-      simulationIntervalRef.current = null;
+    // Clear any existing intervals
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
     
     // Reset state
@@ -60,52 +90,53 @@ export const RealTimeFuzzing: React.FC = () => {
     setProgress(0);
     setPayloadCount(0);
     setScanStartTime(Date.now());
-    setFuzzingStatus('Initializing');
-    
-    const sessionId = `fuzzing-session-${Date.now()}`;
-    setCurrentSessionId(sessionId);
-    
-    console.log('RealTimeFuzzing: Generated session ID:', sessionId);
-    
-    // Dispatch scan start events
-    console.log('RealTimeFuzzing: Dispatching scan start events...');
-    
-    const scanDetail = { 
-      sessionId, 
-      targetUrl,
-      type: 'fuzzing',
-      timestamp: new Date().toISOString()
-    };
-    
-    window.dispatchEvent(new CustomEvent('scanStart', { detail: scanDetail }));
-    window.dispatchEvent(new CustomEvent('fuzzingStarted', { detail: scanDetail }));
+    setFuzzingStatus('Creating Session');
     
     try {
+      // Create fuzzer session on backend
+      console.log('Creating fuzzer session on backend...');
+      const createResponse = await fuzzerApi.createFuzzer(targetUrl);
+      
+      if (!createResponse.success) {
+        throw new Error(createResponse.error || 'Failed to create fuzzer session');
+      }
+      
+      const sessionId = createResponse.session_id;
+      setCurrentSessionId(sessionId);
       setFuzzingStatus('Starting');
       
-      const response = await fuzzerApi.startFuzzing(sessionId, ['xss', 'sql_injection'], [payload]);
+      console.log('RealTimeFuzzing: Backend session created:', sessionId);
       
-      if (response.success) {
-        console.log('RealTimeFuzzing: Fuzzing API call successful');
+      // Dispatch scan start events
+      const scanDetail = { 
+        sessionId, 
+        targetUrl,
+        type: 'fuzzing',
+        timestamp: new Date().toISOString()
+      };
+      
+      window.dispatchEvent(new CustomEvent('scanStart', { detail: scanDetail }));
+      window.dispatchEvent(new CustomEvent('fuzzingStarted', { detail: scanDetail }));
+      
+      // Start fuzzing on backend
+      console.log('Starting fuzzing on backend...');
+      const startResponse = await fuzzerApi.startFuzzing(sessionId, ['xss', 'sqli', 'lfi'], [payload]);
+      
+      if (startResponse.success) {
+        console.log('RealTimeFuzzing: Backend fuzzing started successfully');
         toast({
           title: "Fuzzing Started",
-          description: "Fuzzing scan initiated successfully.",
+          description: "Real fuzzing scan initiated on backend server.",
         });
         setFuzzingStatus('Scanning');
         
-        simulateRealisticProgress();
+        // Start monitoring progress
+        monitorFuzzingProgress(sessionId);
       } else {
-        console.error('RealTimeFuzzing: Fuzzing API call failed:', response.message);
-        toast({
-          title: "Fuzzing Failed",
-          description: `Failed to start fuzzing: ${response.message}`,
-          variant: "destructive",
-        });
-        setIsScanning(false);
-        setFuzzingStatus('Error');
+        throw new Error(startResponse.error || 'Failed to start fuzzing');
       }
     } catch (error: any) {
-      console.error('RealTimeFuzzing: Error starting fuzzing:', error);
+      console.error('RealTimeFuzzing: Error starting real fuzzing:', error);
       toast({
         title: "Fuzzing Error",
         description: `Error starting fuzzing: ${error.message}`,
@@ -113,208 +144,112 @@ export const RealTimeFuzzing: React.FC = () => {
       });
       setIsScanning(false);
       setFuzzingStatus('Error');
+      setCurrentSessionId(null);
     }
-  }, [targetUrl, payload, isScanning]);
+  }, [targetUrl, payload, isScanning, backendConnected]);
 
-  const simulateRealisticProgress = () => {
-    console.log('RealTimeFuzzing: Starting realistic fuzzing simulation...');
-    let currentProgress = 0;
-    let currentPayloads = 0;
-    let foundVulnerabilities = 0;
+  const monitorFuzzingProgress = (sessionId: string) => {
+    console.log('Starting to monitor fuzzing progress...');
     
-    simulationIntervalRef.current = setInterval(() => {
-      if (!isScanning) {
-        console.log('RealTimeFuzzing: Stopping simulation - scan no longer active');
-        if (simulationIntervalRef.current) {
-          clearInterval(simulationIntervalRef.current);
-          simulationIntervalRef.current = null;
+    progressIntervalRef.current = setInterval(async () => {
+      try {
+        const status = await fuzzerApi.getFuzzingStatus(sessionId);
+        
+        if (status.success) {
+          setProgress(status.progress || 0);
+          setPayloadCount(status.payloads_processed || 0);
+          
+          // Dispatch progress events
+          window.dispatchEvent(new CustomEvent('payloadSent', {
+            detail: { count: status.payloads_processed || 0 }
+          }));
+          
+          // Check if scan is complete
+          if (!status.active || status.progress >= 100) {
+            console.log('Fuzzing completed, getting results...');
+            completeScan(sessionId);
+          }
         }
-        return;
+      } catch (error) {
+        console.error('Error monitoring fuzzing progress:', error);
       }
+    }, 2000); // Check every 2 seconds
+  };
+
+  const completeScan = useCallback(async (sessionId: string) => {
+    console.log('RealTimeFuzzing: === COMPLETING REAL FUZZING SCAN ===');
+    
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    
+    try {
+      // Get final results from backend
+      const results = await fuzzerApi.getFuzzingResults(sessionId);
       
-      // Increment progress more slowly for realism
-      const progressIncrement = Math.random() * 5 + 2; // 2-7% increments
-      currentProgress = Math.min(currentProgress + progressIncrement, 95);
-      setProgress(currentProgress);
-      
-      // Send payloads
-      if (Math.random() > 0.3) {
-        const payloadInc = Math.floor(Math.random() * 3) + 1;
-        currentPayloads += payloadInc;
-        setPayloadCount(currentPayloads);
+      if (results.success) {
+        const finalResults = results.results;
+        setProgress(100);
+        setFuzzingStatus('Complete');
+        setIsScanning(false);
         
-        window.dispatchEvent(new CustomEvent('payloadSent', {
-          detail: { count: currentPayloads }
-        }));
-      }
-      
-      // Find vulnerabilities occasionally
-      if (Math.random() > 0.85 && foundVulnerabilities < 5) {
-        foundVulnerabilities++;
-        const vulnerabilityTypes = ['XSS', 'SQL Injection', 'CSRF', 'Path Traversal', 'Command Injection'];
-        const vulnType = vulnerabilityTypes[Math.floor(Math.random() * vulnerabilityTypes.length)];
-        const severityLevels = ['low', 'medium', 'high', 'critical'];
-        const severity = severityLevels[Math.floor(Math.random() * severityLevels.length)];
+        const scanDuration = Math.floor((Date.now() - scanStartTime) / 1000);
         
-        const newVulnerability: Vulnerability = {
-          id: `vuln-${Date.now()}-${Math.random()}`,
-          payload: payload || `<script>alert('${vulnType}')</script>`,
-          description: `${vulnType} vulnerability detected with severity: ${severity}`
-        };
-        
-        setVulnerabilities(prev => [...prev, newVulnerability]);
-        
-        console.log('RealTimeFuzzing: Found vulnerability:', newVulnerability);
-        
-        const vulnerabilityDetail = {
-          id: newVulnerability.id,
-          payload: newVulnerability.payload,
-          description: newVulnerability.description,
-          vulnerabilityType: vulnType,
-          severity: severity,
-          field: 'payload',
+        const scanResults = {
+          sessionId,
+          targetUrl,
+          vulnerabilities: finalResults.vulnerabilitiesFound || 0,
+          payloadsTested: finalResults.totalPayloads || payloadCount,
+          duration: `${scanDuration}s`,
+          severity: finalResults.vulnerabilitiesFound > 3 ? 'critical' : 
+                   finalResults.vulnerabilitiesFound > 1 ? 'high' : 
+                   finalResults.vulnerabilitiesFound > 0 ? 'medium' : 'low',
+          type: 'fuzzing',
           timestamp: new Date().toISOString(),
-          sessionId: currentSessionId
+          status: 'completed',
+          findings: finalResults.threats || []
         };
+
+        console.log('RealTimeFuzzing: Real scan completed with results:', scanResults);
         
-        window.dispatchEvent(new CustomEvent('vulnerabilityFound', {
-          detail: vulnerabilityDetail
-        }));
-        
-        window.dispatchEvent(new CustomEvent('threatDetected', {
-          detail: vulnerabilityDetail
-        }));
-        
-        toast({
-          title: "Vulnerability Found!",
-          description: `${vulnType} detected (${severity} severity)`,
-        });
-      }
-      
-      // Complete scan when progress reaches ~95%
-      if (currentProgress >= 95) {
-        console.log('RealTimeFuzzing: Simulation completing...');
-        if (simulationIntervalRef.current) {
-          clearInterval(simulationIntervalRef.current);
-          simulationIntervalRef.current = null;
-        }
+        // Dispatch completion events
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('scanComplete', { detail: scanResults }));
+        }, 200);
         
         setTimeout(() => {
-          completeScan(currentPayloads, foundVulnerabilities);
-        }, 1000);
+          window.dispatchEvent(new CustomEvent('globalScanComplete', { detail: scanResults }));
+        }, 400);
+        
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('fuzzingComplete', { detail: scanResults }));
+        }, 600);
+        
+        toast({
+          title: "Real Fuzzing Complete!",
+          description: `Found ${scanResults.vulnerabilities} vulnerabilities in ${scanResults.payloadsTested} payloads`,
+        });
       }
-    }, 1500); // Slower interval for more realistic timing
-  };
-
-  const completeScan = useCallback((finalPayloads: number, finalVulns: number) => {
-    console.log('RealTimeFuzzing: === COMPLETING FUZZING SCAN ===');
-    
-    if (!isScanning) {
-      console.log('RealTimeFuzzing: Scan not active, skipping completion');
-      return;
-    }
-    
-    setIsScanning(false);
-    setProgress(100);
-    setFuzzingStatus('Complete');
-    
-    const scanDuration = Math.floor((Date.now() - scanStartTime) / 1000);
-    
-    const scanResults = {
-      sessionId: currentSessionId,
-      targetUrl: targetUrl,
-      target: targetUrl,
-      vulnerabilities: finalVulns,
-      payloadsTested: finalPayloads,
-      duration: `${scanDuration}s`,
-      severity: finalVulns > 3 ? 'critical' : 
-               finalVulns > 1 ? 'high' : 
-               finalVulns > 0 ? 'medium' : 'low',
-      type: 'fuzzing',
-      timestamp: new Date().toISOString(),
-      status: 'completed',
-      findings: vulnerabilities
-    };
-
-    console.log('RealTimeFuzzing: Scan completed with results:', scanResults);
-    
-    // Dispatch completion events with delays to ensure proper handling
-    setTimeout(() => {
-      console.log('RealTimeFuzzing: Dispatching scanComplete event');
-      window.dispatchEvent(new CustomEvent('scanComplete', { detail: scanResults }));
-    }, 200);
-    
-    setTimeout(() => {
-      console.log('RealTimeFuzzing: Dispatching globalScanComplete event');
-      window.dispatchEvent(new CustomEvent('globalScanComplete', { detail: scanResults }));
-    }, 400);
-    
-    setTimeout(() => {
-      console.log('RealTimeFuzzing: Dispatching fuzzingComplete event');
-      window.dispatchEvent(new CustomEvent('fuzzingComplete', { detail: scanResults }));
-    }, 600);
-    
-    toast({
-      title: "Fuzzing Complete!",
-      description: `Found ${finalVulns} vulnerabilities in ${finalPayloads} payloads`,
-    });
-    
-    // Start ML analysis automatically
-    setTimeout(() => {
-      console.log('RealTimeFuzzing: Starting ML analysis...');
-      startMLAnalysis(scanResults);
-    }, 1000);
-    
-    // Reset session after delay
-    setTimeout(() => {
-      setCurrentSessionId(null);
-      setFuzzingStatus('Ready');
-    }, 3000);
-  }, [isScanning, targetUrl, currentSessionId, scanStartTime, vulnerabilities]);
-
-  const startMLAnalysis = (scanResults: any) => {
-    console.log('RealTimeFuzzing: Starting ML analysis with scan results:', scanResults);
-    
-    // Simulate ML analysis
-    setTimeout(() => {
-      const mlResults = {
-        sessionId: `ml-${Date.now()}`,
-        patterns: Math.max(1, Math.floor(scanResults.vulnerabilities * 0.8)),
-        accuracy: Math.floor(Math.random() * 20) + 80, // 80-99%
-        riskLevel: scanResults.severity,
-        type: 'machine-learning',
-        target: 'ML Analysis',
-        targetUrl: 'ML Analysis',
-        vulnerabilities: Math.max(1, Math.floor(scanResults.vulnerabilities * 0.8)),
-        payloadsTested: Math.floor(Math.random() * 20) + 80,
-        duration: '2m 30s',
-        severity: scanResults.severity,
-        timestamp: new Date().toISOString(),
-        status: 'completed'
-      };
-
-      console.log('RealTimeFuzzing: ML analysis completed:', mlResults);
-      
-      // Dispatch ML completion events
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('mlAnalysisComplete', { detail: mlResults }));
-      }, 100);
-      
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('globalScanComplete', { detail: mlResults }));
-      }, 200);
-      
+    } catch (error: any) {
+      console.error('Error completing scan:', error);
       toast({
-        title: "ML Analysis Complete!",
-        description: `Detected ${mlResults.patterns} patterns with ${mlResults.accuracy}% confidence`,
+        title: "Error Getting Results",
+        description: `Failed to get scan results: ${error.message}`,
+        variant: "destructive",
       });
-    }, 2000);
-  };
+    } finally {
+      setTimeout(() => {
+        setCurrentSessionId(null);
+        setFuzzingStatus('Ready');
+      }, 3000);
+    }
+  }, [payloadCount, scanStartTime, targetUrl]);
 
   const stopScan = useCallback(async () => {
-    console.log('RealTimeFuzzing: === STOPPING FUZZING SCAN ===');
+    console.log('RealTimeFuzzing: === STOPPING REAL FUZZING SCAN ===');
     
-    if (!isScanning) {
+    if (!isScanning || !currentSessionId) {
       toast({
         title: "Not Scanning",
         description: "No scan in progress.",
@@ -323,30 +258,29 @@ export const RealTimeFuzzing: React.FC = () => {
       return;
     }
     
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-      simulationIntervalRef.current = null;
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
     
-    setIsScanning(false);
     setFuzzingStatus('Stopping');
     
-    window.dispatchEvent(new CustomEvent('scanStop', {
-      detail: { sessionId: currentSessionId }
-    }));
-    
     try {
-      if (currentSessionId) {
-        await fuzzerApi.stopFuzzing(currentSessionId);
-      }
+      await fuzzerApi.stopFuzzing(currentSessionId);
+      
+      setIsScanning(false);
+      
+      window.dispatchEvent(new CustomEvent('scanStop', {
+        detail: { sessionId: currentSessionId }
+      }));
       
       toast({
         title: "Fuzzing Stopped",
-        description: "Fuzzing scan has been stopped.",
+        description: "Real fuzzing scan has been stopped.",
       });
       setFuzzingStatus('Stopped');
     } catch (error: any) {
-      console.error('RealTimeFuzzing: Error stopping fuzzing:', error);
+      console.error('RealTimeFuzzing: Error stopping real fuzzing:', error);
       toast({
         title: "Stop Error",
         description: `Error stopping fuzzing: ${error.message}`,
@@ -363,8 +297,8 @@ export const RealTimeFuzzing: React.FC = () => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (simulationIntervalRef.current) {
-        clearInterval(simulationIntervalRef.current);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
       }
     };
   }, []);
@@ -374,10 +308,17 @@ export const RealTimeFuzzing: React.FC = () => {
       <CardHeader>
         <CardTitle>Real-Time Fuzzing</CardTitle>
         <CardDescription>
-          Configure and run a real-time fuzzing scan against your target
+          Configure and run a real-time fuzzing scan against your target using the Python backend
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
+        {!backendConnected && (
+          <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
+            <p className="text-red-400 font-medium">Backend Server Not Connected</p>
+            <p className="text-sm text-gray-400">Please ensure the Python backend server is running on port 5000</p>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="targetUrl">Target URL</Label>
@@ -415,7 +356,10 @@ export const RealTimeFuzzing: React.FC = () => {
         
         <div className="flex items-center justify-between p-4 bg-black/20 rounded-lg border border-gray-700/50">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Status: <span className="text-blue-400">{fuzzingStatus}</span></p>
+            <p className="text-sm font-medium">
+              Status: <span className="text-blue-400">{fuzzingStatus}</span>
+              {backendConnected && <span className="ml-2 text-green-400">(Backend Connected)</span>}
+            </p>
             <p className="text-sm text-gray-400">Payloads Tested: <span className="text-white">{payloadCount}</span></p>
             <p className="text-sm text-gray-400">Vulnerabilities Found: <span className="text-red-400">{vulnerabilities.length}</span></p>
             {currentSessionId && (
@@ -426,8 +370,9 @@ export const RealTimeFuzzing: React.FC = () => {
             onClick={isScanning ? stopScan : startScan}
             size="lg"
             className={isScanning ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
+            disabled={!backendConnected && !isScanning}
           >
-            {isScanning ? "Stop Scan" : "Start Fuzzing"}
+            {isScanning ? "Stop Scan" : "Start Real Fuzzing"}
           </Button>
         </div>
         

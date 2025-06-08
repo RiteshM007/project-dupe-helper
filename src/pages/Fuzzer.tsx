@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
@@ -22,38 +21,56 @@ const Fuzzer = () => {
   });
   const [connecting, setConnecting] = useState(false);
   const [dvwaStatus, setDvwaStatus] = useState<'online' | 'offline' | 'checking' | 'simulation'>('checking');
+  const [backendStatus, setBackendStatus] = useState<'online' | 'offline' | 'checking'>('checking');
   const navigate = useNavigate();
   const { addEventListener, isConnected: socketConnected } = useSocket();
   const [progress, setProgress] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Auto-connect to DVWA when the page loads
+  // Check backend connection on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        setBackendStatus('checking');
+        await fuzzerApi.checkHealth();
+        setBackendStatus('online');
+        console.log('Backend server is online');
+      } catch (error) {
+        setBackendStatus('offline');
+        console.error('Backend server is offline:', error);
+        toast({
+          title: "Backend Server Offline",
+          description: "Please start the Python backend server on port 5000",
+          variant: "destructive",
+        });
+      }
+    };
+
+    checkBackend();
+  }, []);
+
+  // Auto-connect to DVWA when the page loads (only if backend is online)
   useEffect(() => {
     const connectToDVWA = async () => {
-      if (!isConnected && !connecting) {
+      if (!isConnected && !connecting && backendStatus === 'online') {
         setConnecting(true);
         setDvwaStatus('checking');
         const dvwaServerUrl = 'http://localhost:8080';
         
         try {
-          console.log('Attempting to connect to DVWA server at:', dvwaServerUrl);
+          console.log('Attempting to connect to DVWA server via backend:', dvwaServerUrl);
           
+          // Use backend API to check and connect to DVWA
           const isReachable = await checkDVWAConnection(dvwaServerUrl);
           
           if (!isReachable) {
-            console.log('DVWA server not reachable - enabling simulation mode');
-            setDvwaStatus('simulation');
-            
-            // Enable simulation mode instead of failing
-            setIsConnected(true);
-            setDvwaUrl(dvwaServerUrl);
-            setSessionCookie('PHPSESSID=simulation-session-id');
-            
+            console.log('DVWA server not reachable via backend');
+            setDvwaStatus('offline');
             toast({
-              title: "Simulation Mode Enabled",
-              description: "DVWA not accessible due to CORS. Running in simulation mode for demo.",
-              variant: "default",
+              title: "DVWA Server Offline",
+              description: "DVWA server at localhost:8080 is not accessible. Please ensure DVWA is running.",
+              variant: "destructive",
             });
             setConnecting(false);
             return;
@@ -67,32 +84,26 @@ const Fuzzer = () => {
             setIsConnected(true);
             setDvwaUrl(dvwaServerUrl);
             setSessionCookie(loginResult.cookie);
-            console.log('Successfully connected to DVWA');
+            console.log('Successfully connected to DVWA via backend');
             toast({
               title: "Connected to DVWA",
-              description: "Successfully connected to DVWA server",
+              description: "Successfully connected to DVWA server via backend",
             });
           } else {
-            // Fallback to simulation mode
-            setDvwaStatus('simulation');
-            setIsConnected(true);
-            setDvwaUrl(dvwaServerUrl);
-            setSessionCookie('PHPSESSID=simulation-session-id');
+            setDvwaStatus('offline');
             toast({
-              title: "Simulation Mode",
-              description: "Running in simulation mode for demo purposes",
+              title: "DVWA Login Failed",
+              description: "Failed to login to DVWA. Check credentials and server status.",
+              variant: "destructive",
             });
           }
         } catch (error) {
-          console.error('Error connecting to DVWA:', error);
-          // Enable simulation mode as fallback
-          setDvwaStatus('simulation');
-          setIsConnected(true);
-          setDvwaUrl(dvwaServerUrl);
-          setSessionCookie('PHPSESSID=simulation-session-id');
+          console.error('Error connecting to DVWA via backend:', error);
+          setDvwaStatus('offline');
           toast({
-            title: "Simulation Mode",
-            description: "Running in simulation mode due to connection issues",
+            title: "DVWA Connection Error",
+            description: "Error connecting to DVWA via backend",
+            variant: "destructive",
           });
         } finally {
           setConnecting(false);
@@ -100,8 +111,10 @@ const Fuzzer = () => {
       }
     };
     
-    connectToDVWA();
-  }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie]);
+    if (backendStatus === 'online') {
+      connectToDVWA();
+    }
+  }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie, backendStatus]);
 
   // Handle external start/stop events with improved logging
   useEffect(() => {
@@ -233,9 +246,14 @@ const Fuzzer = () => {
               Socket.IO Connected
             </Badge>
           )}
-          {dvwaStatus === 'simulation' && (
-            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-              Simulation Mode (CORS Issue)
+          {backendStatus === 'online' && (
+            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+              Backend Connected
+            </Badge>
+          )}
+          {backendStatus === 'offline' && (
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+              Backend Offline
             </Badge>
           )}
           {dvwaStatus === 'online' && (
@@ -243,7 +261,24 @@ const Fuzzer = () => {
               DVWA Connected
             </Badge>
           )}
+          {dvwaStatus === 'offline' && (
+            <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+              DVWA Offline
+            </Badge>
+          )}
         </div>
+
+        {backendStatus === 'offline' && (
+          <div className="mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
+            <h3 className="font-medium text-red-400 mb-2">Backend Server Required</h3>
+            <p className="text-sm text-gray-400 mb-2">
+              The Python backend server is required for real fuzzing operations.
+            </p>
+            <p className="text-sm text-gray-400">
+              Please start the server by running: <code className="bg-gray-800 px-2 py-1 rounded">python server/app.py</code>
+            </p>
+          </div>
+        )}
         
         <Grid cols={1} gap={6} className="mb-6">
           <GridItem className="w-full">

@@ -8,156 +8,135 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  allowAbsoluteUrls: true,
 });
 
-// Simulation mode for when backend is not available
-const SIMULATION_MODE = true;
+// Remove simulation mode - we want real backend connection
+const SIMULATION_MODE = false;
 
-// Simulated responses for demo purposes
-const simulateResponse = async (operation: string, data?: any) => {
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-  
-  switch (operation) {
-    case 'create':
-      return {
-        success: true,
-        sessionId: `sim-${Date.now()}`,
-        message: 'Fuzzer session created successfully (simulation mode)'
-      };
-    case 'start':
-      return {
-        success: true,
-        message: 'Fuzzing started successfully (simulation mode)'
-      };
-    case 'stop':
-      return {
-        success: true,
-        message: 'Fuzzing stopped (simulation mode)'
-      };
-    case 'status':
-      return {
-        success: true,
-        status: 'running',
-        progress: Math.random() * 100,
-        payloadsSent: Math.floor(Math.random() * 50),
-        vulnerabilitiesFound: Math.floor(Math.random() * 5)
-      };
-    case 'results':
-      return {
-        success: true,
-        results: {
-          totalPayloads: Math.floor(Math.random() * 100) + 50,
-          vulnerabilitiesFound: Math.floor(Math.random() * 10),
-          threats: []
-        }
-      };
-    default:
-      return { success: false, message: 'Unknown operation' };
+// Add request interceptor for logging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('API Request Error:', error);
+    return Promise.reject(error);
   }
-};
+);
+
+// Add response interceptor for logging
+api.interceptors.response.use(
+  (response) => {
+    console.log(`API Response: ${response.config.url} - Status: ${response.status}`);
+    return response;
+  },
+  (error) => {
+    console.error(`API Error: ${error.config?.url} - ${error.message}`);
+    return Promise.reject(error);
+  }
+);
 
 export const fuzzerApi = {
   // Create a new fuzzer session
-  async createFuzzer(targetUrl: string, wordlist: string) {
-    if (SIMULATION_MODE) {
-      console.log(`Creating fuzzer session (simulation) for ${targetUrl}`);
-      return simulateResponse('create');
-    }
-    
+  async createFuzzer(targetUrl: string, wordlist: string = 'default_wordlist.txt') {
     try {
+      console.log(`Creating fuzzer session for ${targetUrl}`);
       const response = await api.post('/fuzzer/create', {
-        target_url: targetUrl,
-        wordlist_file: wordlist,
+        targetUrl,
+        wordlistFile: wordlist,
       });
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating fuzzer:', error);
-      console.log('Falling back to simulation mode');
-      return simulateResponse('create');
-    }
-  },
-
-  // Upload custom payloads to an existing fuzzer session
-  async uploadPayloads(sessionId: string, payloads: string[]) {
-    if (SIMULATION_MODE) {
-      console.log(`Uploading ${payloads.length} payloads (simulation)`);
-      return { success: true, message: 'Payloads uploaded (simulation)' };
-    }
-    
-    try {
-      const response = await api.post(`/fuzzer/${sessionId}/payloads`, {
-        payloads,
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error uploading payloads:', error);
-      return { success: true, message: 'Payloads uploaded (simulation fallback)' };
+      throw new Error(`Failed to create fuzzer: ${error.message}`);
     }
   },
 
   // Start the fuzzing process
   async startFuzzing(sessionId: string, vulnerabilityTypes: string[], payloads: string[] = []) {
-    if (SIMULATION_MODE) {
-      console.log(`Starting fuzzing (simulation) for session ${sessionId}`);
-      return simulateResponse('start');
-    }
-    
     try {
+      console.log(`Starting fuzzing for session ${sessionId}`);
       const response = await api.post(`/fuzzer/${sessionId}/start`, {
         vulnerabilityTypes,
         customPayloads: payloads,
       });
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting fuzzing:', error);
-      return simulateResponse('start');
+      throw new Error(`Failed to start fuzzing: ${error.message}`);
     }
   },
 
   // Stop an ongoing fuzzing process
   async stopFuzzing(sessionId: string) {
-    if (SIMULATION_MODE) {
-      console.log(`Stopping fuzzing (simulation) for session ${sessionId}`);
-      return simulateResponse('stop');
-    }
-    
     try {
+      console.log(`Stopping fuzzing for session ${sessionId}`);
       const response = await api.post(`/fuzzer/${sessionId}/stop`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error stopping fuzzing:', error);
-      return simulateResponse('stop');
+      throw new Error(`Failed to stop fuzzing: ${error.message}`);
     }
   },
 
   // Get the status of a fuzzing session
   async getFuzzingStatus(sessionId: string) {
-    if (SIMULATION_MODE) {
-      return simulateResponse('status');
-    }
-    
     try {
       const response = await api.get(`/fuzzer/${sessionId}/status`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting fuzzing status:', error);
-      return simulateResponse('status');
+      throw new Error(`Failed to get fuzzing status: ${error.message}`);
     }
   },
 
   // Get results from a fuzzing session
   async getFuzzingResults(sessionId: string) {
-    if (SIMULATION_MODE) {
-      return simulateResponse('results');
-    }
-    
     try {
       const response = await api.get(`/fuzzer/${sessionId}/results`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting fuzzing results:', error);
-      return simulateResponse('results');
+      throw new Error(`Failed to get fuzzing results: ${error.message}`);
+    }
+  },
+
+  // Check backend health
+  async checkHealth() {
+    try {
+      const response = await api.get('/health');
+      return response.data;
+    } catch (error: any) {
+      console.error('Backend health check failed:', error);
+      throw new Error(`Backend not available: ${error.message}`);
+    }
+  },
+
+  // Connect to DVWA
+  async connectDVWA(url: string, username: string = 'admin', password: string = 'password') {
+    try {
+      console.log(`Connecting to DVWA at ${url}`);
+      const response = await api.get('/dvwa/connect', {
+        params: { url, username, password }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error connecting to DVWA:', error);
+      throw new Error(`Failed to connect to DVWA: ${error.message}`);
+    }
+  },
+
+  // Check DVWA status
+  async checkDVWAStatus(url: string) {
+    try {
+      const response = await api.get('/dvwa/status', {
+        params: { url }
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error checking DVWA status:', error);
+      throw new Error(`Failed to check DVWA status: ${error.message}`);
     }
   },
 };
