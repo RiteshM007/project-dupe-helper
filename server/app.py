@@ -93,16 +93,19 @@ def run_fuzzing_task(session_id, fuzzer):
         fuzzer.scan_active = True
         fuzzer.scan_progress = 0
         
-        # Simulate fuzzing process (replace with actual implementation)
-        total_steps = len(fuzzer.wordlist) if hasattr(fuzzer, 'wordlist') and fuzzer.wordlist else 100
+        # Load wordlist if not already loaded
+        if not hasattr(fuzzer, 'wordlist') or not fuzzer.wordlist:
+            fuzzer.loadWordlist()
         
-        for i in range(total_steps):
+        total_steps = len(fuzzer.wordlist)
+        
+        for i, payload in enumerate(fuzzer.wordlist):
             if not fuzzer.scan_active:
                 logger.info(f"Fuzzing stopped for session {session_id}")
                 break
                 
-            # Process a payload
-            fuzzer.processPayload(i)
+            # Process the actual payload, not the index
+            fuzzer.processPayload(payload)
             fuzzer.payloads_processed += 1
             fuzzer.scan_progress = int((i+1) / total_steps * 100)
             
