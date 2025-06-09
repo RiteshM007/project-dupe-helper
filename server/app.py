@@ -43,6 +43,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "status": "OK",
+        "message": "Web Fuzzer Backend is Running!",
+        "api_version": "1.0.0"
+    })
+
+
 CORS(app)  # Enable CORS for all routes
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
