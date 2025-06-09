@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
@@ -100,6 +99,33 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         }));
       });
 
+      // New ML training events
+      socket.on("mlTrainingStarted", (data) => {
+        console.log("🚀 ML Training Started:", data);
+        toast.info("ML model training started...");
+        
+        window.dispatchEvent(new CustomEvent('globalMLTrainingStarted', {
+          detail: data
+        }));
+      });
+
+      socket.on("mlTrainingProgress", (data) => {
+        console.log("📈 ML Training Progress:", data);
+        
+        window.dispatchEvent(new CustomEvent('globalMLTrainingProgress', {
+          detail: data
+        }));
+      });
+
+      socket.on("mlModelTrained", (data) => {
+        console.log("✅ ML Model Trained:", data);
+        toast.success(`ML model trained! Accuracy: ${(data.accuracy * 100).toFixed(1)}%`);
+        
+        window.dispatchEvent(new CustomEvent('globalMLModelTrained', {
+          detail: data
+        }));
+      });
+
       // Threat detection events
       socket.on("threatDetected", (data) => {
         console.warn("🚨 Threat Detected:", data);
@@ -176,6 +202,9 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         socket.off("fuzzingComplete");
         socket.off("fuzzing_progress");
         socket.off("mlAnalysisComplete");
+        socket.off("mlTrainingStarted");
+        socket.off("mlTrainingProgress");
+        socket.off("mlModelTrained");
         socket.off("threatDetected");
         socket.off("scanStart");
         socket.off("scanComplete");
@@ -189,6 +218,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
   const emit = (event: string, data?: any) => {
     if (socket && isConnected) {
+      console.log("📤 Emitting event:", event, data);
       socket.emit(event, data);
     } else {
       console.warn("Cannot emit - socket not connected");

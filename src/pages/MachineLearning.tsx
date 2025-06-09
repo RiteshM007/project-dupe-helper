@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { MLAnalysisDashboard } from '@/components/dashboard/MLAnalysisDashboard';
@@ -6,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Brain, Database, BarChart2, Zap, Upload, Download, FileText } from 'lucide-react';
-import { EnhancedPayloadGenerator, trainClassifier, parseUploadedDataset } from '@/backend/enhanced_ml_models';
+import { mlApi } from '@/services/api';
 import { toast } from 'sonner';
+import { useSocket } from '@/context/SocketContext';
 
 const MachineLearning = () => {
   const [dataset, setDataset] = useState<any[]>([]);
@@ -15,24 +15,8 @@ const MachineLearning = () => {
   const [isTraining, setIsTraining] = useState(false);
   const [isModelTrained, setIsModelTrained] = useState(false);
   const [trainingResults, setTrainingResults] = useState<any>(null);
-  const [payloadGenerator, setPayloadGenerator] = useState<EnhancedPayloadGenerator | null>(null);
   const [generatedPayloads, setGeneratedPayloads] = useState<string[]>([]);
-
-  useEffect(() => {
-    // Initialize enhanced payload generator
-    const initGenerator = async () => {
-      try {
-        const generator = new EnhancedPayloadGenerator();
-        setPayloadGenerator(generator);
-        toast.success("Enhanced ML payload generator initialized!");
-      } catch (error) {
-        console.error("Failed to initialize payload generator:", error);
-        toast.error("Failed to initialize payload generator");
-      }
-    };
-    
-    initGenerator();
-  }, []);
+  const { socket } = useSocket();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -48,31 +32,43 @@ const MachineLearning = () => {
     }
 
     try {
-      toast.info("Uploading and parsing dataset...");
+      toast.info("Uploading and training with file...");
       
-      const fileContent = await file.text();
-      const parsedDataset = await parseUploadedDataset(fileContent);
+      // Use the backend API to train directly with the file
+      const response = await mlApi.trainClassifierWithFile(file);
       
-      if (parsedDataset.length === 0) {
-        toast.error("No valid data found in uploaded file");
-        return;
+      console.log("🎯 File training response:", response);
+      
+      if (response.success) {
+        // Create a mock dataset for UI display
+        const mockDataset = Array.from({ length: response.dataset_size }, (_, i) => ({
+          id: i,
+          payload: `sample_${i}`,
+          label: Math.random() > 0.7 ? 'malicious' : 'safe'
+        }));
+        
+        setDataset(mockDataset);
+        setDatasetFileName(file.name);
+        setTrainingResults(response);
+        setIsModelTrained(true);
+        
+        toast.success(`Model trained successfully! Accuracy: ${(response.accuracy * 100).toFixed(1)}%`);
+        
+        // Emit Socket.IO event
+        if (socket) {
+          socket.emit('mlAnalysisComplete', {
+            accuracy: response.accuracy,
+            dataset_size: response.dataset_size,
+            timestamp: response.last_trained
+          });
+        }
+      } else {
+        throw new Error(response.error || 'Training failed');
       }
       
-      setDataset(parsedDataset);
-      setDatasetFileName(file.name);
-      setIsModelTrained(false);
-      setTrainingResults(null);
-      
-      toast.success(`Dataset uploaded successfully! Parsed ${parsedDataset.length} records.`);
-      
-      // Analyze dataset with payload generator
-      if (payloadGenerator) {
-        payloadGenerator.analyzeDataset(parsedDataset);
-      }
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading dataset:", error);
-      toast.error("Failed to parse dataset. Please check file format.");
+      toast.error(`Failed to train with file: ${error.message}`);
     }
   };
 
@@ -85,45 +81,61 @@ const MachineLearning = () => {
     setIsTraining(true);
     
     try {
-      toast.info("Training classifier model...");
+      toast.info("Training classifier model on backend...");
       
-      // Train the classifier
-      const results = await trainClassifier(dataset);
+      console.log("🧠 Starting ML training with dataset:", dataset.length, "samples");
       
-      setTrainingResults(results);
-      setIsModelTrained(true);
+      // Call the actual backend API
+      const response = await mlApi.trainClassifier(dataset);
       
-      toast.success(`Model trained successfully! Accuracy: ${(results.accuracy * 100).toFixed(1)}%`);
+      console.log("🎯 Backend training response:", response);
       
-    } catch (error) {
+      if (response.success) {
+        setTrainingResults(response);
+        setIsModelTrained(true);
+        
+        toast.success(`Model trained successfully! Accuracy: ${(response.accuracy * 100).toFixed(1)}%`);
+        
+        // Emit Socket.IO event for real-time updates
+        if (socket) {
+          socket.emit('mlAnalysisComplete', {
+            accuracy: response.accuracy,
+            dataset_size: response.dataset_size,
+            timestamp: response.last_trained
+          });
+        }
+      } else {
+        throw new Error(response.error || 'Training failed');
+      }
+      
+    } catch (error: any) {
       console.error("Error training models:", error);
-      toast.error("Training failed. Please check your dataset.");
+      toast.error(`Training failed: ${error.message}`);
     } finally {
       setIsTraining(false);
     }
   };
 
   const handleGeneratePayloads = async (vulnerabilityType?: string) => {
-    if (!payloadGenerator) {
-      toast.error("Payload generator not initialized");
-      return;
-    }
-
     try {
       toast.info("Generating enhanced payloads...");
       
-      let newPayloads: string[];
-      if (vulnerabilityType) {
-        newPayloads = payloadGenerator.generateContextualPayloads(vulnerabilityType, 5);
+      console.log("🚀 Generating payloads for:", vulnerabilityType);
+      
+      const response = await mlApi.generatePayloads(vulnerabilityType, 5);
+      
+      console.log("✅ Generated payloads:", response);
+      
+      if (response.success) {
+        setGeneratedPayloads(prev => [...prev, ...response.payloads]);
+        toast.success(`Generated ${response.count} new payloads!`);
       } else {
-        newPayloads = payloadGenerator.generatePayloads(10);
+        throw new Error(response.error || 'Payload generation failed');
       }
       
-      setGeneratedPayloads(prev => [...prev, ...newPayloads]);
-      toast.success(`Generated ${newPayloads.length} new payloads!`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating payloads:", error);
-      toast.error("Failed to generate payloads");
+      toast.error(`Failed to generate payloads: ${error.message}`);
     }
   };
 
