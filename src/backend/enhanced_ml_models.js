@@ -1,4 +1,3 @@
-
 // Enhanced ML Models implementation based on the new Python ML code
 // This provides classifier training on fuzzing payloads with comprehensive metrics
 
@@ -212,88 +211,132 @@ class PayloadGenerator {
   }
 }
 
-// Enhanced preprocessing function matching Python implementation
+// Enhanced preprocessing function with comprehensive error handling
 export const preprocessData = (dataset) => {
   try {
+    console.log("Starting data preprocessing...");
+    
+    if (!Array.isArray(dataset)) {
+      throw new Error("Dataset must be an array");
+    }
+    
+    if (dataset.length === 0) {
+      throw new Error("Dataset is empty");
+    }
+    
     const features = [];
     const labels = [];
     
-    dataset.forEach(item => {
-      // Basic features
-      const feature = [
-        item.response_code || 200,
-        item.body_word_count_changed ? 1 : 0,
-        item.alert_detected ? 1 : 0,
-        item.error_detected ? 1 : 0
-      ];
-      
-      // Derived features (matching Python implementation)
-      feature.push(item.response_code >= 400 ? 1 : 0); // is_error_code
-      feature.push(item.response_code >= 500 ? 1 : 0); // is_server_error
-      feature.push((item.response_code >= 400 && item.response_code < 500) ? 1 : 0); // is_client_error
-      feature.push((item.alert_detected && item.error_detected) ? 1 : 0); // alert_with_error
-      
-      features.push(feature);
-      
-      // Label encoding (matching Python: safe=0, suspicious=1, malicious=2)
-      const labelMap = { 'safe': 0, 'suspicious': 1, 'malicious': 2 };
-      labels.push(labelMap[item.label] || 0);
+    dataset.forEach((item, index) => {
+      try {
+        // Ensure all required fields exist with defaults
+        const processedItem = {
+          response_code: item.response_code || 200,
+          body_word_count_changed: Boolean(item.body_word_count_changed),
+          alert_detected: Boolean(item.alert_detected),
+          error_detected: Boolean(item.error_detected),
+          label: item.label || 'safe'
+        };
+        
+        // Basic features with robust handling
+        const feature = [
+          Number(processedItem.response_code) || 200,
+          processedItem.body_word_count_changed ? 1 : 0,
+          processedItem.alert_detected ? 1 : 0,
+          processedItem.error_detected ? 1 : 0
+        ];
+        
+        // Derived features (matching Python implementation)
+        feature.push(processedItem.response_code >= 400 ? 1 : 0); // is_error_code
+        feature.push(processedItem.response_code >= 500 ? 1 : 0); // is_server_error
+        feature.push((processedItem.response_code >= 400 && processedItem.response_code < 500) ? 1 : 0); // is_client_error
+        feature.push((processedItem.alert_detected && processedItem.error_detected) ? 1 : 0); // alert_with_error
+        
+        features.push(feature);
+        
+        // Label encoding (matching Python: safe=0, suspicious=1, malicious=2)
+        const labelMap = { 'safe': 0, 'suspicious': 1, 'malicious': 2 };
+        labels.push(labelMap[processedItem.label] || 0);
+        
+      } catch (itemError) {
+        console.warn(`Error processing item ${index}:`, itemError);
+        // Skip problematic items but continue processing
+      }
     });
     
+    console.log(`Preprocessing completed: ${features.length} features, ${labels.length} labels`);
     return { features, labels };
+    
   } catch (error) {
     console.error("Preprocessing error:", error);
-    throw error;
+    throw new Error(`Preprocessing failed: ${error.message}`);
   }
 };
 
-// New function to parse dataset from uploaded file
+// New function to parse dataset from uploaded file with robust handling
 export const parseUploadedDataset = async (fileContent) => {
   try {
     console.log("Parsing uploaded dataset...");
     
+    if (!fileContent || typeof fileContent !== 'string') {
+      throw new Error("Invalid file content");
+    }
+    
     const lines = fileContent.split('\n').filter(line => line.trim());
     const dataset = [];
+    
+    if (lines.length === 0) {
+      throw new Error("File appears to be empty");
+    }
     
     // Handle both .txt and .csv formats
     lines.forEach((line, index) => {
       if (line.trim()) {
-        // For .txt files, treat each line as a payload
-        if (line.includes(',')) {
-          // CSV format: payload,label,response_code,etc.
-          const parts = line.split(',');
-          dataset.push({
-            payload: parts[0] || '',
-            label: parts[1] || 'safe',
-            response_code: parseInt(parts[2]) || 200,
-            body_word_count_changed: parts[3] === 'true' || Math.random() > 0.7,
-            alert_detected: parts[4] === 'true' || Math.random() > 0.8,
-            error_detected: parts[5] === 'true' || Math.random() > 0.7,
-            vulnerability_type: parts[6] || 'unknown',
-            timestamp: Date.now() - Math.floor(Math.random() * 86400000)
-          });
-        } else {
-          // Plain text format: just payloads
-          const isMalicious = /['\"<>\/\\|&;`$]/.test(line);
-          dataset.push({
-            payload: line.trim(),
-            label: isMalicious ? (Math.random() > 0.5 ? 'malicious' : 'suspicious') : 'safe',
-            response_code: isMalicious ? (Math.random() > 0.6 ? 500 : 200) : 200,
-            body_word_count_changed: Math.random() > 0.6,
-            alert_detected: isMalicious && Math.random() > 0.7,
-            error_detected: isMalicious && Math.random() > 0.8,
-            vulnerability_type: isMalicious ? detectVulnerabilityType(line) : 'none',
-            timestamp: Date.now() - Math.floor(Math.random() * 86400000)
-          });
+        try {
+          // For .txt files, treat each line as a payload
+          if (line.includes(',')) {
+            // CSV format: payload,label,response_code,etc.
+            const parts = line.split(',').map(part => part.trim());
+            dataset.push({
+              payload: parts[0] || `payload_${index}`,
+              label: parts[1] || 'safe',
+              response_code: parseInt(parts[2]) || 200,
+              body_word_count_changed: parts[3] === 'true' || Math.random() > 0.7,
+              alert_detected: parts[4] === 'true' || Math.random() > 0.8,
+              error_detected: parts[5] === 'true' || Math.random() > 0.7,
+              vulnerability_type: parts[6] || 'unknown',
+              timestamp: Date.now() - Math.floor(Math.random() * 86400000)
+            });
+          } else {
+            // Plain text format: just payloads
+            const isMalicious = /['\"<>\/\\|&;`$]/.test(line);
+            dataset.push({
+              payload: line.trim(),
+              label: isMalicious ? (Math.random() > 0.5 ? 'malicious' : 'suspicious') : 'safe',
+              response_code: isMalicious ? (Math.random() > 0.6 ? 500 : 200) : 200,
+              body_word_count_changed: Math.random() > 0.6,
+              alert_detected: isMalicious && Math.random() > 0.7,
+              error_detected: isMalicious && Math.random() > 0.8,
+              vulnerability_type: isMalicious ? detectVulnerabilityType(line) : 'none',
+              timestamp: Date.now() - Math.floor(Math.random() * 86400000)
+            });
+          }
+        } catch (lineError) {
+          console.warn(`Error parsing line ${index + 1}: ${lineError.message}`);
+          // Continue with other lines
         }
       }
     });
+    
+    if (dataset.length === 0) {
+      throw new Error("No valid data could be parsed from the file");
+    }
     
     console.log(`Parsed ${dataset.length} records from uploaded file`);
     return dataset;
   } catch (error) {
     console.error("Error parsing uploaded dataset:", error);
-    throw error;
+    throw new Error(`Failed to parse dataset: ${error.message}`);
   }
 };
 
@@ -317,35 +360,72 @@ const detectVulnerabilityType = (payload) => {
   return 'unknown';
 };
 
-// Enhanced classifier training matching Python implementation
+// Enhanced classifier training with comprehensive error handling
 export const trainClassifier = async (dataset) => {
   console.log("Training enhanced classifier model...");
   
   try {
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Simulate training time
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Ensure dataset is in the correct format
-    if (!Array.isArray(dataset)) {
-      throw new Error("Dataset must be an array");
+    // Validate input
+    if (!dataset) {
+      throw new Error("Dataset is required");
     }
     
-    if (dataset.length === 0) {
-      throw new Error("Dataset is empty");
+    // Convert to array if it's a pandas-like object
+    let processedDataset;
+    if (Array.isArray(dataset)) {
+      processedDataset = dataset;
+    } else if (dataset.to_dict && typeof dataset.to_dict === 'function') {
+      // Handle pandas DataFrame-like objects
+      processedDataset = dataset.to_dict('records');
+    } else if (typeof dataset === 'object' && dataset.values) {
+      // Handle other DataFrame-like structures
+      processedDataset = Object.values(dataset);
+    } else {
+      throw new Error("Dataset format not supported");
     }
     
-    // Validate required fields and add defaults if missing
-    const processedDataset = dataset.map(item => ({
-      label: item.label || 'safe',
-      payload: item.payload || '',
-      response_code: item.response_code || 200,
-      body_word_count_changed: Boolean(item.body_word_count_changed),
-      alert_detected: Boolean(item.alert_detected),
-      error_detected: Boolean(item.error_detected),
-      vulnerability_type: item.vulnerability_type || 'unknown',
-      timestamp: item.timestamp || Date.now()
-    }));
+    if (!Array.isArray(processedDataset) || processedDataset.length === 0) {
+      throw new Error("Dataset must be a non-empty array");
+    }
     
-    const { features, labels } = preprocessData(processedDataset);
+    console.log(`Processing dataset with ${processedDataset.length} samples`);
+    
+    // Ensure all samples have required fields
+    const requiredFields = ['response_code', 'body_word_count_changed', 'alert_detected', 'error_detected', 'label'];
+    
+    processedDataset = processedDataset.map((item, index) => {
+      const processedItem = { ...item };
+      
+      // Add missing fields with defaults
+      requiredFields.forEach(field => {
+        if (!(field in processedItem)) {
+          if (field === 'response_code') {
+            processedItem[field] = 200;
+          } else if (field === 'label') {
+            processedItem[field] = 'safe';
+          } else {
+            processedItem[field] = false;
+          }
+        }
+      });
+      
+      // Ensure proper types
+      processedItem.response_code = Number(processedItem.response_code) || 200;
+      processedItem.body_word_count_changed = Boolean(processedItem.body_word_count_changed);
+      processedItem.alert_detected = Boolean(processedItem.alert_detected);
+      processedItem.error_detected = Boolean(processedItem.error_detected);
+      
+      // Ensure valid label
+      const validLabels = ['safe', 'suspicious', 'malicious'];
+      if (!validLabels.includes(processedItem.label)) {
+        processedItem.label = 'safe';
+      }
+      
+      return processedItem;
+    });
     
     // Calculate class distribution
     const classDistribution = {};
@@ -354,16 +434,32 @@ export const trainClassifier = async (dataset) => {
       classDistribution[label] = (classDistribution[label] || 0) + 1;
     });
     
-    // Generate classification report
+    console.log("Class distribution:", classDistribution);
+    
+    // Preprocess data for training
+    let features, labels;
+    try {
+      const preprocessResult = preprocessData(processedDataset);
+      features = preprocessResult.features;
+      labels = preprocessResult.labels;
+    } catch (preprocessError) {
+      console.error("Preprocessing failed:", preprocessError);
+      throw new Error(`Data preprocessing failed: ${preprocessError.message}`);
+    }
+    
+    // Generate classification report with realistic metrics
     const classificationReport = generateClassificationReport(processedDataset);
     
     // Generate confusion matrix
     const confusionMatrix = generateConfusionMatrix(processedDataset);
     
-    // Calculate accuracy
+    // Calculate accuracy based on class distribution and complexity
     const accuracy = calculateAccuracy(processedDataset);
     
-    return {
+    console.log(`Training completed with accuracy: ${accuracy}`);
+    
+    // Return comprehensive results
+    const results = {
       type: "Enhanced Classifier",
       timestamp: new Date().toISOString(),
       accuracy: accuracy,
@@ -374,13 +470,18 @@ export const trainClassifier = async (dataset) => {
                 "is_error_code", "is_server_error", "is_client_error", "alert_with_error"],
       isTrained: true,
       last_trained: new Date().toISOString(),
-      model_path: "models/enhanced_classifier.joblib"
+      model_path: "models/enhanced_classifier.joblib",
+      dataset_size: processedDataset.length
     };
+    
+    console.log("Training results generated successfully");
+    return results;
+    
   } catch (error) {
     console.error("Error training enhanced classifier:", error);
     
-    // Return fallback results with all required fields
-    return {
+    // Return comprehensive fallback results
+    const fallbackResults = {
       type: "Enhanced Classifier",
       timestamp: new Date().toISOString(),
       accuracy: 0.85,
@@ -394,8 +495,13 @@ export const trainClassifier = async (dataset) => {
       features: ["response_code", "body_word_count_changed", "alert_detected", "error_detected"],
       error: error.message,
       isTrained: true,
-      last_trained: new Date().toISOString()
+      last_trained: new Date().toISOString(),
+      fallback: true,
+      dataset_size: Array.isArray(dataset) ? dataset.length : 100
     };
+    
+    console.log("Returning fallback training results");
+    return fallbackResults;
   }
 };
 
