@@ -190,7 +190,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           severity: (data.severity || 'medium').toLowerCase() as 'low' | 'medium' | 'high' | 'critical',
           detectedAt: new Date(),
           source: data.source || 'fuzzer',
-          threatType: data.vulnerabilityType || data.type || 'Unknown'
+          threatType: data.vulnerabilityType || data.type || 'Unknown',
+          timestamp: new Date(),
+          target: data.target || data.targetUrl || 'Unknown',
+          payload: data.payload || data.testPayload || 'N/A'
         });
         
         window.dispatchEvent(new CustomEvent('globalThreatDetected', {
@@ -315,3 +318,5 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 };
 
 export { SocketContext };
+
+</edits_to_apply>

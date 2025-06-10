@@ -1,3 +1,4 @@
+
 import axios from 'axios';
 
 // Create a base axios instance with default settings
@@ -163,6 +164,18 @@ export const mlApi = {
     } catch (error: any) {
       console.error('Error training ML models:', error);
       throw new Error(`Model training failed: ${error.message}`);
+    }
+  },
+
+  // Train classifier with dataset (alias for backward compatibility)
+  async trainClassifier(dataset?: any[]) {
+    try {
+      console.log('🎯 Training classifier model...');
+      const response = await api.post('/ml/train-classifier', { dataset });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error training classifier:', error);
+      throw new Error(`Classifier training failed: ${error.message}`);
     }
   },
 

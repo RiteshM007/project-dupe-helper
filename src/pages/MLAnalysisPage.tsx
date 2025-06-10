@@ -95,7 +95,10 @@ const MLAnalysisPage = () => {
             severity: result.anomaly_detection_rate > 0.4 ? 'high' : 'medium',
             detectedAt: new Date(),
             source: 'ml_analysis',
-            threatType: 'anomaly_detection'
+            threatType: 'anomaly_detection',
+            timestamp: new Date(),
+            target: 'ML Analysis Pipeline',
+            payload: `Anomaly rate: ${(result.anomaly_detection_rate * 100).toFixed(1)}%`
           });
         }
         
