@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, Download, Shield, Bug, AlertTriangle, Brain, Zap } from 'lucide-react';
+import { CalendarDays, Download, Shield, Bug, AlertTriangle, Brain, Zap, Trash2 } from 'lucide-react';
+import { useFuzzing } from '@/context/FuzzingContext';
 
 interface ScanReport {
   id: string;
@@ -19,25 +20,56 @@ interface ScanReport {
   type?: string;
 }
 
-interface ThreatReport {
-  id: string;
-  timestamp: Date;
-  threatType: string;
-  payload: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  target: string;
-}
-
 const Reports = () => {
+  const { fuzzingResult, threatReports, clearAllData } = useFuzzing();
   const [scanReports, setScanReports] = useState<ScanReport[]>([]);
-  const [threatReports, setThreatReports] = useState<ThreatReport[]>([]);
   const [totalScans, setTotalScans] = useState(0);
   const [totalVulnerabilities, setTotalVulnerabilities] = useState(0);
 
+  // Add fuzzing result to scan reports when it updates
+  useEffect(() => {
+    if (fuzzingResult) {
+      console.log('Reports: Processing fuzzing result from global context:', fuzzingResult);
+      
+      const newReport: ScanReport = {
+        id: fuzzingResult.sessionId,
+        timestamp: new Date(fuzzingResult.timestamp),
+        targetUrl: fuzzingResult.targetUrl,
+        vulnerabilitiesFound: fuzzingResult.vulnerabilities,
+        payloadsTested: fuzzingResult.payloadsTested,
+        duration: fuzzingResult.duration,
+        status: fuzzingResult.status,
+        severity: fuzzingResult.severity,
+        type: fuzzingResult.type
+      };
+
+      setScanReports(prev => {
+        // Check if report already exists to avoid duplicates
+        const exists = prev.some(report => report.id === newReport.id);
+        if (!exists) {
+          const updated = [newReport, ...prev].slice(0, 20);
+          console.log('Reports: Added new report from global context:', updated);
+          return updated;
+        }
+        return prev;
+      });
+      
+      setTotalScans(prev => prev + 1);
+      setTotalVulnerabilities(prev => prev + fuzzingResult.vulnerabilities);
+    }
+  }, [fuzzingResult]);
+
+  // Legacy event listeners for backward compatibility
   useEffect(() => {
     const handleScanComplete = (event: CustomEvent) => {
-      console.log('Reports: Received scan complete event', event.detail);
+      console.log('Reports: Received legacy scan complete event', event.detail);
       const { sessionId, vulnerabilities = 0, payloadsTested = 0, targetUrl, duration, severity, type, target } = event.detail || {};
+      
+      // Check if this is already handled by global context
+      if (fuzzingResult && fuzzingResult.sessionId === sessionId) {
+        console.log('Reports: Skipping legacy event - already handled by global context');
+        return;
+      }
       
       const newReport: ScanReport = {
         id: sessionId || `scan-${Date.now()}`,
@@ -51,98 +83,27 @@ const Reports = () => {
         type: type || 'fuzzing'
       };
 
-      console.log('Reports: Adding new report', newReport);
+      console.log('Reports: Adding legacy report', newReport);
       setScanReports(prev => {
         const updated = [newReport, ...prev].slice(0, 20);
-        console.log('Reports: Updated scan reports:', updated);
-        return updated;
-      });
-      
-      setTotalScans(prev => {
-        const updated = prev + 1;
-        console.log('Reports: Updated total scans:', updated);
-        return updated;
-      });
-      
-      setTotalVulnerabilities(prev => {
-        const updated = prev + vulnerabilities;
-        console.log('Reports: Updated total vulnerabilities:', updated);
-        return updated;
-      });
-    };
-
-    const handleMLComplete = (event: CustomEvent) => {
-      console.log('Reports: Received ML analysis complete event', event.detail);
-      const { sessionId, patterns = 0, accuracy = 0, type = 'machine-learning' } = event.detail || {};
-      
-      const newReport: ScanReport = {
-        id: sessionId || `ml-${Date.now()}`,
-        timestamp: new Date(),
-        targetUrl: 'ML Analysis',
-        vulnerabilitiesFound: patterns,
-        payloadsTested: Math.floor(accuracy * 100),
-        duration: `${Math.floor(Math.random() * 3) + 1}m ${Math.floor(Math.random() * 60)}s`,
-        status: 'completed',
-        severity: patterns > 2 ? 'high' : patterns > 0 ? 'medium' : 'low',
-        type: 'machine-learning'
-      };
-
-      console.log('Reports: Adding new ML report', newReport);
-      setScanReports(prev => {
-        const updated = [newReport, ...prev].slice(0, 20);
-        console.log('Reports: Updated scan reports with ML:', updated);
         return updated;
       });
       
       setTotalScans(prev => prev + 1);
+      setTotalVulnerabilities(prev => prev + vulnerabilities);
     };
 
-    const handleThreatDetected = (event: CustomEvent) => {
-      console.log('Reports: Received threat detected event', event.detail);
-      const { payload, vulnerabilityType, severity = 'medium', field, timestamp } = event.detail;
-
-      const newThreatReport: ThreatReport = {
-        id: `threat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        timestamp: timestamp || new Date(),
-        threatType: vulnerabilityType || 'Unknown',
-        payload: payload || 'N/A',
-        severity: severity.toLowerCase(),
-        target: field || 'General'
-      };
-
-      console.log('Reports: Adding new threat report', newThreatReport);
-      setThreatReports(prev => {
-        const updated = [newThreatReport, ...prev].slice(0, 50);
-        console.log('Reports: Updated threat reports:', updated);
-        return updated;
-      });
-    };
-
-    // Set up event listeners with detailed logging
-    console.log('Reports: Setting up event listeners');
-    
-    // Listen for all relevant events
+    // Listen for legacy events
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
     window.addEventListener('globalScanComplete', handleScanComplete as EventListener);
     window.addEventListener('fuzzingComplete', handleScanComplete as EventListener);
-    window.addEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
-    
-    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
-    window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
-    window.addEventListener('vulnerabilityFound', handleThreatDetected as EventListener);
 
     return () => {
-      console.log('Reports: Cleaning up event listeners');
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
       window.removeEventListener('globalScanComplete', handleScanComplete as EventListener);
       window.removeEventListener('fuzzingComplete', handleScanComplete as EventListener);
-      window.removeEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
-      
-      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
-      window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
-      window.removeEventListener('vulnerabilityFound', handleThreatDetected as EventListener);
     };
-  }, []);
+  }, [fuzzingResult]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -195,10 +156,30 @@ const Reports = () => {
     }
   };
 
+  const handleClearAllData = () => {
+    if (window.confirm('Are you sure you want to clear all scan reports and threat data? This action cannot be undone.')) {
+      clearAllData();
+      setScanReports([]);
+      setTotalScans(0);
+      setTotalVulnerabilities(0);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6">Security Reports</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Security Reports</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClearAllData}
+            className="text-red-400 hover:text-red-300"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Clear All Data
+          </Button>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <Card>
@@ -237,6 +218,38 @@ const Reports = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Global Context Data Display */}
+        {fuzzingResult && (
+          <Card className="mb-6 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Brain className="h-5 w-5 mr-2 text-blue-400" />
+                Latest Scan Result (Global Context)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Session ID</p>
+                  <p className="text-sm font-medium">{fuzzingResult.sessionId}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Target URL</p>
+                  <p className="text-sm font-medium">{fuzzingResult.targetUrl}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Vulnerabilities</p>
+                  <p className="text-sm font-medium text-red-400">{fuzzingResult.vulnerabilities}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Payloads Tested</p>
+                  <p className="text-sm font-medium">{fuzzingResult.payloadsTested}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs defaultValue="scans" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
@@ -329,7 +342,7 @@ const Reports = () => {
           <TabsContent value="threats" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Detected Threats</CardTitle>
+                <CardTitle>Detected Threats (Global Context)</CardTitle>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[400px]">

@@ -12,6 +12,7 @@ import MachineLearning from '@/pages/MachineLearning';
 import MLAnalysis from '@/pages/MLAnalysis';
 import { DVWAConnectionProvider } from '@/context/DVWAConnectionContext';
 import { SocketProvider } from '@/context/SocketContext';
+import { FuzzingProvider } from '@/context/FuzzingContext';
 
 // Create QueryClient instance correctly
 const queryClient = new QueryClient({
@@ -26,24 +27,26 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SocketProvider>
-        <DVWAConnectionProvider>
-          <Router>
-            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/fuzzer" element={<Fuzzer />} />
-                <Route path="/analysis" element={<Analysis />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/machine-learning" element={<MachineLearning />} />
-                <Route path="/ml-analysis" element={<MLAnalysis />} />
-              </Routes>
-              <Toaster position="top-right" />
-            </div>
-          </Router>
-        </DVWAConnectionProvider>
-      </SocketProvider>
+      <FuzzingProvider>
+        <SocketProvider>
+          <DVWAConnectionProvider>
+            <Router>
+              <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/fuzzer" element={<Fuzzer />} />
+                  <Route path="/analysis" element={<Analysis />} />
+                  <Route path="/reports" element={<Reports />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/machine-learning" element={<MachineLearning />} />
+                  <Route path="/ml-analysis" element={<MLAnalysis />} />
+                </Routes>
+                <Toaster position="top-right" />
+              </div>
+            </Router>
+          </DVWAConnectionProvider>
+        </SocketProvider>
+      </FuzzingProvider>
     </QueryClientProvider>
   );
 }
