@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 
 // Create a base axios instance with default settings
@@ -141,29 +140,114 @@ export const fuzzerApi = {
   },
 };
 
+// Enhanced ML API with production-grade endpoints
 export const mlApi = {
-  // Train classifier with dataset
-  async trainClassifier(dataset: any[]) {
+  // Run complete ML analysis pipeline
+  async runAnalysis() {
     try {
-      console.log(`Training classifier with ${dataset.length} samples`);
-      const response = await api.post('/ml/train-and-analyze', {
-        dataset: dataset
-      });
+      console.log('🧠 Starting complete ML analysis pipeline...');
+      const response = await api.post('/ml/analyze');
       return response.data;
     } catch (error: any) {
-      console.error('Error training classifier:', error);
-      throw new Error(`Failed to train classifier: ${error.message}`);
+      console.error('Error running ML analysis:', error);
+      throw new Error(`ML analysis failed: ${error.message}`);
     }
   },
 
-  // Train classifier with uploaded file
+  // Train ML models with dataset
+  async trainModels(dataset?: any[]) {
+    try {
+      console.log('🎯 Training ML models...');
+      const response = await api.post('/ml/train', { dataset });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error training ML models:', error);
+      throw new Error(`Model training failed: ${error.message}`);
+    }
+  },
+
+  // Generate payloads using ML
+  async generatePayloads(context?: string, numSamples: number = 5) {
+    try {
+      console.log(`🚀 Generating ${numSamples} ML payloads${context ? ` for: ${context}` : ''}...`);
+      const response = await api.post('/ml/generate-payloads', {
+        context,
+        num_samples: numSamples
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error generating ML payloads:', error);
+      throw new Error(`ML payload generation failed: ${error.message}`);
+    }
+  },
+
+  // Analyze dataset patterns
+  async analyzeDataset(dataset: any[]) {
+    try {
+      console.log('📊 Analyzing dataset patterns...');
+      const response = await api.post('/ml/analyze-dataset', { dataset });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error analyzing dataset:', error);
+      throw new Error(`Dataset analysis failed: ${error.message}`);
+    }
+  },
+
+  // Get ML model status
+  async getModelStatus() {
+    try {
+      const response = await api.get('/ml/status');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting model status:', error);
+      throw new Error(`Model status check failed: ${error.message}`);
+    }
+  },
+
+  // Save generated payloads
+  async savePayloads(payloads: string[]) {
+    try {
+      console.log(`💾 Saving ${payloads.length} ML-generated payloads...`);
+      const response = await api.post('/ml/save-payloads', { payloads });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error saving payloads:', error);
+      throw new Error(`Payload saving failed: ${error.message}`);
+    }
+  },
+
+  // Load existing models
+  async loadModels() {
+    try {
+      console.log('📁 Loading existing ML models...');
+      const response = await api.post('/ml/load-models');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error loading models:', error);
+      throw new Error(`Model loading failed: ${error.message}`);
+    }
+  },
+
+  // Get ExploitDB integration
+  async getExploitDBPayloads(keywords: string[], limit: number = 10) {
+    try {
+      console.log('🔍 Fetching ExploitDB payloads...');
+      const response = await api.post('/ml/exploitdb', { keywords, limit });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching ExploitDB payloads:', error);
+      throw new Error(`ExploitDB integration failed: ${error.message}`);
+    }
+  },
+
+  // Train classifier with file upload
   async trainClassifierWithFile(file: File) {
     try {
-      console.log(`Training classifier with uploaded file: ${file.name}`);
+      console.log(`📁 Training classifier with uploaded file: ${file.name}`);
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await api.post('/ml/train-and-analyze', formData, {
+      const response = await api.post('/ml/train-classifier', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -171,66 +255,22 @@ export const mlApi = {
       return response.data;
     } catch (error: any) {
       console.error('Error training classifier with file:', error);
-      throw new Error(`Failed to train classifier: ${error.message}`);
-    }
-  },
-
-  // Generate enhanced payloads
-  async generatePayloads(vulnerabilityType?: string, numSamples: number = 5) {
-    try {
-      console.log(`Generating ${numSamples} payloads for ${vulnerabilityType || 'general'}`);
-      const response = await api.post('/ml/generate-payloads', {
-        vulnerability_type: vulnerabilityType,
-        num_samples: numSamples
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error generating payloads:', error);
-      throw new Error(`Failed to generate payloads: ${error.message}`);
-    }
-  },
-
-  // Train traditional ML models
-  async trainModels(dataset: any[]) {
-    try {
-      console.log(`Training ML models with ${dataset.length} samples`);
-      const response = await api.post('/ml/train', {
-        dataset: dataset
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error training ML models:', error);
-      throw new Error(`Failed to train ML models: ${error.message}`);
-    }
-  },
-
-  // Analyze dataset with clustering
-  async analyzeDataset(dataset: any[], options: any = {}) {
-    try {
-      console.log(`Analyzing dataset with ${dataset.length} samples`);
-      const response = await api.post('/ml/analyze', {
-        dataset: dataset,
-        options: options
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error analyzing dataset:', error);
-      throw new Error(`Failed to analyze dataset: ${error.message}`);
+      throw new Error(`Classifier training failed: ${error.message}`);
     }
   },
 
   // Generate security report
   async generateReport(results: any[], modelInfo: any = {}) {
     try {
-      console.log('Generating security report');
+      console.log('📄 Generating ML security report...');
       const response = await api.post('/ml/generate-report', {
-        results: results,
-        modelInfo: modelInfo
+        results,
+        modelInfo
       });
       return response.data;
     } catch (error: any) {
-      console.error('Error generating report:', error);
-      throw new Error(`Failed to generate report: ${error.message}`);
+      console.error('Error generating ML report:', error);
+      throw new Error(`Report generation failed: ${error.message}`);
     }
   }
 };

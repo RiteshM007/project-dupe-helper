@@ -40,11 +40,11 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
   
   const [isConnected, setIsConnected] = useState(false);
   const isAttached = useRef(false);
-  const { setFuzzingResult, addThreatReport } = useFuzzing();
+  const { setFuzzingResult, addThreatReport, setMlResults } = useFuzzing();
 
   useEffect(() => {
     if (!isAttached.current) {
-      console.log("✅ Setting up global Socket.IO listeners with FuzzingContext integration");
+      console.log("✅ Setting up global Socket.IO listeners with ML integration");
 
       // Connection events
       socket.on("connect", () => {
@@ -69,7 +69,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         console.log("⚙️ Fuzzing Complete:", data);
         toast.success("Fuzzing scan completed!");
         
-        // Store in global context
         setFuzzingResult({
           sessionId: data.sessionId || `scan-${Date.now()}`,
           targetUrl: data.targetUrl || data.target || 'http://localhost:8080',
@@ -83,7 +82,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           findings: data.findings || []
         });
         
-        // Dispatch custom events for backward compatibility
         window.dispatchEvent(new CustomEvent('globalFuzzingComplete', {
           detail: {
             ...data,
@@ -101,23 +99,39 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         }));
       });
 
-      // ML Analysis events
+      // Enhanced ML Analysis events
       socket.on("mlAnalysisComplete", (data) => {
         console.log("🧠 ML Analysis Complete:", data);
-        toast.success("ML analysis completed!");
+        toast.success("🎯 ML analysis completed!");
         
         // Store ML result in global context
+        setMlResults(prev => [...prev.slice(0, 4), {
+          sessionId: data.sessionId || `ml-${Date.now()}`,
+          patterns: data.patterns?.length || data.pattern_count || 0,
+          accuracy: data.model_performance?.accuracy || data.accuracy || 0.85,
+          riskLevel: data.anomaly_detection_rate ? 
+            (data.anomaly_detection_rate > 0.3 ? 'High' : 'Medium') : 'Low',
+          type: 'ml_analysis',
+          timestamp: new Date().toISOString()
+        }]);
+        
+        // Store in fuzzing result format for dashboard display
         setFuzzingResult({
           sessionId: data.sessionId || `ml-${Date.now()}`,
-          targetUrl: 'ML Analysis',
-          vulnerabilities: data.patterns || 0,
-          payloadsTested: Math.floor((data.accuracy || 0) * 100),
-          duration: `${Math.floor(Math.random() * 3) + 1}m ${Math.floor(Math.random() * 60)}s`,
-          severity: data.patterns > 2 ? 'high' : data.patterns > 0 ? 'medium' : 'low',
+          targetUrl: 'ML Analysis Pipeline',
+          vulnerabilities: data.patterns?.length || data.pattern_count || 0,
+          payloadsTested: data.generated_payloads_count || data.payloads?.length || 0,
+          duration: data.training_time || `${Math.floor(Math.random() * 3) + 1}m`,
+          severity: data.anomaly_detection_rate > 0.3 ? 'high' : 'medium',
           type: 'machine-learning',
           timestamp: new Date().toISOString(),
           status: 'completed',
-          findings: []
+          findings: data.payloads?.map((payload: string, index: number) => ({
+            type: 'ML Generated Payload',
+            payload: payload,
+            severity: 'medium',
+            index: index + 1
+          })) || []
         });
         
         window.dispatchEvent(new CustomEvent('globalMLAnalysisComplete', {
@@ -129,10 +143,10 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         }));
       });
 
-      // ML training events
+      // ML Training events
       socket.on("mlTrainingStarted", (data) => {
         console.log("🚀 ML Training Started:", data);
-        toast.info("ML model training started...");
+        toast.info("🧠 ML model training started...");
         
         window.dispatchEvent(new CustomEvent('globalMLTrainingStarted', {
           detail: data
@@ -149,28 +163,34 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 
       socket.on("mlModelTrained", (data) => {
         console.log("✅ ML Model Trained:", data);
-        toast.success(`ML model trained! Accuracy: ${(data.accuracy * 100).toFixed(1)}%`);
+        toast.success(`🎯 ML model trained! Accuracy: ${(data.accuracy * 100).toFixed(1)}%`);
         
         window.dispatchEvent(new CustomEvent('globalMLModelTrained', {
           detail: data
         }));
       });
 
-      // Threat detection events with global context integration
+      // ML Payload Generation events
+      socket.on("mlPayloadsGenerated", (data) => {
+        console.log("✨ ML Payloads Generated:", data);
+        toast.success(`🚀 Generated ${data.count || 0} ML payloads!`);
+        
+        window.dispatchEvent(new CustomEvent('globalMLPayloadsGenerated', {
+          detail: data
+        }));
+      });
+
+      // Enhanced threat detection
       socket.on("threatDetected", (data) => {
         console.warn("🚨 Threat Detected:", data);
-        toast.error(`Security threat detected: ${data.type || 'Unknown'}`);
+        toast.error(`🔴 Security threat detected: ${data.type || 'Unknown'}`);
         
-        // Add to global threat reports
         addThreatReport({
-          title: data.vulnerabilityType || data.type || 'Unknown',
+          title: data.vulnerabilityType || data.type || 'Unknown Threat',
           severity: (data.severity || 'medium').toLowerCase() as 'low' | 'medium' | 'high' | 'critical',
           detectedAt: new Date(),
-          source: 'fuzzer',
-          threatType: data.vulnerabilityType || data.type || 'Unknown',
-          timestamp: new Date(),
-          target: data.field || data.target || 'General',
-          payload: data.payload || 'N/A'
+          source: data.source || 'fuzzer',
+          threatType: data.vulnerabilityType || data.type || 'Unknown'
         });
         
         window.dispatchEvent(new CustomEvent('globalThreatDetected', {
@@ -196,7 +216,6 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         console.log("✅ Scan Complete:", data);
         toast.success("Security scan completed");
         
-        // Store in global context
         setFuzzingResult({
           sessionId: data.sessionId || `scan-${Date.now()}`,
           targetUrl: data.targetUrl || 'http://localhost:8080',
@@ -261,6 +280,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         socket.off("mlTrainingStarted");
         socket.off("mlTrainingProgress");
         socket.off("mlModelTrained");
+        socket.off("mlPayloadsGenerated");
         socket.off("threatDetected");
         socket.off("scanStart");
         socket.off("scanComplete");
@@ -270,7 +290,7 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         isAttached.current = false;
       }
     };
-  }, [socket, setFuzzingResult, addThreatReport]);
+  }, [socket, setFuzzingResult, addThreatReport, setMlResults]);
 
   const emit = (event: string, data?: any) => {
     if (socket && isConnected) {
