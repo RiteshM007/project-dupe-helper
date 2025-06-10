@@ -32,6 +32,10 @@ export interface ThreatReport {
   severity: 'low' | 'medium' | 'high' | 'critical';
   detectedAt: Date;
   source: string;
+  threatType: string;
+  timestamp: Date;
+  target: string;
+  payload: string;
 }
 
 interface FuzzingContextType {
@@ -43,6 +47,8 @@ interface FuzzingContextType {
   setThreatReports: React.Dispatch<React.SetStateAction<ThreatReport[]>>;
   scanHistory: FuzzingResult[];
   setScanHistory: React.Dispatch<React.SetStateAction<FuzzingResult[]>>;
+  lastUpdated: string | null;
+  addThreatReport: (threat: Omit<ThreatReport, 'id'>) => void;
 }
 
 const FuzzingContext = createContext<FuzzingContextType | null>(null);
@@ -52,6 +58,17 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [mlResults, setMlResults] = useState<MLResult[]>([]);
   const [threatReports, setThreatReports] = useState<ThreatReport[]>([]);
   const [scanHistory, setScanHistory] = useState<FuzzingResult[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const addThreatReport = (threat: Omit<ThreatReport, 'id'>) => {
+    const newThreat: ThreatReport = {
+      ...threat,
+      id: `threat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    };
+    
+    setThreatReports(prev => [newThreat, ...prev.slice(0, 19)]);
+    setLastUpdated(new Date().toISOString());
+  };
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -95,6 +112,7 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (fuzzingResult) {
       localStorage.setItem('fuzzingResult', JSON.stringify(fuzzingResult));
+      setLastUpdated(new Date().toISOString());
       console.log('FuzzingContext: Saved fuzzing result to localStorage');
     }
   }, [fuzzingResult]);
@@ -102,6 +120,7 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (mlResults.length > 0) {
       localStorage.setItem('mlResults', JSON.stringify(mlResults));
+      setLastUpdated(new Date().toISOString());
       console.log('FuzzingContext: Saved ML results to localStorage');
     }
   }, [mlResults]);
@@ -137,10 +156,7 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const handleMLComplete = (event: CustomEvent) => {
       console.log('FuzzingContext: ML analysis complete event received:', event.detail);
       const mlResult = event.detail as MLResult;
-      setMlResults(prev => {
-        const updated = [mlResult, ...prev.slice(0, 4)]; // Keep last 5 ML results
-        return updated;
-      });
+      setMlResults(prev => [mlResult, ...prev.slice(0, 4)]); // Keep last 5 ML results
     };
 
     const handleThreatDetected = (event: CustomEvent) => {
@@ -152,7 +168,11 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         title: field ? `${vulnerabilityType} in ${field}` : vulnerabilityType || 'Security Issue',
         severity: severity as 'low' | 'medium' | 'high' | 'critical',
         detectedAt: new Date(),
-        source: 'fuzzer'
+        source: 'fuzzer',
+        threatType: vulnerabilityType || 'Unknown',
+        timestamp: new Date(),
+        target: field || 'General',
+        payload: payload || 'N/A'
       };
       
       setThreatReports(prev => {
@@ -195,6 +215,8 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setThreatReports,
     scanHistory,
     setScanHistory,
+    lastUpdated,
+    addThreatReport,
   };
 
   return (

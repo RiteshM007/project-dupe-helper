@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
@@ -117,7 +116,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           severity: data.patterns > 2 ? 'high' : data.patterns > 0 ? 'medium' : 'low',
           type: 'machine-learning',
           timestamp: new Date().toISOString(),
-          status: 'completed'
+          status: 'completed',
+          findings: []
         });
         
         window.dispatchEvent(new CustomEvent('globalMLAnalysisComplete', {
@@ -163,12 +163,14 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
         
         // Add to global threat reports
         addThreatReport({
-          id: `threat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          timestamp: new Date(),
+          title: data.vulnerabilityType || data.type || 'Unknown',
+          severity: (data.severity || 'medium').toLowerCase() as 'low' | 'medium' | 'high' | 'critical',
+          detectedAt: new Date(),
+          source: 'fuzzer',
           threatType: data.vulnerabilityType || data.type || 'Unknown',
-          payload: data.payload || 'N/A',
-          severity: (data.severity || 'medium').toLowerCase(),
-          target: data.field || data.target || 'General'
+          timestamp: new Date(),
+          target: data.field || data.target || 'General',
+          payload: data.payload || 'N/A'
         });
         
         window.dispatchEvent(new CustomEvent('globalThreatDetected', {
@@ -204,7 +206,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
           severity: data.severity || 'low',
           type: data.type || 'scan',
           timestamp: new Date().toISOString(),
-          status: 'completed'
+          status: 'completed',
+          findings: data.findings || []
         });
         
         window.dispatchEvent(new CustomEvent('globalScanComplete', {
