@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
@@ -318,5 +319,3 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
 };
 
 export { SocketContext };
-
-</edits_to_apply>
