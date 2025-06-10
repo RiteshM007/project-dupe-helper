@@ -207,18 +207,30 @@ export const EnhancedRealTimeFuzzing: React.FC = () => {
         const finalResults = results.results;
         setIsScanning(false);
         
+        // Determine severity based on vulnerability count
+        const vulnerabilityCount = finalResults.vulnerabilitiesFound || 0;
+        let severity: 'low' | 'medium' | 'high' | 'critical';
+        
+        if (vulnerabilityCount > 3) {
+          severity = 'critical';
+        } else if (vulnerabilityCount > 1) {
+          severity = 'high';
+        } else if (vulnerabilityCount > 0) {
+          severity = 'medium';
+        } else {
+          severity = 'low';
+        }
+
         const scanResults = {
           sessionId,
           targetUrl,
-          vulnerabilities: finalResults.vulnerabilitiesFound || 0,
+          vulnerabilities: vulnerabilityCount,
           payloadsTested: finalResults.totalPayloads || 0,
           duration: `${Math.floor((Date.now() - Date.now()) / 1000)}s`,
-          severity: finalResults.vulnerabilitiesFound > 3 ? 'critical' : 
-                   finalResults.vulnerabilitiesFound > 1 ? 'high' : 
-                   finalResults.vulnerabilitiesFound > 0 ? 'medium' : 'low',
+          severity,
           type: 'fuzzing',
           timestamp: new Date().toISOString(),
-          status: 'completed',
+          status: 'completed' as const,
           findings: finalResults.threats || [],
           payloadSet,
           fuzzingMode,
