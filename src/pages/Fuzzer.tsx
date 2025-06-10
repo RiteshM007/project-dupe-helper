@@ -1,19 +1,22 @@
+
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { RealTimeFuzzing } from '@/components/dashboard/RealTimeFuzzing';
+import { EnhancedRealTimeFuzzing } from '@/components/fuzzer/EnhancedRealTimeFuzzing';
 import { Grid, GridItem } from '@/components/ui/grid';
 import { FuzzerStats } from '@/components/fuzzer/FuzzerStats';
+import { LiveLogs } from '@/components/fuzzer/LiveLogs';
 import { useDVWAConnection } from '@/context/DVWAConnectionContext';
+import { useFuzzing } from '@/context/FuzzingContext';
 import { checkDVWAConnection, loginToDVWA } from '@/utils/dvwaFuzzer';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { useNavigate } from 'react-router-dom';
 import { useSocket } from '@/hooks/use-socket';
 import { ScanningStatus } from '@/components/fuzzer/ScanningStatus';
 import { fuzzerApi } from '@/services/api';
 
 const Fuzzer = () => {
   const { isConnected, setIsConnected, setDvwaUrl, setSessionCookie } = useDVWAConnection();
+  const { fuzzingResult } = useFuzzing();
   const [statsData, setStatsData] = useState({
     requestsSent: 0,
     vulnerabilitiesFound: 0,
@@ -22,11 +25,25 @@ const Fuzzer = () => {
   const [connecting, setConnecting] = useState(false);
   const [dvwaStatus, setDvwaStatus] = useState<'online' | 'offline' | 'checking' | 'simulation'>('checking');
   const [backendStatus, setBackendStatus] = useState<'online' | 'offline' | 'checking'>('checking');
-  const navigate = useNavigate();
-  const { addEventListener, isConnected: socketConnected } = useSocket();
+  const { isConnected: socketConnected } = useSocket();
   const [progress, setProgress] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+
+  // Update stats based on fuzzing result
+  useEffect(() => {
+    if (fuzzingResult) {
+      setStatsData({
+        requestsSent: fuzzingResult.payloadsTested || 0,
+        vulnerabilitiesFound: fuzzingResult.vulnerabilities || 0,
+        successRate: fuzzingResult.payloadsTested > 0 
+          ? Math.round((1 - (fuzzingResult.vulnerabilities / fuzzingResult.payloadsTested)) * 100)
+          : 100
+      });
+      console.log('Fuzzer: Updated stats from fuzzing result:', fuzzingResult);
+    }
+  }, [fuzzingResult]);
 
   // Check backend connection on mount
   useEffect(() => {
@@ -116,19 +133,14 @@ const Fuzzer = () => {
     }
   }, [isConnected, setIsConnected, setDvwaUrl, setSessionCookie, backendStatus]);
 
-  // Handle external start/stop events with improved logging
+  // Handle scan events
   useEffect(() => {
     const handleScanStart = (event: CustomEvent) => {
       console.log('Fuzzer: Scan started event received', event.detail);
       setIsScanning(true);
       setProgress(0);
       setSessionId(event.detail?.sessionId || null);
-      
-      setStatsData({
-        requestsSent: 0,
-        vulnerabilitiesFound: 0,
-        successRate: 100
-      });
+      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Scan started: ${event.detail?.sessionId}`]);
     };
     
     const handleScanComplete = (event: CustomEvent) => {
@@ -136,66 +148,19 @@ const Fuzzer = () => {
       setIsScanning(false);
       setProgress(100);
       setSessionId(null);
-      
-      const { vulnerabilities = 0, payloadsTested = 0 } = event.detail || {};
-      setStatsData({
-        requestsSent: payloadsTested,
-        vulnerabilitiesFound: vulnerabilities,
-        successRate: payloadsTested > 0 
-          ? Math.round((1 - (vulnerabilities / payloadsTested)) * 100)
-          : 100
-      });
-
-      // Ensure events are forwarded to Dashboard and Reports
-      console.log('Fuzzer: Forwarding scan complete to global listeners');
-      
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('globalScanComplete', {
-          detail: {
-            ...event.detail,
-            timestamp: new Date().toISOString(),
-            status: 'completed'
-          }
-        }));
-      }, 100);
+      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Scan completed: ${event.detail?.vulnerabilities} vulnerabilities found`]);
     };
 
-    const handleMLComplete = (event: CustomEvent) => {
-      console.log('Fuzzer: ML analysis complete received', event.detail);
-      
-      // Forward ML results to Dashboard and Reports
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('globalScanComplete', {
-          detail: {
-            ...event.detail,
-            timestamp: new Date().toISOString(),
-            status: 'completed'
-          }
-        }));
-      }, 100);
+    const handleFuzzingProgress = (event: CustomEvent) => {
+      const progressValue = event.detail?.progress || 0;
+      setProgress(progressValue);
+      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Progress: ${progressValue}%`]);
     };
-    
-    const handleScanStop = () => {
-      console.log('Fuzzer: Scan stopped event received');
-      setIsScanning(false);
-      
-      if (sessionId) {
-        fuzzerApi.stopFuzzing(sessionId)
-          .then(() => console.log('Fuzzing stopped on server'))
-          .catch(err => console.error('Error stopping fuzzing on server:', err))
-          .finally(() => setSessionId(null));
-      }
-    };
-    
-    const handlePayloadSent = () => {
-      setStatsData(prev => ({
-        ...prev,
-        requestsSent: prev.requestsSent + 1
-      }));
-    };
-    
+
     const handleThreatDetected = (event: CustomEvent) => {
       console.log('Fuzzer: Threat detected', event.detail);
+      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ALERT: Threat detected - ${event.detail?.type || 'Unknown'}`]);
+      
       setStatsData(prev => {
         const newVulns = prev.vulnerabilitiesFound + 1;
         return {
@@ -204,32 +169,27 @@ const Fuzzer = () => {
           successRate: Math.max(70, 100 - (newVulns / prev.requestsSent * 100))
         };
       });
-
-      // Forward to global listeners
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('globalThreatDetected', {
-          detail: event.detail
-        }));
-      }, 50);
     };
     
     // Add event listeners
     window.addEventListener('scanStart', handleScanStart as EventListener);
+    window.addEventListener('fuzzingStarted', handleScanStart as EventListener);
     window.addEventListener('scanComplete', handleScanComplete as EventListener);
-    window.addEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
-    window.addEventListener('scanStop', handleScanStop);
-    window.addEventListener('payloadSent', handlePayloadSent);
+    window.addEventListener('fuzzingComplete', handleScanComplete as EventListener);
+    window.addEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
     window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+    window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
     
     return () => {
       window.removeEventListener('scanStart', handleScanStart as EventListener);
+      window.removeEventListener('fuzzingStarted', handleScanStart as EventListener);
       window.removeEventListener('scanComplete', handleScanComplete as EventListener);
-      window.removeEventListener('mlAnalysisComplete', handleMLComplete as EventListener);
-      window.removeEventListener('scanStop', handleScanStop);
-      window.removeEventListener('payloadSent', handlePayloadSent);
+      window.removeEventListener('fuzzingComplete', handleScanComplete as EventListener);
+      window.removeEventListener('fuzzing_progress', handleFuzzingProgress as EventListener);
       window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+      window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
     };
-  }, [sessionId]);
+  }, []);
 
   const handleProgressUpdate = (newProgress: number) => {
     setProgress(newProgress);
@@ -237,9 +197,7 @@ const Fuzzer = () => {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6">Web Application Fuzzer</h1>
-        
+      <div className="container mx-auto p-4 space-y-6">
         <div className="mb-4 flex gap-2">
           {socketConnected && (
             <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
@@ -294,7 +252,9 @@ const Fuzzer = () => {
           />
         </div>
         
-        <RealTimeFuzzing />
+        <EnhancedRealTimeFuzzing />
+        
+        <LiveLogs logs={logs} isActive={isScanning} />
       </div>
     </DashboardLayout>
   );

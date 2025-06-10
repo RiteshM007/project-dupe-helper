@@ -12,6 +12,9 @@ interface FuzzingResult {
   timestamp: string;
   status: 'completed' | 'failed' | 'in-progress';
   findings?: any[];
+  payloadSet?: string;
+  fuzzingMode?: string;
+  dvwaModule?: string;
 }
 
 interface FuzzingContextType {
@@ -23,6 +26,7 @@ interface FuzzingContextType {
   setThreatReports: (reports: any[]) => void;
   addThreatReport: (report: any) => void;
   clearAllData: () => void;
+  lastUpdated: string | null;
 }
 
 const FuzzingContext = createContext<FuzzingContextType | null>(null);
@@ -35,6 +39,7 @@ export const FuzzingProvider: React.FC<FuzzingProviderProps> = ({ children }) =>
   const [fuzzingResult, setFuzzingResultState] = useState<FuzzingResult | null>(null);
   const [mlResults, setMlResultsState] = useState<any[]>([]);
   const [threatReports, setThreatReportsState] = useState<any[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -42,6 +47,7 @@ export const FuzzingProvider: React.FC<FuzzingProviderProps> = ({ children }) =>
       const cachedFuzzingResult = localStorage.getItem("fuzzingResult");
       const cachedMlResults = localStorage.getItem("mlResults");
       const cachedThreatReports = localStorage.getItem("threatReports");
+      const cachedLastUpdated = localStorage.getItem("lastUpdated");
 
       if (cachedFuzzingResult) {
         setFuzzingResultState(JSON.parse(cachedFuzzingResult));
@@ -51,6 +57,9 @@ export const FuzzingProvider: React.FC<FuzzingProviderProps> = ({ children }) =>
       }
       if (cachedThreatReports) {
         setThreatReportsState(JSON.parse(cachedThreatReports));
+      }
+      if (cachedLastUpdated) {
+        setLastUpdated(cachedLastUpdated);
       }
       
       console.log('FuzzingContext: Loaded data from localStorage');
@@ -64,7 +73,10 @@ export const FuzzingProvider: React.FC<FuzzingProviderProps> = ({ children }) =>
     if (fuzzingResult) {
       try {
         localStorage.setItem("fuzzingResult", JSON.stringify(fuzzingResult));
-        console.log('FuzzingContext: Saved fuzzing result to localStorage');
+        const timestamp = new Date().toISOString();
+        localStorage.setItem("lastUpdated", timestamp);
+        setLastUpdated(timestamp);
+        console.log('FuzzingContext: Saved fuzzing result to localStorage', fuzzingResult);
       } catch (error) {
         console.error('FuzzingContext: Error saving fuzzing result to localStorage:', error);
       }
@@ -95,6 +107,61 @@ export const FuzzingProvider: React.FC<FuzzingProviderProps> = ({ children }) =>
     }
   }, [threatReports]);
 
+  // Set up global event listeners for fuzzing events
+  useEffect(() => {
+    const handleFuzzingComplete = (event: CustomEvent) => {
+      console.log('FuzzingContext: Received fuzzingComplete event:', event.detail);
+      setFuzzingResult(event.detail);
+    };
+
+    const handleScanComplete = (event: CustomEvent) => {
+      console.log('FuzzingContext: Received scanComplete event:', event.detail);
+      setFuzzingResult(event.detail);
+    };
+
+    const handleGlobalScanComplete = (event: CustomEvent) => {
+      console.log('FuzzingContext: Received globalScanComplete event:', event.detail);
+      setFuzzingResult(event.detail);
+    };
+
+    const handleMLAnalysisComplete = (event: CustomEvent) => {
+      console.log('FuzzingContext: Received mlAnalysisComplete event:', event.detail);
+      setMlResults(prev => [event.detail, ...prev].slice(0, 10));
+    };
+
+    const handleThreatDetected = (event: CustomEvent) => {
+      console.log('FuzzingContext: Received threatDetected event:', event.detail);
+      addThreatReport({
+        id: `threat-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        timestamp: new Date(),
+        threatType: event.detail.vulnerabilityType || event.detail.type || 'Unknown',
+        payload: event.detail.payload || 'N/A',
+        severity: (event.detail.severity || 'medium').toLowerCase(),
+        target: event.detail.field || event.detail.target || 'General'
+      });
+    };
+
+    // Add event listeners
+    window.addEventListener('fuzzingComplete', handleFuzzingComplete as EventListener);
+    window.addEventListener('scanComplete', handleScanComplete as EventListener);
+    window.addEventListener('globalScanComplete', handleGlobalScanComplete as EventListener);
+    window.addEventListener('mlAnalysisComplete', handleMLAnalysisComplete as EventListener);
+    window.addEventListener('threatDetected', handleThreatDetected as EventListener);
+    window.addEventListener('globalThreatDetected', handleThreatDetected as EventListener);
+
+    console.log('FuzzingContext: Global event listeners set up');
+
+    return () => {
+      window.removeEventListener('fuzzingComplete', handleFuzzingComplete as EventListener);
+      window.removeEventListener('scanComplete', handleScanComplete as EventListener);
+      window.removeEventListener('globalScanComplete', handleGlobalScanComplete as EventListener);
+      window.removeEventListener('mlAnalysisComplete', handleMLAnalysisComplete as EventListener);
+      window.removeEventListener('threatDetected', handleThreatDetected as EventListener);
+      window.removeEventListener('globalThreatDetected', handleThreatDetected as EventListener);
+      console.log('FuzzingContext: Global event listeners cleaned up');
+    };
+  }, []);
+
   const setFuzzingResult = (result: FuzzingResult | null) => {
     console.log('FuzzingContext: Setting fuzzing result:', result);
     setFuzzingResultState(result);
@@ -123,9 +190,11 @@ export const FuzzingProvider: React.FC<FuzzingProviderProps> = ({ children }) =>
     setFuzzingResultState(null);
     setMlResultsState([]);
     setThreatReportsState([]);
+    setLastUpdated(null);
     localStorage.removeItem("fuzzingResult");
     localStorage.removeItem("mlResults");
     localStorage.removeItem("threatReports");
+    localStorage.removeItem("lastUpdated");
   };
 
   const contextValue: FuzzingContextType = {
@@ -137,6 +206,7 @@ export const FuzzingProvider: React.FC<FuzzingProviderProps> = ({ children }) =>
     setThreatReports,
     addThreatReport,
     clearAllData,
+    lastUpdated,
   };
 
   return (
