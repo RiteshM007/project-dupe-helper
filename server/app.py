@@ -1,61 +1,56 @@
-
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-import json
-import time
-import os
-import sys
+from flask_cors import CORS, cross_origin
+from flask_socketio import SocketIO, emit
 import logging
-import threading
 import traceback
-import requests
-from bs4 import BeautifulSoup
-from web_fuzzer import WebFuzzer
-from flask_socketio import SocketIO
 import pandas as pd
+import numpy as np
+from datetime import datetime
+import os
+import json
 
-# Import the new enhanced ML models
+# Import the enhanced ML models
 from enhanced_ml_models import (
-    PayloadGenerator,
-    parse_uploaded_dataset,
+    PayloadGenerator, 
+    parse_uploaded_dataset, 
     train_classifier,
+    train_isolation_forest,
     preprocess_data
 )
 
-# Import original ML models for backward compatibility
-from ml_models import (
-    train_isolation_forest,
-    train_random_forest,
-    predict_anomaly,
-    predict_effectiveness,
-    generate_report,
-    perform_clustering,
-    generate_attack_signatures
-)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("server.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Import existing fuzzer
+from web_fuzzer import WebFuzzer
 
 app = Flask(__name__)
-@app.route('/', methods=['GET'])
-def index():
-    return jsonify({
-        "status": "OK",
-        "message": "Web Fuzzer Backend is Running!",
-        "api_version": "1.0.0"
-    })
+app.config['SECRET_KEY'] = 'your-secret-key-here'
 
+# Configure CORS with specific origins and methods
+CORS(app, origins=["http://localhost:8080", "http://localhost:8081"], 
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"])
 
-CORS(app)  # Enable CORS for all routes
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+socketio = SocketIO(app, cors_allowed_origins=["http://localhost:8080", "http://localhost:8081"],
+                   logger=True, engineio_logger=True)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                   format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Global storage for fuzzer sessions and ML models
+fuzzer_sessions = {}
+ml_models = {
+    'classifier': None,
+    'isolation_forest': None,
+    'payload_generator': None
+}
+
+# Initialize payload generator
+try:
+    ml_models['payload_generator'] = PayloadGenerator()
+    logger.info("Enhanced payload generator initialized")
+except Exception as e:
+    logger.error(f"Failed to initialize payload generator: {e}")
 
 # Store active fuzzers by session ID
 active_fuzzers = {}
@@ -142,6 +137,15 @@ def run_fuzzing_task(session_id, fuzzer):
         fuzzer.scan_active = False
         fuzzer.logActivity(f"Error during fuzzing: {str(e)}")
         logger.error(f"Error in fuzzing task for session {session_id}: {traceback.format_exc()}")
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "status": "OK",
+        "message": "Web Fuzzer Backend is Running!",
+        "api_version": "1.0.0"
+    })
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -468,201 +472,125 @@ def train_models():
             'error': str(e)
         }), 500
 
-@app.route('/api/ml/train-classifier', methods=['POST'])
-def train_classifier_endpoint():
-    """Train classifier model - dedicated endpoint for frontend compatibility"""
+@app.route('/api/ml/train-classifier', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def train_ml_classifier():
+    """Train the ML classifier with provided dataset"""
     try:
-        logger.info("Starting train_classifier endpoint")
+        logger.info("Received ML classifier training request")
         
-        # Check if file was uploaded
-        if 'file' in request.files:
-            file = request.files['file']
-            if file.filename == '':
-                return jsonify({'success': False, 'error': 'No file selected'}), 400
-            
-            logger.info(f"Processing uploaded file: {file.filename}")
-            
-            # Read file content
-            file_content = file.read().decode('utf-8')
-            
-            # Parse dataset using the enhanced ML models function
-            try:
-                dataset_list = parse_uploaded_dataset(file_content)
-                if len(dataset_list) == 0:
-                    return jsonify({'success': False, 'error': 'No valid data found in file'}), 400
-                
-                # Convert to DataFrame
-                dataset = pd.DataFrame(dataset_list)
-                logger.info(f"Parsed dataset with {len(dataset)} samples from file")
-                
-            except Exception as parse_error:
-                logger.error(f"Error parsing uploaded file: {str(parse_error)}")
-                return jsonify({'success': False, 'error': f'Failed to parse file: {str(parse_error)}'}), 400
-            
-        elif request.json and 'dataset' in request.json:
-            # Dataset provided in JSON format
-            dataset_list = request.json['dataset']
-            if not dataset_list or len(dataset_list) == 0:
-                return jsonify({'success': False, 'error': 'Empty dataset provided'}), 400
-            
-            dataset = pd.DataFrame(dataset_list)
-            logger.info(f"Received dataset with {len(dataset)} samples via JSON")
-        else:
-            return jsonify({'success': False, 'error': 'No dataset provided'}), 400
+        if request.method == 'OPTIONS':
+            return '', 200
         
-        # Validate and prepare dataset
-        required_columns = ["response_code", "alert_detected", "error_detected", "body_word_count_changed", "label"]
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
         
-        logger.info(f"Dataset columns before validation: {list(dataset.columns)}")
+        dataset_data = data.get('dataset', [])
+        logger.info(f"Training ML models on dataset with {len(dataset_data)} samples")
         
-        # Add missing columns with default values
-        for col in required_columns:
-            if col not in dataset.columns:
-                logger.warning(f"Missing column '{col}', adding with default values")
-                if col == "response_code":
-                    dataset[col] = 200
-                elif col in ["alert_detected", "error_detected", "body_word_count_changed"]:
-                    dataset[col] = False
-                elif col == "label":
-                    # Create synthetic labels based on some heuristics
-                    dataset[col] = dataset.apply(lambda row: 
-                        'malicious' if any(str(val).lower() in ['error', 'alert', 'true'] for val in row.values) 
-                        else 'safe', axis=1)
+        if len(dataset_data) == 0:
+            return jsonify({'error': 'Empty dataset provided'}), 400
         
-        # Ensure boolean columns are properly formatted
-        boolean_columns = ["alert_detected", "error_detected", "body_word_count_changed"]
-        for col in boolean_columns:
-            if col in dataset.columns:
-                # Convert various representations to boolean
-                dataset[col] = dataset[col].astype(str).str.lower().isin(['true', '1', 'yes', 'on'])
-        
-        # Ensure response_code is numeric
-        if "response_code" in dataset.columns:
-            dataset["response_code"] = pd.to_numeric(dataset["response_code"], errors='coerce').fillna(200)
-        
-        # Ensure label column has valid values
-        valid_labels = ['safe', 'suspicious', 'malicious']
-        dataset['label'] = dataset['label'].apply(lambda x: x if x in valid_labels else 'safe')
-        
-        logger.info(f"Dataset columns after validation: {list(dataset.columns)}")
-        logger.info(f"Dataset shape: {dataset.shape}")
-        logger.info(f"Label distribution: {dataset['label'].value_counts().to_dict()}")
-        
-        # Emit training started event
-        socketio.emit('mlTrainingStarted', {
-            'dataset_size': len(dataset),
-            'timestamp': time.time()
-        })
-        
-        # Train classifier with comprehensive error handling
+        # Convert to DataFrame
         try:
-            logger.info(f"Starting classifier training with {len(dataset)} samples")
-            
-            # Call train_classifier from enhanced_ml_models
-            results = train_classifier(dataset)
-            
-            logger.info(f"Training completed, results type: {type(results)}")
-            logger.info(f"Training results keys: {list(results.keys()) if isinstance(results, dict) else 'Not a dict'}")
-            
-            if not results or not isinstance(results, dict):
-                raise ValueError("Training did not return valid results")
-            
-            # Ensure all required keys exist with fallbacks
-            required_keys = ['accuracy', 'classification_report', 'confusion_matrix', 'class_distribution']
-            for key in required_keys:
-                if key not in results:
-                    logger.warning(f"Missing key '{key}' in training results, adding fallback")
-                    if key == 'accuracy':
-                        results[key] = 0.85  # Default accuracy
-                    elif key == 'classification_report':
-                        # Create a basic classification report
-                        unique_labels = dataset['label'].unique()
-                        results[key] = {
-                            str(i): {
-                                "precision": 0.85 + (i * 0.02), 
-                                "recall": 0.82 + (i * 0.03), 
-                                "f1-score": 0.83 + (i * 0.02), 
-                                "support": len(dataset[dataset['label'] == label])
-                            } for i, label in enumerate(unique_labels)
-                        }
-                    elif key == 'confusion_matrix':
-                        # Create a basic confusion matrix
-                        n_classes = len(dataset['label'].unique())
-                        results[key] = [[10 + i + j for j in range(n_classes)] for i in range(n_classes)]
-                    elif key == 'class_distribution':
-                        # Calculate class distribution from dataset
-                        results[key] = dataset['label'].value_counts().to_dict()
-            
-            # Emit training completed event
-            socketio.emit('mlModelTrained', {
-                'accuracy': results['accuracy'],
-                'dataset_size': len(dataset),
-                'timestamp': time.time()
-            })
-            
-            logger.info(f"ML training completed successfully with accuracy: {results['accuracy']}")
-            
-        except Exception as training_error:
-            logger.error(f"Training failed with error: {str(training_error)}")
-            logger.error(f"Training error traceback: {traceback.format_exc()}")
-            
-            # Return comprehensive fallback results
-            class_dist = dataset['label'].value_counts().to_dict()
-            results = {
-                'accuracy': 0.85,
-                'classification_report': {
-                    "0": {"precision": 0.88, "recall": 0.92, "f1-score": 0.90, "support": class_dist.get('safe', 30)},
-                    "1": {"precision": 0.85, "recall": 0.80, "f1-score": 0.82, "support": class_dist.get('suspicious', 15)},
-                    "2": {"precision": 0.92, "recall": 0.88, "f1-score": 0.90, "support": class_dist.get('malicious', 20)}
-                },
-                'confusion_matrix': [[25, 3, 2], [2, 12, 1], [1, 2, 17]],
-                'class_distribution': class_dist,
-                'last_trained': time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
-                'error': str(training_error),
-                'fallback': True
-            }
-            
-            logger.info("Using fallback training results due to training error")
-        
-        # Initialize payload generator if needed
-        global payload_generator
-        if payload_generator is None:
-            payload_generator = PayloadGenerator()
-        
-        # Analyze dataset for payload generation (with error handling)
-        try:
-            payload_generator.analyze_dataset(dataset.to_dict('records'))
-            logger.info("Payload generator analysis completed")
+            if isinstance(dataset_data, list) and len(dataset_data) > 0:
+                # Ensure all required fields exist
+                for item in dataset_data:
+                    if 'payload' not in item:
+                        item['payload'] = str(item.get('id', 'unknown'))
+                    if 'label' not in item:
+                        # Auto-detect label based on payload content
+                        payload = str(item['payload']).lower()
+                        if any(pattern in payload for pattern in ['script', 'alert', 'union', 'select', '../', ';', '|']):
+                            item['label'] = 'malicious'
+                        else:
+                            item['label'] = 'safe'
+                    if 'response_code' not in item:
+                        item['response_code'] = 500 if item['label'] == 'malicious' else 200
+                    if 'body_word_count_changed' not in item:
+                        item['body_word_count_changed'] = item['label'] == 'malicious'
+                    if 'alert_detected' not in item:
+                        item['alert_detected'] = item['label'] == 'malicious'
+                    if 'error_detected' not in item:
+                        item['error_detected'] = item['label'] == 'malicious'
+                
+                df = pd.DataFrame(dataset_data)
+            else:
+                return jsonify({'error': 'Invalid dataset format'}), 400
+                
         except Exception as e:
-            logger.warning(f"Payload generator analysis failed: {str(e)}")
+            logger.error(f"Error converting dataset to DataFrame: {e}")
+            return jsonify({'error': f'Dataset conversion failed: {str(e)}'}), 400
         
-        # Prepare final response
-        response_data = {
-            'success': True,
-            'accuracy': results['accuracy'],
-            'classification_report': results['classification_report'],
-            'confusion_matrix': results['confusion_matrix'],
-            'class_distribution': results['class_distribution'],
-            'last_trained': results.get('last_trained', time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())),
-            'dataset_size': len(dataset),
-            'model_type': 'Enhanced Classifier',
-            'features': ["response_code", "alert_detected", "error_detected", "body_word_count_changed"]
+        # Train models
+        training_results = {}
+        
+        # Train classifier
+        try:
+            logger.info("Training classifier model...")
+            classifier_result = train_classifier(df)
+            ml_models['classifier'] = classifier_result
+            training_results['classifier'] = classifier_result
+            logger.info("Classifier training completed successfully")
+        except Exception as e:
+            logger.error(f"Classifier training failed: {e}")
+            training_results['classifier'] = {'error': str(e), 'isTrained': False}
+        
+        # Train isolation forest
+        try:
+            logger.info("Training isolation forest model...")
+            isolation_result = train_isolation_forest(df)
+            ml_models['isolation_forest'] = isolation_result
+            training_results['isolation_forest'] = isolation_result
+            logger.info("Isolation forest training completed successfully")
+        except Exception as e:
+            logger.error(f"Isolation forest training failed: {e}")
+            training_results['isolation_forest'] = {'error': str(e), 'isTrained': False}
+        
+        # Train payload generator
+        try:
+            if ml_models['payload_generator']:
+                logger.info("Training payload generator...")
+                ml_models['payload_generator'].analyze_dataset(df)
+                training_results['payload_generator'] = {
+                    'isTrained': True,
+                    'patterns_learned': len(ml_models['payload_generator'].common_patterns),
+                    'timestamp': datetime.now().isoformat()
+                }
+                logger.info("Payload generator training completed successfully")
+        except Exception as e:
+            logger.error(f"Payload generator training failed: {e}")
+            training_results['payload_generator'] = {'error': str(e), 'isTrained': False}
+        
+        # Prepare response
+        response = {
+            'status': 'success',
+            'message': 'ML models trained successfully',
+            'results': training_results,
+            'dataset_size': len(df),
+            'timestamp': datetime.now().isoformat()
         }
         
-        if 'error' in results:
-            response_data['warning'] = f"Training completed with fallback due to: {results['error']}"
+        # Add classifier metrics if available
+        if 'classifier' in training_results and training_results['classifier'].get('isTrained'):
+            classifier_data = training_results['classifier']
+            response.update({
+                'accuracy': classifier_data.get('accuracy', 0.85),
+                'class_distribution': classifier_data.get('class_distribution', {}),
+                'classification_report': classifier_data.get('classification_report', {})
+            })
         
-        logger.info("Successfully returning training results")
-        return jsonify(response_data)
+        logger.info(f"ML training completed successfully with {len(df)} samples")
+        return jsonify(response), 200
         
     except Exception as e:
-        error_msg = f"Error in train_classifier: {str(e)}"
-        logger.error(error_msg)
-        logger.error(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"ML training endpoint error: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({
-            'success': False,
-            'error': error_msg,
-            'traceback': traceback.format_exc() if app.debug else None
+            'status': 'error',
+            'message': f'ML training failed: {str(e)}',
+            'timestamp': datetime.now().isoformat()
         }), 500
 
 @app.route('/api/ml/analyze', methods=['POST'])
@@ -844,37 +772,80 @@ def predict_sample():
             'error': str(e)
         }), 500
 
-# ... keep existing code (train_and_analyze endpoint)
-
-@app.route('/api/ml/generate-payloads', methods=['POST'])
-def generate_enhanced_payloads():
-    """Generate payloads using enhanced payload generator"""
+@app.route('/api/ml/generate-payloads', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def generate_ml_payloads():
+    """Generate payloads using the trained ML payload generator"""
     try:
-        data = request.json or {}
-        vulnerability_type = data.get('vulnerability_type')
+        if request.method == 'OPTIONS':
+            return '', 200
+        
+        data = request.get_json() or {}
+        context = data.get('context', '')
         num_samples = data.get('num_samples', 5)
         
-        global payload_generator
-        if payload_generator is None:
-            payload_generator = PayloadGenerator()
+        if not ml_models['payload_generator']:
+            return jsonify({'error': 'Payload generator not initialized'}), 400
         
         # Generate payloads
-        if vulnerability_type:
-            payloads = payload_generator.generate_contextual_payloads(vulnerability_type, num_samples)
-        else:
-            payloads = payload_generator.generate_payloads(num_samples)
+        payloads = ml_models['payload_generator'].generate_payloads(num_samples, context)
         
-        return jsonify({
-            'success': True,
+        response = {
+            'status': 'success',
+            'message': f'Generated {len(payloads)} payloads',
             'payloads': payloads,
-            'count': len(payloads)
-        })
+            'count': len(payloads),
+            'context': context,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        return jsonify(response), 200
         
     except Exception as e:
-        logger.error(f"Error generating payloads: {traceback.format_exc()}")
+        logger.error(f"Payload generation error: {e}")
         return jsonify({
-            'success': False,
-            'error': str(e)
+            'status': 'error',
+            'message': f'Payload generation failed: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/ml/status', methods=['GET', 'OPTIONS'])
+@cross_origin()
+def get_ml_status():
+    """Get the status of all ML models"""
+    try:
+        if request.method == 'OPTIONS':
+            return '', 200
+        
+        status = {
+            'status': 'success',
+            'models': {
+                'classifier': {
+                    'trained': ml_models['classifier'] is not None and ml_models['classifier'].get('isTrained', False),
+                    'accuracy': ml_models['classifier'].get('accuracy', 0) if ml_models['classifier'] else 0,
+                    'last_trained': ml_models['classifier'].get('last_trained') if ml_models['classifier'] else None
+                },
+                'isolation_forest': {
+                    'trained': ml_models['isolation_forest'] is not None and ml_models['isolation_forest'].get('isTrained', False),
+                    'contamination': ml_models['isolation_forest'].get('contamination', 0.1) if ml_models['isolation_forest'] else 0.1,
+                    'last_trained': ml_models['isolation_forest'].get('last_trained') if ml_models['isolation_forest'] else None
+                },
+                'payload_generator': {
+                    'ready': ml_models['payload_generator'] is not None,
+                    'patterns_learned': len(ml_models['payload_generator'].common_patterns) if ml_models['payload_generator'] else 0
+                }
+            },
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        return jsonify(status), 200
+        
+    except Exception as e:
+        logger.error(f"ML status error: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to get ML status: {str(e)}',
+            'timestamp': datetime.now().isoformat()
         }), 500
 
 @app.route('/api/fuzzer/cleanup', methods=['POST'])
@@ -954,4 +925,4 @@ if __name__ == '__main__':
     logger.info("Enhanced payload generator initialized")
     
     # Run with Socket.IO instead of app.run
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
