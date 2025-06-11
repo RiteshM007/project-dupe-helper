@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
@@ -467,190 +468,11 @@ def train_models():
             'error': str(e)
         }), 500
 
-@app.route('/api/ml/analyze', methods=['POST'])
-def analyze_dataset():
-    """Analyze dataset using machine learning techniques"""
-    data = request.json
-    dataset = data.get('dataset', [])
-    options = data.get('options', {})
-    
-    if not dataset:
-        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
-    
+@app.route('/api/ml/train-classifier', methods=['POST'])
+def train_classifier_endpoint():
+    """Train classifier model - dedicated endpoint for frontend compatibility"""
     try:
-        logger.info(f"Analyzing dataset with {len(dataset)} samples")
-        
-        # Get cluster count from options or use default
-        cluster_count = options.get('clusterCount', 3)
-        
-        # Perform clustering
-        clustering_results = perform_clustering(dataset, cluster_count)
-        
-        # Generate attack signatures
-        signatures = generate_attack_signatures(dataset)
-        
-        return jsonify({
-            'success': True,
-            'clustering': clustering_results,
-            'signatures': signatures
-        })
-    except Exception as e:
-        logger.error(f"Error analyzing dataset: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/ml/generate-report', methods=['POST'])
-def create_report():
-    """Generate comprehensive security report"""
-    data = request.json
-    results = data.get('results', [])
-    model_info = data.get('modelInfo', {})
-    
-    if not results:
-        return jsonify({'success': False, 'error': 'No results provided'}), 400
-    
-    try:
-        logger.info("Generating security report")
-        report = generate_report(results, model_info)
-        
-        # Save report to file
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        save_path = f"reports/security-report-{timestamp}.json"
-        
-        # Create reports directory if it doesn't exist
-        os.makedirs("reports", exist_ok=True)
-        
-        with open(save_path, 'w') as f:
-            json.dump(report, f, indent=2)
-        
-        logger.info(f"Report saved to {save_path}")
-        
-        return jsonify({
-            'success': True,
-            'report': report,
-            'file_path': save_path
-        })
-    except Exception as e:
-        logger.error(f"Error generating report: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/ml/cluster', methods=['POST'])
-def cluster_data():
-    """Perform clustering on dataset"""
-    data = request.json
-    dataset = data.get('dataset', [])
-    cluster_count = data.get('clusterCount', 3)
-    
-    if not dataset:
-        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
-    
-    try:
-        logger.info(f"Performing clustering with {cluster_count} clusters on {len(dataset)} samples")
-        clustering_results = perform_clustering(dataset, cluster_count)
-        
-        return jsonify({
-            'success': True,
-            'clustering': clustering_results
-        })
-    except Exception as e:
-        logger.error(f"Error performing clustering: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/ml/generate-signatures', methods=['POST'])
-def create_signatures():
-    """Generate attack signatures from dataset"""
-    data = request.json
-    dataset = data.get('dataset', [])
-    
-    if not dataset:
-        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
-    
-    try:
-        logger.info(f"Generating attack signatures from {len(dataset)} samples")
-        signatures = generate_attack_signatures(dataset)
-        
-        return jsonify({
-            'success': True,
-            'signatures': signatures
-        })
-    except Exception as e:
-        logger.error(f"Error generating signatures: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/ml/predict', methods=['POST'])
-def predict_sample():
-    """Predict a sample using trained models"""
-    data = request.json
-    sample = data.get('sample')
-    model_type = data.get('modelType', 'isolation_forest')
-    model_id = data.get('modelId')
-    
-    if not sample:
-        return jsonify({'success': False, 'error': 'No sample provided'}), 400
-    
-    try:
-        # Try to get model from stored models
-        if model_id and model_id in trained_models:
-            model = trained_models[model_id].get(model_type)
-        else:
-            # Use latest model if available
-            latest_model_id = list(trained_models.keys())[-1] if trained_models else None
-            model = trained_models.get(latest_model_id, {}).get(model_type) if latest_model_id else None
-        
-        if not model:
-            return jsonify({'success': False, 'error': 'No trained model available'}), 400
-        
-        # Extract features from sample
-        features = [
-            sample.get("response_code", 200),
-            1 if sample.get("body_word_count_changed", False) else 0,
-            1 if sample.get("alert_detected", False) else 0,
-            1 if sample.get("error_detected", False) else 0
-        ]
-        
-        # Make prediction based on model type
-        if model_type == 'isolation_forest':
-            prediction = predict_anomaly(features, model)
-            result = {
-                'anomaly': prediction,
-                'is_anomaly': prediction == -1,
-                'sample': sample
-            }
-        else:  # random_forest
-            prediction = predict_effectiveness(features, model)
-            result = {
-                'effective': prediction,
-                'is_effective': prediction == 1,
-                'sample': sample
-            }
-        
-        return jsonify({
-            'success': True,
-            'prediction': result
-        })
-    except Exception as e:
-        logger.error(f"Error predicting sample: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/ml/train-and-analyze', methods=['POST'])
-def train_and_analyze():
-    """Enhanced endpoint for training classifier and analyzing dataset with comprehensive error handling"""
-    try:
-        logger.info("Starting train_and_analyze endpoint")
+        logger.info("Starting train_classifier endpoint")
         
         # Check if file was uploaded
         if 'file' in request.files:
@@ -834,7 +656,7 @@ def train_and_analyze():
         return jsonify(response_data)
         
     except Exception as e:
-        error_msg = f"Error in train_and_analyze: {str(e)}"
+        error_msg = f"Error in train_classifier: {str(e)}"
         logger.error(error_msg)
         logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({
@@ -842,6 +664,187 @@ def train_and_analyze():
             'error': error_msg,
             'traceback': traceback.format_exc() if app.debug else None
         }), 500
+
+@app.route('/api/ml/analyze', methods=['POST'])
+def analyze_dataset():
+    """Analyze dataset using machine learning techniques"""
+    data = request.json
+    dataset = data.get('dataset', [])
+    options = data.get('options', {})
+    
+    if not dataset:
+        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
+    
+    try:
+        logger.info(f"Analyzing dataset with {len(dataset)} samples")
+        
+        # Get cluster count from options or use default
+        cluster_count = options.get('clusterCount', 3)
+        
+        # Perform clustering
+        clustering_results = perform_clustering(dataset, cluster_count)
+        
+        # Generate attack signatures
+        signatures = generate_attack_signatures(dataset)
+        
+        return jsonify({
+            'success': True,
+            'clustering': clustering_results,
+            'signatures': signatures
+        })
+    except Exception as e:
+        logger.error(f"Error analyzing dataset: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/generate-report', methods=['POST'])
+def create_report():
+    """Generate comprehensive security report"""
+    data = request.json
+    results = data.get('results', [])
+    model_info = data.get('modelInfo', {})
+    
+    if not results:
+        return jsonify({'success': False, 'error': 'No results provided'}), 400
+    
+    try:
+        logger.info("Generating security report")
+        report = generate_report(results, model_info)
+        
+        # Save report to file
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        save_path = f"reports/security-report-{timestamp}.json"
+        
+        # Create reports directory if it doesn't exist
+        os.makedirs("reports", exist_ok=True)
+        
+        with open(save_path, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        logger.info(f"Report saved to {save_path}")
+        
+        return jsonify({
+            'success': True,
+            'report': report,
+            'file_path': save_path
+        })
+    except Exception as e:
+        logger.error(f"Error generating report: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/cluster', methods=['POST'])
+def cluster_data():
+    """Perform clustering on dataset"""
+    data = request.json
+    dataset = data.get('dataset', [])
+    cluster_count = data.get('clusterCount', 3)
+    
+    if not dataset:
+        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
+    
+    try:
+        logger.info(f"Performing clustering with {cluster_count} clusters on {len(dataset)} samples")
+        clustering_results = perform_clustering(dataset, cluster_count)
+        
+        return jsonify({
+            'success': True,
+            'clustering': clustering_results
+        })
+    except Exception as e:
+        logger.error(f"Error performing clustering: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/generate-signatures', methods=['POST'])
+def create_signatures():
+    """Generate attack signatures from dataset"""
+    data = request.json
+    dataset = data.get('dataset', [])
+    
+    if not dataset:
+        return jsonify({'success': False, 'error': 'No dataset provided'}), 400
+    
+    try:
+        logger.info(f"Generating attack signatures from {len(dataset)} samples")
+        signatures = generate_attack_signatures(dataset)
+        
+        return jsonify({
+            'success': True,
+            'signatures': signatures
+        })
+    except Exception as e:
+        logger.error(f"Error generating signatures: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/ml/predict', methods=['POST'])
+def predict_sample():
+    """Predict a sample using trained models"""
+    data = request.json
+    sample = data.get('sample')
+    model_type = data.get('modelType', 'isolation_forest')
+    model_id = data.get('modelId')
+    
+    if not sample:
+        return jsonify({'success': False, 'error': 'No sample provided'}), 400
+    
+    try:
+        # Try to get model from stored models
+        if model_id and model_id in trained_models:
+            model = trained_models[model_id].get(model_type)
+        else:
+            # Use latest model if available
+            latest_model_id = list(trained_models.keys())[-1] if trained_models else None
+            model = trained_models.get(latest_model_id, {}).get(model_type) if latest_model_id else None
+        
+        if not model:
+            return jsonify({'success': False, 'error': 'No trained model available'}), 400
+        
+        # Extract features from sample
+        features = [
+            sample.get("response_code", 200),
+            1 if sample.get("body_word_count_changed", False) else 0,
+            1 if sample.get("alert_detected", False) else 0,
+            1 if sample.get("error_detected", False) else 0
+        ]
+        
+        # Make prediction based on model type
+        if model_type == 'isolation_forest':
+            prediction = predict_anomaly(features, model)
+            result = {
+                'anomaly': prediction,
+                'is_anomaly': prediction == -1,
+                'sample': sample
+            }
+        else:  # random_forest
+            prediction = predict_effectiveness(features, model)
+            result = {
+                'effective': prediction,
+                'is_effective': prediction == 1,
+                'sample': sample
+            }
+        
+        return jsonify({
+            'success': True,
+            'prediction': result
+        })
+    except Exception as e:
+        logger.error(f"Error predicting sample: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ... keep existing code (train_and_analyze endpoint)
 
 @app.route('/api/ml/generate-payloads', methods=['POST'])
 def generate_enhanced_payloads():
