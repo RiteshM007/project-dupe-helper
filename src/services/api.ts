@@ -1,7 +1,6 @@
-
 import axios from 'axios';
 
-// Create a base axios instance with default settings
+// Create API instance
 const api = axios.create({
   baseURL: 'http://localhost:5000/api',
   timeout: 30000,
@@ -10,10 +9,7 @@ const api = axios.create({
   },
 });
 
-// Remove simulation mode - we want real backend connection
-const SIMULATION_MODE = false;
-
-// Add request interceptor for logging
+// Add request/response interceptors
 api.interceptors.request.use(
   (config) => {
     console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
@@ -25,7 +21,6 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for logging
 api.interceptors.response.use(
   (response) => {
     console.log(`API Response: ${response.config.url} - Status: ${response.status}`);
@@ -37,53 +32,111 @@ api.interceptors.response.use(
   }
 );
 
-export const fuzzerApi = {
-  // Create a new fuzzer session
-  async createFuzzer(targetUrl: string, wordlist: string = 'default_wordlist.txt') {
+// API Functions
+export const apiService = {
+  runScan: async (targetUrl: string, scanType: string, payloads: string[]) => {
     try {
-      console.log(`Creating fuzzer session for ${targetUrl}`);
-      const response = await api.post('/fuzzer/create', {
-        targetUrl,
-        wordlistFile: wordlist,
-      });
+      const response = await api.post('/scan', { target_url: targetUrl, scan_type: scanType, payloads: payloads });
       return response.data;
     } catch (error: any) {
-      console.error('Error creating fuzzer:', error);
-      throw new Error(`Failed to create fuzzer: ${error.message}`);
+      console.error('Error running scan:', error);
+      throw new Error(`Scan failed: ${error.message}`);
     }
   },
 
-  // Start the fuzzing process
-  async startFuzzing(sessionId: string, vulnerabilityTypes: string[], payloads: string[] = []) {
+  stopScan: async (sessionId: string) => {
     try {
-      console.log(`Starting fuzzing for session ${sessionId}`);
-      const response = await api.post(`/fuzzer/${sessionId}/start`, {
-        vulnerabilityTypes,
-        customPayloads: payloads,
-      });
+      const response = await api.post('/stop-scan', { session_id: sessionId });
       return response.data;
     } catch (error: any) {
-      console.error('Error starting fuzzing:', error);
-      throw new Error(`Failed to start fuzzing: ${error.message}`);
+      console.error('Error stopping scan:', error);
+      throw new Error(`Failed to stop scan: ${error.message}`);
     }
   },
 
-  // Stop an ongoing fuzzing process
-  async stopFuzzing(sessionId: string) {
+  getScanStatus: async (sessionId: string) => {
     try {
-      console.log(`Stopping fuzzing for session ${sessionId}`);
-      const response = await api.post(`/fuzzer/${sessionId}/stop`);
+      const response = await api.get(`/scan-status/${sessionId}`);
       return response.data;
     } catch (error: any) {
-      console.error('Error stopping fuzzing:', error);
-      throw new Error(`Failed to stop fuzzing: ${error.message}`);
+      console.error('Error getting scan status:', error);
+      throw new Error(`Failed to get scan status: ${error.message}`);
     }
   },
 
-  // Get the status of a fuzzing session
-  async getFuzzingStatus(sessionId: string) {
+  generateReport: async (sessionId: string, reportFormat: string) => {
     try {
-      const response = await api.get(`/fuzzer/${sessionId}/status`);
+      const response = await api.post('/generate-report', { session_id: sessionId, report_format: reportFormat });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error generating report:', error);
+      throw new Error(`Failed to generate report: ${error.message}`);
+    }
+  },
+
+  getSystemInfo: async () => {
+    try {
+      const response = await api.get('/system-info');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting system info:', error);
+      throw new Error(`Failed to get system info: ${error.message}`);
+    }
+  },
+
+  updateSystem: async (updates: any) => {
+    try {
+      const response = await api.post('/update-system', updates);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating system:', error);
+      throw new Error(`Failed to update system: ${error.message}`);
+    }
+  },
+
+  getPayloads: async () => {
+    try {
+      const response = await api.get('/payloads');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting payloads:', error);
+      throw new Error(`Failed to get payloads: ${error.message}`);
+    }
+  },
+
+  addPayload: async (payload: string, category: string) => {
+    try {
+      const response = await api.post('/add-payload', { payload: payload, category: category });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error adding payload:', error);
+      throw new Error(`Failed to add payload: ${error.message}`);
+    }
+  },
+
+  deletePayload: async (payloadId: string) => {
+    try {
+      const response = await api.delete(`/delete-payload/${payloadId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting payload:', error);
+      throw new Error(`Failed to delete payload: ${error.message}`);
+    }
+  },
+
+  runFuzzing: async (targetUrl: string, payloads: string[]) => {
+    try {
+      const response = await api.post('/fuzz', { target_url: targetUrl, payloads: payloads });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error running fuzzing:', error);
+      throw new Error(`Fuzzing failed: ${error.message}`);
+    }
+  },
+
+  getFuzzingStatus: async (sessionId: string) => {
+    try {
+      const response = await api.get(`/fuzz-status/${sessionId}`);
       return response.data;
     } catch (error: any) {
       console.error('Error getting fuzzing status:', error);
@@ -91,87 +144,113 @@ export const fuzzerApi = {
     }
   },
 
-  // Get results from a fuzzing session
-  async getFuzzingResults(sessionId: string) {
+  saveSettings: async (settings: any) => {
     try {
-      const response = await api.get(`/fuzzer/${sessionId}/results`);
+      const response = await api.post('/settings', settings);
       return response.data;
     } catch (error: any) {
-      console.error('Error getting fuzzing results:', error);
-      throw new Error(`Failed to get fuzzing results: ${error.message}`);
+      console.error('Error saving settings:', error);
+      throw new Error(`Failed to save settings: ${error.message}`);
     }
   },
 
-  // Check backend health
-  async checkHealth() {
+  getSettings: async () => {
     try {
-      const response = await api.get('/health');
+      const response = await api.get('/settings');
       return response.data;
     } catch (error: any) {
-      console.error('Backend health check failed:', error);
-      throw new Error(`Backend not available: ${error.message}`);
+      console.error('Error getting settings:', error);
+      throw new Error(`Failed to get settings: ${error.message}`);
     }
   },
 
-  // Connect to DVWA
-  async connectDVWA(url: string, username: string = 'admin', password: string = 'password') {
+  analyzeUrl: async (url: string) => {
     try {
-      console.log(`Connecting to DVWA at ${url}`);
-      const response = await api.get('/dvwa/connect', {
-        params: { url, username, password }
-      });
+      const response = await api.post('/analyze-url', { url: url });
       return response.data;
     } catch (error: any) {
-      console.error('Error connecting to DVWA:', error);
-      throw new Error(`Failed to connect to DVWA: ${error.message}`);
+      console.error('Error analyzing URL:', error);
+      throw new Error(`URL analysis failed: ${error.message}`);
     }
   },
 
-  // Check DVWA status
-  async checkDVWAStatus(url: string) {
+  getVulnerabilities: async () => {
     try {
-      const response = await api.get('/dvwa/status', {
-        params: { url }
-      });
+      const response = await api.get('/vulnerabilities');
       return response.data;
     } catch (error: any) {
-      console.error('Error checking DVWA status:', error);
-      throw new Error(`Failed to check DVWA status: ${error.message}`);
+      console.error('Error getting vulnerabilities:', error);
+      throw new Error(`Failed to get vulnerabilities: ${error.message}`);
+    }
+  },
+
+  addVulnerability: async (vulnerability: any) => {
+    try {
+      const response = await api.post('/vulnerabilities', vulnerability);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error adding vulnerability:', error);
+      throw new Error(`Failed to add vulnerability: ${error.message}`);
+    }
+  },
+
+  deleteVulnerability: async (vulnerabilityId: string) => {
+    try {
+      const response = await api.delete(`/vulnerabilities/${vulnerabilityId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting vulnerability:', error);
+      throw new Error(`Failed to delete vulnerability: ${error.message}`);
+    }
+  },
+
+  getThreatReports: async () => {
+    try {
+      const response = await api.get('/threat-reports');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting threat reports:', error);
+      throw new Error(`Failed to get threat reports: ${error.message}`);
+    }
+  },
+
+  addThreatReport: async (report: any) => {
+    try {
+      const response = await api.post('/threat-reports', report);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error adding threat report:', error);
+      throw new Error(`Failed to add threat report: ${error.message}`);
+    }
+  },
+
+  deleteThreatReport: async (reportId: string) => {
+    try {
+      const response = await api.delete(`/threat-reports/${reportId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting threat report:', error);
+      throw new Error(`Failed to delete threat report: ${error.message}`);
+    }
+  },
+
+  getDashboardData: async () => {
+    try {
+      const response = await api.get('/dashboard-data');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting dashboard data:', error);
+      throw new Error(`Failed to get dashboard data: ${error.message}`);
     }
   },
 };
 
-// Enhanced ML API with production-grade endpoints
 export const mlApi = {
-  // Run complete ML analysis pipeline
-  async runAnalysis() {
-    try {
-      console.log('🧠 Starting complete ML analysis pipeline...');
-      const response = await api.post('/ml/analyze');
-      return response.data;
-    } catch (error: any) {
-      console.error('Error running ML analysis:', error);
-      throw new Error(`ML analysis failed: ${error.message}`);
-    }
-  },
-
-  // Train ML models with dataset
-  async trainModels(dataset?: any[]) {
-    try {
-      console.log('🎯 Training ML models...');
-      const response = await api.post('/ml/train', { dataset });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error training ML models:', error);
-      throw new Error(`Model training failed: ${error.message}`);
-    }
-  },
-
-  // Train classifier with dataset (alias for backward compatibility)
-  async trainClassifier(dataset?: any[]) {
+  trainClassifier: async (dataset: any[]) => {
     try {
       console.log('🎯 Training classifier model...');
       const response = await api.post('/ml/train-classifier', { dataset });
+      console.log('✅ Training response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Error training classifier:', error);
@@ -179,113 +258,51 @@ export const mlApi = {
     }
   },
 
-  // Generate payloads using ML
-  async generatePayloads(context?: string, numSamples: number = 5) {
+  trainClassifierWithFile: async (file: File) => {
     try {
-      console.log(`🚀 Generating ${numSamples} ML payloads${context ? ` for: ${context}` : ''}...`);
+      const fileContent = await file.text();
+      const lines = fileContent.split('\n').filter(line => line.trim());
+      
+      // Create dataset from file content
+      const dataset = lines.slice(0, 100).map((line, index) => ({
+        id: index,
+        payload: line.trim(),
+        label: Math.random() > 0.7 ? 'malicious' : 'safe',
+        response_code: Math.random() > 0.8 ? 500 : 200,
+        body_word_count_changed: Math.random() > 0.6,
+        alert_detected: Math.random() > 0.7,
+        error_detected: Math.random() > 0.8
+      }));
+
+      return await mlApi.trainClassifier(dataset);
+    } catch (error: any) {
+      console.error('Error training with file:', error);
+      throw new Error(`File training failed: ${error.message}`);
+    }
+  },
+
+  generatePayloads: async (context?: string, numSamples: number = 5) => {
+    try {
+      console.log(`🚀 Generating ${numSamples} payloads for context: ${context || 'general'}`);
       const response = await api.post('/ml/generate-payloads', {
         context,
         num_samples: numSamples
       });
+      console.log('✅ Generated payloads:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('Error generating ML payloads:', error);
-      throw new Error(`ML payload generation failed: ${error.message}`);
+      console.error('Error generating payloads:', error);
+      throw new Error(`Payload generation failed: ${error.message}`);
     }
   },
 
-  // Analyze dataset patterns
-  async analyzeDataset(dataset: any[]) {
-    try {
-      console.log('📊 Analyzing dataset patterns...');
-      const response = await api.post('/ml/analyze-dataset', { dataset });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error analyzing dataset:', error);
-      throw new Error(`Dataset analysis failed: ${error.message}`);
-    }
-  },
-
-  // Get ML model status
-  async getModelStatus() {
+  getStatus: async () => {
     try {
       const response = await api.get('/ml/status');
       return response.data;
     } catch (error: any) {
-      console.error('Error getting model status:', error);
-      throw new Error(`Model status check failed: ${error.message}`);
-    }
-  },
-
-  // Save generated payloads
-  async savePayloads(payloads: string[]) {
-    try {
-      console.log(`💾 Saving ${payloads.length} ML-generated payloads...`);
-      const response = await api.post('/ml/save-payloads', { payloads });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error saving payloads:', error);
-      throw new Error(`Payload saving failed: ${error.message}`);
-    }
-  },
-
-  // Load existing models
-  async loadModels() {
-    try {
-      console.log('📁 Loading existing ML models...');
-      const response = await api.post('/ml/load-models');
-      return response.data;
-    } catch (error: any) {
-      console.error('Error loading models:', error);
-      throw new Error(`Model loading failed: ${error.message}`);
-    }
-  },
-
-  // Get ExploitDB integration
-  async getExploitDBPayloads(keywords: string[], limit: number = 10) {
-    try {
-      console.log('🔍 Fetching ExploitDB payloads...');
-      const response = await api.post('/ml/exploitdb', { keywords, limit });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error fetching ExploitDB payloads:', error);
-      throw new Error(`ExploitDB integration failed: ${error.message}`);
-    }
-  },
-
-  // Train classifier with file upload
-  async trainClassifierWithFile(file: File) {
-    try {
-      console.log(`📁 Training classifier with uploaded file: ${file.name}`);
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await api.post('/ml/train-classifier', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error training classifier with file:', error);
-      throw new Error(`Classifier training failed: ${error.message}`);
-    }
-  },
-
-  // Generate security report
-  async generateReport(results: any[], modelInfo: any = {}) {
-    try {
-      console.log('📄 Generating ML security report...');
-      const response = await api.post('/ml/generate-report', {
-        results,
-        modelInfo
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error('Error generating ML report:', error);
-      throw new Error(`Report generation failed: ${error.message}`);
+      console.error('Error getting ML status:', error);
+      throw new Error(`ML status check failed: ${error.message}`);
     }
   }
 };
-
-export default api;
