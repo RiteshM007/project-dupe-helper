@@ -306,3 +306,94 @@ export const mlApi = {
     }
   }
 };
+
+// Fuzzer API for backend fuzzing operations
+export const fuzzerApi = {
+  checkHealth: async () => {
+    try {
+      const response = await api.get('/health');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error checking health:', error);
+      throw new Error(`Health check failed: ${error.message}`);
+    }
+  },
+
+  createFuzzer: async (targetUrl: string) => {
+    try {
+      const response = await api.post('/fuzzer/create', { target_url: targetUrl });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating fuzzer:', error);
+      throw new Error(`Fuzzer creation failed: ${error.message}`);
+    }
+  },
+
+  startFuzzing: async (sessionId: string, vulnTypes: string[], payloads: string[]) => {
+    try {
+      const response = await api.post('/fuzzer/start', { 
+        session_id: sessionId, 
+        vulnerability_types: vulnTypes, 
+        payloads: payloads 
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error starting fuzzing:', error);
+      throw new Error(`Fuzzing start failed: ${error.message}`);
+    }
+  },
+
+  stopFuzzing: async (sessionId: string) => {
+    try {
+      const response = await api.post('/fuzzer/stop', { session_id: sessionId });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error stopping fuzzing:', error);
+      throw new Error(`Fuzzing stop failed: ${error.message}`);
+    }
+  },
+
+  getFuzzingStatus: async (sessionId: string) => {
+    try {
+      const response = await api.get(`/fuzzer/${sessionId}/status`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting fuzzing status:', error);
+      throw new Error(`Fuzzing status failed: ${error.message}`);
+    }
+  },
+
+  getFuzzingResults: async (sessionId: string) => {
+    try {
+      const response = await api.get(`/fuzzer/${sessionId}/results`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting fuzzing results:', error);
+      throw new Error(`Fuzzing results failed: ${error.message}`);
+    }
+  },
+
+  checkDVWAStatus: async (url: string) => {
+    try {
+      const response = await api.post('/dvwa/status', { url: url });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error checking DVWA status:', error);
+      throw new Error(`DVWA status check failed: ${error.message}`);
+    }
+  },
+
+  connectDVWA: async (url: string, username: string, password: string) => {
+    try {
+      const response = await api.post('/dvwa/connect', { 
+        url: url, 
+        username: username, 
+        password: password 
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error connecting to DVWA:', error);
+      throw new Error(`DVWA connection failed: ${error.message}`);
+    }
+  }
+};

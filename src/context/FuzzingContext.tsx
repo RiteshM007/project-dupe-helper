@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
 interface FuzzingContextType {
@@ -11,6 +12,8 @@ interface FuzzingContextType {
   threatReports: any[];
   lastScanResult: any | null;
   setLastScanResult: (result: any) => void;
+  lastUpdated: string | null;
+  setLastUpdated: (timestamp: string) => void;
 }
 
 const FuzzingContext = createContext<FuzzingContextType>({
@@ -24,6 +27,8 @@ const FuzzingContext = createContext<FuzzingContextType>({
   threatReports: [],
   lastScanResult: null,
   setLastScanResult: () => {},
+  lastUpdated: null,
+  setLastUpdated: () => {},
 });
 
 export const useFuzzing = () => useContext(FuzzingContext);
@@ -34,9 +39,11 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [mlResults, setMlResults] = useState<any[]>([]);
   const [threatReports, setThreatReports] = useState<any[]>([]);
   const [lastScanResult, setLastScanResult] = useState<any | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const addThreatReport = (report: any) => {
     setThreatReports(prev => [...prev, report]);
+    setLastUpdated(new Date().toISOString());
   };
 
   useEffect(() => {
@@ -59,6 +66,7 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       setLastScanResult(result);
       setIsScanning(false);
+      setLastUpdated(new Date().toISOString());
     };
 
     const handleMLComplete = (event: CustomEvent) => {
@@ -90,6 +98,7 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       
       setIsScanning(false);
+      setLastUpdated(new Date().toISOString());
     };
 
     // Listen to multiple event types for maximum compatibility
@@ -131,6 +140,8 @@ export const FuzzingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     threatReports,
     lastScanResult,
     setLastScanResult,
+    lastUpdated,
+    setLastUpdated,
   };
 
   return (
