@@ -31,7 +31,7 @@ const MLAnalysisPage = () => {
   const [customContext, setCustomContext] = useState('');
   
   const { socket, emit } = useSocket();
-  const { setMlResults, addThreatReport } = useFuzzing();
+  const { mlResults, setMlResults, addThreatReport } = useFuzzing();
 
   useEffect(() => {
     // Load model status on component mount
@@ -66,8 +66,8 @@ const MLAnalysisPage = () => {
           setGeneratedPayloads(prev => [...prev, ...result.payloads!]);
         }
         
-        // Update global context
-        setMlResults(prev => [...prev, {
+        // Update global context - Fix: Use direct array value instead of function
+        const newMlResult = {
           sessionId: `ml-${Date.now()}`,
           patterns: result.patterns?.length || 0,
           accuracy: result.model_performance?.accuracy || 0.85,
@@ -75,7 +75,11 @@ const MLAnalysisPage = () => {
             (result.anomaly_detection_rate > 0.3 ? 'High' : 'Medium') : 'Low',
           type: 'ml_analysis',
           timestamp: new Date().toISOString()
-        }]);
+        };
+        
+        // Fixed: Create new array directly instead of using function
+        const updatedMlResults = [...mlResults.slice(-4), newMlResult];
+        setMlResults(updatedMlResults);
         
         // Emit Socket.IO event
         if (socket) {
