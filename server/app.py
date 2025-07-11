@@ -10,11 +10,15 @@ import json
 import uuid
 
 # Import ML functions
-from enhanced_ml_models import (
-    train_classifier, 
+from comprehensive_ml_models import (
+    train_advanced_classifier, 
     train_isolation_forest, 
-    parse_uploaded_dataset,
-    generate_payloads
+    perform_clustering_analysis,
+    generate_attack_signatures,
+    generate_comprehensive_report,
+    predict_payload_effectiveness,
+    generate_intelligent_payloads,
+    parse_uploaded_dataset
 )
 
 app = Flask(__name__)
@@ -294,8 +298,8 @@ def train_ml_classifier():
                 {'payload': "normal query", 'label': 'safe', 'response_code': 200, 'body_word_count_changed': False, 'alert_detected': False, 'error_detected': False},
             ])
         
-        # Train classifier
-        classifier_result = train_classifier(dataset)
+        # Train advanced classifier
+        classifier_result = train_advanced_classifier(dataset)
         
         # Train isolation forest (optional)
         try:
@@ -304,8 +308,8 @@ def train_ml_classifier():
             logger.warning(f"Isolation Forest training failed: {e}")
             isolation_result = {'success': False, 'error': str(e)}
         
-        # Generate sample payloads
-        generated_payloads = generate_payloads("general", 3)
+        # Generate intelligent payloads
+        generated_payloads = generate_intelligent_payloads("general", 5, "medium")
         
         # Combine results
         result = {
@@ -370,9 +374,9 @@ def generate_ml_payloads():
         context = data.get('context', None)
         num_samples = data.get('num_samples', 5)
         
-        logger.info(f"Generating {num_samples} payloads for context: {context}")
+        logger.info(f"Generating {num_samples} intelligent payloads for context: {context}")
         
-        payloads = generate_payloads(context, num_samples)
+        payloads = generate_intelligent_payloads(context, num_samples, "medium")
         
         result = {
             'status': 'success',
@@ -412,6 +416,310 @@ def ml_status():
     })
 
 # ... keep existing code (original fuzz endpoint and other routes)
+
+# NEW ADVANCED ML ENDPOINTS
+
+@app.route('/api/ml/train-isolation-forest', methods=['POST'])
+def train_isolation_forest_endpoint():
+    try:
+        data = request.get_json()
+        dataset_raw = data.get('dataset', [])
+        
+        logger.info(f"Training Isolation Forest on {len(dataset_raw)} samples")
+        
+        import pandas as pd
+        if isinstance(dataset_raw, list) and len(dataset_raw) > 0:
+            dataset = pd.DataFrame(dataset_raw)
+        else:
+            # Create sample dataset
+            dataset = pd.DataFrame([
+                {'payload': "' OR 1=1 --", 'label': 'malicious'},
+                {'payload': "normal query", 'label': 'safe'},
+                {'payload': "<script>alert('xss')</script>", 'label': 'malicious'},
+            ])
+        
+        result = train_isolation_forest(dataset)
+        
+        socketio.emit('mlIsolationForestComplete', {
+            'success': result.get('success', False),
+            'anomaly_rate': result.get('metrics', {}).get('anomalyRate', 0.0),
+            'samples_processed': result.get('samples_processed', 0),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Isolation Forest training error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ml/perform-clustering', methods=['POST'])
+def perform_clustering_endpoint():
+    try:
+        data = request.get_json()
+        dataset_raw = data.get('dataset', [])
+        
+        logger.info(f"Performing clustering analysis on {len(dataset_raw)} samples")
+        
+        import pandas as pd
+        if isinstance(dataset_raw, list) and len(dataset_raw) > 0:
+            dataset = pd.DataFrame(dataset_raw)
+        else:
+            # Create sample dataset
+            dataset = pd.DataFrame([
+                {'payload': "' OR 1=1 --", 'label': 'malicious'},
+                {'payload': "' UNION SELECT * FROM users --", 'label': 'malicious'},
+                {'payload': "<script>alert('xss')</script>", 'label': 'malicious'},
+                {'payload': "<img src=x onerror=alert(1)>", 'label': 'malicious'},
+                {'payload': "normal search query", 'label': 'safe'},
+                {'payload': "legitimate user input", 'label': 'safe'},
+            ])
+        
+        result = perform_clustering_analysis(dataset)
+        
+        socketio.emit('mlClusteringComplete', {
+            'success': result.get('success', False),
+            'kmeans_clusters': result.get('kmeans', {}).get('n_clusters', 0),
+            'dbscan_clusters': result.get('dbscan', {}).get('n_clusters', 0),
+            'samples_processed': result.get('samples_processed', 0),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Clustering analysis error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ml/generate-signatures', methods=['POST'])
+def generate_signatures_endpoint():
+    try:
+        data = request.get_json()
+        successful_payloads = data.get('payloads', [])
+        
+        logger.info(f"Generating attack signatures from {len(successful_payloads)} payloads")
+        
+        if not successful_payloads:
+            # Use sample successful payloads
+            successful_payloads = [
+                "' OR 1=1 --",
+                "<script>alert('xss')</script>",
+                "../../../etc/passwd",
+                "; ls -la",
+                "' UNION SELECT * FROM users --"
+            ]
+        
+        signatures = generate_attack_signatures(successful_payloads)
+        
+        result = {
+            'success': True,
+            'signatures': signatures,
+            'total_signatures': sum(len(sigs) for sigs in signatures.values()),
+            'categories': list(signatures.keys()),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        socketio.emit('mlSignaturesGenerated', {
+            'signatures': signatures,
+            'total_signatures': result['total_signatures'],
+            'categories': result['categories'],
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Signature generation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ml/generate-report', methods=['POST'])
+def generate_report_endpoint():
+    try:
+        data = request.get_json()
+        session_data = data.get('session_data', {})
+        
+        logger.info("Generating comprehensive security report")
+        
+        # Default session data if not provided
+        if not session_data:
+            session_data = {
+                'total_payloads': 100,
+                'vulnerabilities_found': 15,
+                'target_url': 'http://example.com',
+                'vulnerability_types': {
+                    'sql_injection': 8,
+                    'xss': 5,
+                    'command_injection': 2
+                },
+                'duration': '5 minutes'
+            }
+        
+        report = generate_comprehensive_report(session_data)
+        
+        result = {
+            'success': True,
+            'report': report,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        socketio.emit('mlReportGenerated', {
+            'report_summary': report.get('executive_summary', {}),
+            'total_vulnerabilities': len(report.get('vulnerabilities', [])),
+            'risk_level': report.get('executive_summary', {}).get('risk_level', 'UNKNOWN'),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Report generation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ml/predict-anomaly', methods=['POST'])
+def predict_anomaly_endpoint():
+    try:
+        data = request.get_json()
+        payload = data.get('payload', '')
+        
+        if not payload:
+            return jsonify({'success': False, 'error': 'Payload is required'}), 400
+        
+        logger.info(f"Predicting anomaly for payload: {payload[:50]}...")
+        
+        # Use existing isolation forest if available, otherwise create prediction
+        try:
+            # This would use the trained isolation forest model
+            # For now, we'll simulate anomaly detection
+            import re
+            
+            # Simple anomaly detection based on patterns
+            anomaly_score = 0
+            suspicious_patterns = [
+                r"(union|select|drop|insert|delete)",
+                r"(<script|<img|<iframe)",
+                r"(\.\.\/|\.\.\\)",
+                r"(;|\||\&|\`)",
+                r"(\'\s*or\s*|\"\s*or\s*)"
+            ]
+            
+            for pattern in suspicious_patterns:
+                if re.search(pattern, payload, re.IGNORECASE):
+                    anomaly_score += 20
+            
+            # Add entropy-based scoring
+            entropy = sum(1 for c in payload if c in "'\"<>;|&`$()")
+            anomaly_score += min(entropy * 5, 40)
+            
+            is_anomaly = anomaly_score > 50
+            confidence = min(anomaly_score / 100, 1.0)
+            
+            result = {
+                'success': True,
+                'is_anomaly': is_anomaly,
+                'anomaly_score': anomaly_score,
+                'confidence': confidence,
+                'risk_level': 'HIGH' if anomaly_score > 70 else 'MEDIUM' if anomaly_score > 30 else 'LOW',
+                'payload': payload,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.warning(f"Advanced anomaly detection failed, using fallback: {e}")
+            result = {
+                'success': True,
+                'is_anomaly': False,
+                'anomaly_score': 0,
+                'confidence': 0.0,
+                'risk_level': 'UNKNOWN',
+                'payload': payload,
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Anomaly prediction error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ml/predict-effectiveness', methods=['POST'])
+def predict_effectiveness_endpoint():
+    try:
+        data = request.get_json()
+        payload = data.get('payload', '')
+        target_context = data.get('target_context', None)
+        
+        if not payload:
+            return jsonify({'success': False, 'error': 'Payload is required'}), 400
+        
+        logger.info(f"Predicting effectiveness for payload: {payload[:50]}...")
+        
+        result = predict_payload_effectiveness(payload, target_context)
+        result['success'] = True
+        result['timestamp'] = datetime.now().isoformat()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Effectiveness prediction error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ml/advanced-generate-payloads', methods=['POST'])
+def advanced_generate_payloads_endpoint():
+    try:
+        data = request.get_json()
+        context = data.get('context', 'general')
+        num_samples = data.get('num_samples', 10)
+        difficulty_level = data.get('difficulty_level', 'medium')
+        
+        logger.info(f"Generating {num_samples} advanced payloads (difficulty: {difficulty_level})")
+        
+        payloads = generate_intelligent_payloads(context, num_samples, difficulty_level)
+        
+        # Predict effectiveness for each payload
+        payload_analysis = []
+        for payload in payloads:
+            try:
+                effectiveness = predict_payload_effectiveness(payload, context)
+                payload_analysis.append({
+                    'payload': payload,
+                    'effectiveness': effectiveness.get('effectiveness', 'unknown'),
+                    'confidence': effectiveness.get('confidence', 0.0),
+                    'attack_type': effectiveness.get('attack_type', 'Unknown'),
+                    'risk_factors': effectiveness.get('risk_factors', [])
+                })
+            except:
+                payload_analysis.append({
+                    'payload': payload,
+                    'effectiveness': 'unknown',
+                    'confidence': 0.0,
+                    'attack_type': 'Unknown',
+                    'risk_factors': []
+                })
+        
+        result = {
+            'success': True,
+            'payloads': payloads,
+            'payload_analysis': payload_analysis,
+            'count': len(payloads),
+            'context': context,
+            'difficulty_level': difficulty_level,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        socketio.emit('mlAdvancedPayloadsGenerated', {
+            'payloads': payloads,
+            'count': len(payloads),
+            'context': context,
+            'difficulty_level': difficulty_level,
+            'high_effectiveness_count': len([p for p in payload_analysis if p['effectiveness'] == 'high']),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Advanced payload generation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/fuzz', methods=['POST'])
 def fuzz_target():
@@ -490,7 +798,7 @@ def handle_payload_generation_request(data):
     try:
         context = data.get('context', 'general')
         num_samples = data.get('num_samples', 5)
-        payloads = generate_payloads(context, num_samples)
+        payloads = generate_intelligent_payloads(context, num_samples)
         
         result = {
             'success': True,

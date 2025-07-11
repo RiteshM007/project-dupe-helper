@@ -62,7 +62,7 @@ export const mlApiService = {
 
   generatePayloads: async (context?: string, numSamples: number = 5): Promise<PayloadGenerationResult> => {
     try {
-      const result = await mlApi.generatePayloads(context, numSamples);
+      const result = await mlApi.generateAdvancedPayloads(context, numSamples, "medium");
       
       return {
         status: 'success',
@@ -78,6 +78,52 @@ export const mlApiService = {
         payloads: [],
         count: 0
       };
+    }
+  },
+
+  // New advanced ML functions
+  performClustering: async (dataset?: any[]) => {
+    try {
+      const result = await mlApi.performClustering(dataset || []);
+      return result;
+    } catch (error: any) {
+      throw new Error(`Clustering failed: ${error.message}`);
+    }
+  },
+
+  generateSignatures: async (payloads: string[]) => {
+    try {
+      const result = await mlApi.generateSignatures(payloads);
+      return result;
+    } catch (error: any) {
+      throw new Error(`Signature generation failed: ${error.message}`);
+    }
+  },
+
+  generateReport: async (sessionData: any) => {
+    try {
+      const result = await mlApi.generateReport(sessionData);
+      return result;
+    } catch (error: any) {
+      throw new Error(`Report generation failed: ${error.message}`);
+    }
+  },
+
+  predictAnomaly: async (payload: string) => {
+    try {
+      const result = await mlApi.predictAnomaly(payload);
+      return result;
+    } catch (error: any) {
+      throw new Error(`Anomaly prediction failed: ${error.message}`);
+    }
+  },
+
+  predictEffectiveness: async (payload: string, context?: string) => {
+    try {
+      const result = await mlApi.predictEffectiveness(payload, context);
+      return result;
+    } catch (error: any) {
+      throw new Error(`Effectiveness prediction failed: ${error.message}`);
     }
   },
 

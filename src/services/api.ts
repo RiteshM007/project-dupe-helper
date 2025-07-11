@@ -258,6 +258,97 @@ export const mlApi = {
     }
   },
 
+  trainIsolationForest: async (dataset: any[]) => {
+    try {
+      console.log('🎯 Training Isolation Forest...');
+      const response = await api.post('/ml/train-isolation-forest', { dataset });
+      console.log('✅ Isolation Forest response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error training isolation forest:', error);
+      throw new Error(`Isolation Forest training failed: ${error.message}`);
+    }
+  },
+
+  performClustering: async (dataset: any[]) => {
+    try {
+      console.log('🎯 Performing clustering analysis...');
+      const response = await api.post('/ml/perform-clustering', { dataset });
+      console.log('✅ Clustering response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error performing clustering:', error);
+      throw new Error(`Clustering analysis failed: ${error.message}`);
+    }
+  },
+
+  generateSignatures: async (payloads: string[]) => {
+    try {
+      console.log('🎯 Generating attack signatures...');
+      const response = await api.post('/ml/generate-signatures', { payloads });
+      console.log('✅ Signatures response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error generating signatures:', error);
+      throw new Error(`Signature generation failed: ${error.message}`);
+    }
+  },
+
+  generateReport: async (sessionData: any) => {
+    try {
+      console.log('🎯 Generating comprehensive report...');
+      const response = await api.post('/ml/generate-report', { session_data: sessionData });
+      console.log('✅ Report response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error generating report:', error);
+      throw new Error(`Report generation failed: ${error.message}`);
+    }
+  },
+
+  predictAnomaly: async (payload: string) => {
+    try {
+      console.log('🎯 Predicting payload anomaly...');
+      const response = await api.post('/ml/predict-anomaly', { payload });
+      console.log('✅ Anomaly prediction response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error predicting anomaly:', error);
+      throw new Error(`Anomaly prediction failed: ${error.message}`);
+    }
+  },
+
+  predictEffectiveness: async (payload: string, targetContext?: string) => {
+    try {
+      console.log('🎯 Predicting payload effectiveness...');
+      const response = await api.post('/ml/predict-effectiveness', { 
+        payload, 
+        target_context: targetContext 
+      });
+      console.log('✅ Effectiveness prediction response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error predicting effectiveness:', error);
+      throw new Error(`Effectiveness prediction failed: ${error.message}`);
+    }
+  },
+
+  generateAdvancedPayloads: async (context?: string, numSamples: number = 10, difficultyLevel: string = 'medium') => {
+    try {
+      console.log(`🎯 Generating ${numSamples} advanced payloads (${difficultyLevel} difficulty)...`);
+      const response = await api.post('/ml/advanced-generate-payloads', {
+        context,
+        num_samples: numSamples,
+        difficulty_level: difficultyLevel
+      });
+      console.log('✅ Advanced payloads response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error generating advanced payloads:', error);
+      throw new Error(`Advanced payload generation failed: ${error.message}`);
+    }
+  },
+
   trainClassifierWithFile: async (file: File) => {
     try {
       const fileContent = await file.text();
