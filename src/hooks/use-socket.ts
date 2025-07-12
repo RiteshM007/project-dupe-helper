@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 
 // Define specific event types
-export type SocketEvent = 'fuzzing_progress' | 'fuzzing_complete' | 'fuzzing_error' | 'threat_detected';
+export type SocketEvent = 'fuzzing_progress' | 'fuzzing_complete' | 'fuzzing_error' | 'threat_detected' | 'mlAnalysisComplete' | 'mlClusteringComplete' | 'mlSignaturesGenerated' | 'mlReportGenerated';
 
 export const useSocket = () => {
   const [isConnected, setIsConnected] = useState<boolean>(true);
