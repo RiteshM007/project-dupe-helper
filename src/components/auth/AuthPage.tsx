@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Shield } from 'lucide-react';
 
 const AuthPage: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [signInData, setSignInData] = useState({ email: '', password: '' });
-  const [signUpData, setSignUpData] = useState({ 
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [signInData, setSignInData] = React.useState({ email: '', password: '' });
+  const [signUpData, setSignUpData] = React.useState({ 
     email: '', 
     password: '', 
     confirmPassword: '', 
@@ -23,7 +23,7 @@ const AuthPage: React.FC = () => {
   const navigate = useNavigate();
 
   // Redirect if already authenticated
-  useEffect(() => {
+  React.useEffect(() => {
     if (user) {
       navigate('/');
     }
