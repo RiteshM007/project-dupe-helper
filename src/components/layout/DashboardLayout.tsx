@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import UserMenu from '@/components/auth/UserMenu';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -130,18 +131,21 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-background/80 backdrop-blur-sm">
-          {isMobile && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleMobileMenu}
-              className="text-foreground hover:text-primary mr-2"
-            >
-              <Menu size={20} />
-            </Button>
-          )}
-          <h1 className="text-xl font-semibold">Web Application Fuzzer</h1>
-          {isMobile && (
+          <div className="flex items-center">
+            {isMobile && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleMobileMenu}
+                className="text-foreground hover:text-primary mr-2"
+              >
+                <Menu size={20} />
+              </Button>
+            )}
+            <h1 className="text-xl font-semibold">Web Application Fuzzer</h1>
+          </div>
+          
+          <div className="flex items-center space-x-2">
             <Button 
               variant="ghost" 
               size="icon"
@@ -150,7 +154,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </Button>
-          )}
+            <UserMenu />
+          </div>
         </header>
 
         {/* Mobile Menu Overlay */}
