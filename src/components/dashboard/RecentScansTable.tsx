@@ -1,36 +1,70 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldAlert, Shield, Clock } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
-// Mock data for recent scans
-const recentScans = [
-  {
-    id: 1,
-    target: 'api.example.com',
-    status: 'Completed',
-    findings: 7,
-    timestamp: '2023-09-15 14:23',
-    severity: 'high'
-  },
-  {
-    id: 2,
-    target: 'admin.example.com',
-    status: 'Completed',
-    findings: 3,
-    timestamp: '2023-09-15 12:45',
-    severity: 'medium'
-  },
-  {
-    id: 3,
-    target: 'login.example.com',
-    status: 'In Progress',
-    findings: 2,
-    timestamp: '2023-09-15 11:30',
-    severity: 'low'
+interface RecentScan {
+  id: string;
+  target: string;
+  status: string;
+  findings: number;
+  timestamp: string;
+  severity: string;
+}
+
+const RecentScansTable = () => {
+  const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchRecentScans();
+  }, []);
+
+  const fetchRecentScans = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: sessions, error } = await supabase
+        .from('fuzzing_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      const formattedScans: RecentScan[] = (sessions || []).map(session => ({
+        id: session.session_id,
+        target: session.target_url,
+        status: session.status === 'completed' ? 'Completed' : 
+               session.status === 'running' ? 'Running' : 'Pending',
+        findings: session.vulnerabilities_found || 0,
+        timestamp: new Date(session.started_at).toLocaleDateString(),
+        severity: session.vulnerabilities_found > 5 ? 'high' : 
+                 session.vulnerabilities_found > 2 ? 'medium' : 'low'
+      }));
+
+      setRecentScans(formattedScans);
+    } catch (error) {
+      console.error('Failed to fetch recent scans:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-between p-4 bg-gray-800/20 rounded-lg animate-pulse">
+            <div className="h-4 bg-gray-700 rounded w-32"></div>
+            <div className="h-4 bg-gray-700 rounded w-16"></div>
+          </div>
+        ))}
+      </div>
+    );
   }
-];
 
-export const RecentScansTable: React.FC = () => {
   return (
     <div className="overflow-hidden rounded-md border border-white/10">
       <div className="overflow-x-auto">
@@ -79,3 +113,5 @@ export const RecentScansTable: React.FC = () => {
     </div>
   );
 };
+
+export { RecentScansTable };
