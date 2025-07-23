@@ -8,8 +8,7 @@ import Fuzzer from '@/pages/Fuzzer';
 import Analysis from '@/pages/Analysis';
 import Reports from '@/pages/Reports';
 import Settings from '@/pages/Settings';
-import MachineLearning from '@/pages/MachineLearning';
-import MLAnalysis from '@/pages/MLAnalysis';
+import EnhancedMLAnalysis from '@/pages/EnhancedMLAnalysis';
 import AuthPage from '@/components/auth/AuthPage';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -65,12 +64,7 @@ function App() {
                     } />
                     <Route path="/machine-learning" element={
                       <ProtectedRoute>
-                        <MachineLearning />
-                      </ProtectedRoute>
-                    } />
-                    <Route path="/ml-analysis" element={
-                      <ProtectedRoute>
-                        <MLAnalysis />
+                        <EnhancedMLAnalysis />
                       </ProtectedRoute>
                     } />
                   </Routes>

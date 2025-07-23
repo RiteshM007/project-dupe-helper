@@ -1,4 +1,5 @@
 import * as React from 'react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -266,7 +267,8 @@ const EnhancedMLAnalysis: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <DashboardLayout>
+      <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Brain className="h-8 w-8 text-primary" />
         <div>
@@ -611,7 +613,8 @@ const EnhancedMLAnalysis: React.FC = () => {
           Export Results
         </Button>
       </div>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 
